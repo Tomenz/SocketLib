@@ -6,19 +6,20 @@
 
 using namespace std::placeholders;
 
-SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon) : m_pSslCon(pSslCon), m_bShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0), bHelper1(false), bHelper3(false)
+SslTcpSocket::SslTcpSocket(/*SslConnetion* pSslCon*/) : m_pSslCon(nullptr/*pSslCon*/), m_bShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0), bHelper1(false), bHelper3(false)
 {
     atomic_init(&m_atTmpBytes, static_cast<uint32_t>(0));
 	atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
 	atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
 
-    pSslCon->SetErrorCb(bind(&BaseSocket::Close, this));
+    //pSslCon->SetErrorCb(bind(&BaseSocket::Close, this));
     TcpSocket::BindFuncBytesRecived(bind(&SslTcpSocket::DatenEmpfangen, this, _1));
     TcpSocket::BindCloseFunction(bind(&SslTcpSocket::Closeing, this, _1));
 
-	SSL_set_accept_state((*pSslCon)());
+	//SSL_set_accept_state((*pSslCon)());
+    //SSL_set_connect_state((*pSslCon)());
 
-    m_thPumpSsl = thread(&SslTcpSocket::PumpThread, this);
+    //m_thPumpSsl = thread(&SslTcpSocket::PumpThread, this);
 }
 
 SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, SOCKINFO SockInfo) : m_pSslCon(pSslCon), TcpSocket(SockInfo), m_bShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0), bHelper1(false), bHelper3(false)
@@ -27,11 +28,11 @@ SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, SOCKINFO SockInfo) : m_pSslCon
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
 
-    pSslCon->SetErrorCb(bind(&BaseSocket::Close, this));
+    m_pSslCon->SetErrorCb(bind(&BaseSocket::Close, this));
     TcpSocket::BindFuncBytesRecived(bind(&SslTcpSocket::DatenEmpfangen, this, _1));
     TcpSocket::BindCloseFunction(bind(&SslTcpSocket::Closeing, this, _1));
 
-    SSL_set_accept_state((*pSslCon)());
+    SSL_set_accept_state((*m_pSslCon)());
 
     m_thPumpSsl = thread(&SslTcpSocket::PumpThread, this);
 }
@@ -44,6 +45,20 @@ SslTcpSocket::~SslTcpSocket()
 
     if (m_fCloseing != nullptr)
         m_fCloseing(this);
+}
+
+bool SslTcpSocket::Connect(const char* const szIpToWhere, short sPort)
+{
+    m_pSslCon = new SslConnetion(SslClientContext());
+    m_pSslCon->SetErrorCb(bind(&BaseSocket::Close, this));
+    if (m_vProtoList.size() > 0)
+        m_pSslCon->SetAlpnProtokollNames(m_vProtoList);
+    if (m_strTrustRootCert.size() > 0)
+        m_pSslCon->SetTrustedRootCertificates(m_strTrustRootCert.c_str());
+    SSL_set_connect_state((*m_pSslCon)());
+
+    TcpSocket::BindFuncConEstablished(bind(&SslTcpSocket::ConEstablished, this, _1));
+    return TcpSocket::Connect(szIpToWhere, sPort);
 }
 
 uint32_t SslTcpSocket::Read(void* buf, uint32_t len)
@@ -121,6 +136,15 @@ void SslTcpSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing)
     m_fCloseing = fCloseing;
 }
 
+void SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted)
+{
+    m_fClientConneted = fClientConneted;
+}
+
+void SslTcpSocket::ConEstablished(TcpSocket* pTcpSocket)
+{
+    m_thPumpSsl = thread(&SslTcpSocket::PumpThread, this);
+}
 
 void SslTcpSocket::DatenEmpfangen(TcpSocket* pTcpSocket)
 {
@@ -150,6 +174,30 @@ void SslTcpSocket::Closeing(BaseSocket* pTcpSocket)
         delete m_pSslCon;
 }
 
+void SslTcpSocket::SetAlpnProtokollNames(vector<string> vProtoList)
+{
+    m_vProtoList = vProtoList;
+}
+
+string SslTcpSocket::GetSelAlpnProtocol()
+{
+    if (m_pSslCon != nullptr)
+        return m_pSslCon->GetSelAlpnProtocol();
+    return string();
+}
+
+void SslTcpSocket::SetTrustedRootCertificates(const char* szTrustRootCert)
+{
+    m_strTrustRootCert = szTrustRootCert;
+}
+
+long SslTcpSocket::CheckServerCertificate(const char* szHostName)
+{
+    if (m_pSslCon != nullptr)
+        return m_pSslCon->CheckServerCertificate(szHostName);
+    return -1;
+}
+
 void SslTcpSocket::PumpThread()
 {
     atomic<bool> m_afReadCall;
@@ -164,6 +212,8 @@ void SslTcpSocket::PumpThread()
         if (bHandShakeOk == false && m_pSslCon->HandShakeComplet() == true)
         {
             bHandShakeOk = true;
+            if (m_fClientConneted != nullptr)
+                m_fClientConneted(this);
         }
 
         if (m_pSslCon->GetShutDownFlag() != 1 && m_atTmpBytes > 0)
@@ -309,7 +359,6 @@ SslTcpServer::SslTcpServer()
 {
     TcpServer::BindNewConnection(bind(&SslTcpServer::NeueVerbindungen, this, _1, _2));
 }
-
 
 SslTcpServer::~SslTcpServer()
 {

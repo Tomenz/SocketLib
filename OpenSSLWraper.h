@@ -316,7 +316,6 @@ namespace OpenSSLWrapper
             BIO_set_nbio(m_wbio, 1);    // make the bio non blocking
             SSL_set_bio(m_ssl, m_wbio, m_rbio);
 
-
             //BIO_set_callback_arg(m_rbio, (char*)this);
             //BIO_set_callback_arg(m_wbio, (char*)this);
             //BIO_set_callback(m_rbio, CbBioInfo);
@@ -550,6 +549,20 @@ size_t SslGetInwDataSize()
             return m_iShutDownFlag;
         }
 
+        void SetAlpnProtokollNames(vector<string> vProtoList)
+        {
+            if (vProtoList.size() > 0)
+            {
+                vector<unsigned char> proto_list;
+                for (const auto &proto : vProtoList)
+                {
+                    proto_list.push_back(static_cast<char>(proto.size()));
+                    copy_n(proto.c_str(), proto.size(), back_inserter(proto_list));
+                }
+                SSL_set_alpn_protos(m_ssl, proto_list.data(), static_cast<int>(proto_list.size()));
+            }
+        }
+
         string GetSelAlpnProtocol()
         {
             const unsigned char* cpAlpnProto = nullptr;
@@ -562,6 +575,11 @@ size_t SslGetInwDataSize()
             }
 
             return string();
+        }
+
+        void SetTrustedRootCertificates(const char* szFileName)
+        {
+            SSL_CTX_load_verify_locations(m_ssl->ctx, szFileName, nullptr);
         }
 
         long CheckServerCertificate(const char* szHostName)

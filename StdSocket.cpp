@@ -53,9 +53,6 @@ BaseSocket::BaseSocket() : m_fSock(INVALID_SOCKET), m_bStop(false), m_fError(bin
 
 BaseSocket::~BaseSocket()
 {
-    if (m_fCloseing != nullptr)
-        m_fCloseing(this);
-
     if (--s_atRefCount == 0)
     {
 #if defined(_WIN32) || defined(_WIN64)
@@ -130,7 +127,12 @@ TcpSocket::~TcpSocket()
         m_thListen.join();
 
     if (m_fSock != INVALID_SOCKET)
+    {
+        if (m_fCloseing != nullptr)
+            m_fCloseing(this);
+
         ::closesocket(m_fSock);
+    }
 }
 
 bool TcpSocket::Connect(const char* const szIpToWhere, short sPort)
@@ -361,6 +363,9 @@ void TcpSocket::Close()
 
         if (m_fSock != INVALID_SOCKET)
         {
+            if (m_fCloseing != nullptr)
+                m_fCloseing(this);
+
             ::closesocket(m_fSock);
             m_fSock = INVALID_SOCKET;
         }
@@ -524,6 +529,9 @@ void TcpSocket::ConnectThread()
             {
                 socklen_t iLen = sizeof(m_iError);
                 getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
+
+                if (m_fCloseing != nullptr)
+                    m_fCloseing(this);
 
 				::closesocket(m_fSock);
 				m_fSock = INVALID_SOCKET;
@@ -774,7 +782,12 @@ UdpSocket::~UdpSocket()
         m_thListen.join();
 
     if (m_fSock != INVALID_SOCKET)
+    {
+        if (m_fCloseing != nullptr)
+            m_fCloseing(this);
+
         ::closesocket(m_fSock);
+    }
 }
 
 bool UdpSocket::Create(const char* const szIpToWhere, short sPort)
@@ -1075,6 +1088,9 @@ void UdpSocket::Close()
 
     if (m_fSock != INVALID_SOCKET)
     {
+        if (m_fCloseing != nullptr)
+            m_fCloseing(this);
+
         ::closesocket(m_fSock);
         m_fSock = INVALID_SOCKET;
     }

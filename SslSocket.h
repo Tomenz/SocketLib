@@ -13,18 +13,26 @@ class SslTcpSocket : public TcpSocket
 {
     friend SslTcpServer;
 public:
-	SslTcpSocket(SslConnetion* pSslCon);
+	SslTcpSocket(/*SslConnetion* pSslCon*/);
     virtual ~SslTcpSocket();
+    bool Connect(const char* const szIpToWhere, short sPort);
     uint32_t Read(void* buf, uint32_t len) override;
     uint32_t Write(const void* buf, uint32_t len) override;
     void Close() override;
     uint32_t GetBytesAvailible() override;
     void BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) override;
     void BindCloseFunction(function<void(BaseSocket*)> fCloseing) override;
+    void BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) override;
     bool IsSslConnection() override { return true; }
+
+    void SetAlpnProtokollNames(vector<string> vProtoList);
+    string GetSelAlpnProtocol();
+    void SetTrustedRootCertificates(const char* szTrustRootCert);
+    long CheckServerCertificate(const char* szHostName);
 
 private:
 	SslTcpSocket(SslConnetion* pSslCon, SOCKINFO SockInfo);
+    void ConEstablished(TcpSocket* pTcpSocket);
 	void DatenEmpfangen(TcpSocket* pTcpSocket);
     void Closeing(BaseSocket* pTcpSocket);
     void PumpThread();
@@ -33,6 +41,7 @@ private:
     SslConnetion*    m_pSslCon;
     function<void(SslTcpSocket*)> m_fBytesRecived;
     function<void(SslTcpSocket*)> m_fCloseing;
+    function<void(SslTcpSocket*)> m_fClientConneted;
     thread           m_thPumpSsl;
     mutex            m_mxSsl;
 
@@ -51,6 +60,9 @@ private:
     bool             m_bStopThread;
     bool             m_bCloseReq;
     int              m_iShutDown;
+
+    vector<string>   m_vProtoList;
+    string           m_strTrustRootCert;
 
     bool bHelper1;
     bool bHelper3;
