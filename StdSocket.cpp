@@ -97,30 +97,30 @@ void BaseSocket::OnError()
 
 //************************************************************************************
 
-TcpSocket::TcpSocket() : m_bAutoDelete(false)
+TcpSocket::TcpSocket() : m_bAutoDelete(false), m_bCloseReq(false)
 {
 	atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
 	atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
 	atomic_init(&m_atWriteThread, false);
+    atomic_init(&m_atDeleteThread, false);
 }
 
-TcpSocket::TcpSocket(SOCKINFO SockInfo) : m_bAutoDelete(false)
+TcpSocket::TcpSocket(SOCKET fSock) : m_bAutoDelete(false), m_bCloseReq(false)
 {
-    m_fSock         = get<0>(SockInfo);
-    m_strClientAddr = get<1>(SockInfo);
-    m_sClientPort   = get<2>(SockInfo);
-    m_strIFaceAddr  = get<3>(SockInfo);
-    m_sIFacePort    = get<4>(SockInfo);
+    m_fSock = fSock;
+    GetConnectionInfo();
 
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atWriteThread, false);
+    atomic_init(&m_atDeleteThread, false);
 
 	m_bAutoDelClass = true;
 }
 
 TcpSocket::~TcpSocket()
 {
+    OutputDebugString(L"TcpSocket::~TcpSocket\r\n");
     m_bStop = true; // Stops the listening thread
 
     if (m_thListen.joinable() == true)
@@ -128,10 +128,10 @@ TcpSocket::~TcpSocket()
 
     if (m_fSock != INVALID_SOCKET)
     {
+        ::closesocket(m_fSock);
+
         if (m_fCloseing != nullptr)
             m_fCloseing(this);
-
-        ::closesocket(m_fSock);
     }
 }
 
@@ -181,6 +181,8 @@ bool TcpSocket::Connect(const char* const szIpToWhere, short sPort)
         }
         else
         {
+            GetConnectionInfo();
+
             m_thListen = thread(&TcpSocket::SelectThread, this);
 
             if (m_fClientConneted != nullptr)
@@ -245,7 +247,7 @@ uint32_t TcpSocket::Read(void* buf, uint32_t len)
 
 uint32_t TcpSocket::Write(const void* buf, uint32_t len)
 {
-    if (m_bStop == true || len == 0)
+    if (m_bStop == true || m_bCloseReq == true || len == 0)
         return 0;
 
     shared_ptr<uint8_t> tmp(new uint8_t[len]);
@@ -323,6 +325,30 @@ uint32_t TcpSocket::Write(const void* buf, uint32_t len)
                 }
             }
 
+            if (m_bCloseReq == true)
+            {
+                if (::shutdown(m_fSock, SD_SEND) != 0)
+                    ;// OutputDebugString(L"Error shutdown socket\r\n");
+                else
+                    m_iShutDownState |= 2;
+            }
+
+            if ((m_iShutDownState & 3) == 3 && m_fSock != INVALID_SOCKET)
+            {
+                ::closesocket(m_fSock);
+                m_fSock = INVALID_SOCKET;
+            }
+
+            bool bTmp = false;
+            if (m_fSock == INVALID_SOCKET && atomic_compare_exchange_strong(&m_atDeleteThread, &bTmp, true) == true)
+            {
+                if (m_fCloseing != nullptr)
+                    m_fCloseing(this);
+
+                if (m_bAutoDelClass == true)
+                    thread([&]() { delete this; }).detach();
+            }
+
             atomic_exchange(&m_atWriteThread, false);
         }).detach();
     }
@@ -337,8 +363,38 @@ void TcpSocket::StartReceiving()
 
 void TcpSocket::Close()
 {
+    OutputDebugString(L"TcpSocket::Close\r\n");
+    m_bCloseReq = true;
+
+    bool bTmp = false;
+    if (atomic_compare_exchange_strong(&m_atWriteThread, &bTmp, true) == true)
+    {
+        if (::shutdown(m_fSock, SD_SEND) != 0)
+            ;// OutputDebugString(L"Error shutdown socket\r\n");
+        else
+            m_iShutDownState |= 2;
+        atomic_exchange(&m_atWriteThread, false);
+    }
+
     m_bStop = true; // Stops the listening thread
 
+    if (((m_iShutDownState & 3) == 3 || m_iError != 0) && m_fSock != INVALID_SOCKET)
+    {
+        ::closesocket(m_fSock);
+        m_fSock = INVALID_SOCKET;
+    }
+
+    bTmp = false;
+    if (m_fSock == INVALID_SOCKET && atomic_compare_exchange_strong(&m_atDeleteThread, &bTmp, true) == true)
+    {
+        if (m_fCloseing != nullptr)
+            m_fCloseing(this);
+
+        if (m_bAutoDelClass == true)
+            thread([&]() { delete this; }).detach();
+    }
+
+/*
     if (m_bAutoDelClass == true)
 	{
 		lock_guard<mutex> lock(m_mtAutoDelete);
@@ -355,12 +411,12 @@ void TcpSocket::Close()
         atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
         m_quOutData.clear();
 
-        if (m_fSock != INVALID_SOCKET && ::shutdown(m_fSock, SD_BOTH) != 0)
+        if (m_fSock != INVALID_SOCKET && ::shutdown(m_fSock, SD_SEND) != 0)
             ;// OutputDebugString(L"Error shutdown socket\r\n");
         else
-            m_iShutDownState |= 3;
+            m_iShutDownState |= 2;
         m_mxOutDeque.unlock();
-
+/*
         if (m_fSock != INVALID_SOCKET)
         {
             if (m_fCloseing != nullptr)
@@ -368,8 +424,8 @@ void TcpSocket::Close()
 
             ::closesocket(m_fSock);
             m_fSock = INVALID_SOCKET;
-        }
-    }
+        }*/
+//    }
 }
 
 uint32_t TcpSocket::GetBytesAvailible()
@@ -496,7 +552,7 @@ void TcpSocket::SelectThread()
         }
     }
 
-    if ((m_iShutDownState & 1) == 0)
+    if ((m_iShutDownState & 1) == 0 && m_iError == 0)
     {
         if (::shutdown(m_fSock, SD_RECEIVE) != 0)
             ;// OutputDebugString(L"Error RECEIVE shutdown socket\r\n");
@@ -504,8 +560,24 @@ void TcpSocket::SelectThread()
             m_iShutDownState |= 1;
     }
 
+    if (((m_iShutDownState & 3) == 3 || m_iError != 0) && m_fSock != INVALID_SOCKET)
+    {
+        ::closesocket(m_fSock);
+        m_fSock = INVALID_SOCKET;
+    }
+
     while (m_afReadCall == true)
         this_thread::sleep_for(chrono::milliseconds(1));
+
+    bool bTmp = false;
+    if (m_fSock == INVALID_SOCKET && atomic_compare_exchange_strong(&m_atDeleteThread, &bTmp, true) == true)
+    {
+        if (m_fCloseing != nullptr)
+            m_fCloseing(this);
+
+        if (m_bAutoDelClass == true)
+            thread([&]() { delete this; }).detach();
+    }
 }
 
 void TcpSocket::ConnectThread()
@@ -543,6 +615,8 @@ void TcpSocket::ConnectThread()
 
             if (FD_ISSET(m_fSock, &writefd))
             {
+                GetConnectionInfo();
+
                 m_thListen = thread(&TcpSocket::SelectThread, this);
 
                 if (m_fClientConneted != nullptr)
@@ -555,13 +629,44 @@ void TcpSocket::ConnectThread()
 
 void TcpSocket::AutoDelete()
 {
+    OutputDebugString(L"TcpSocket::AutoDelete\r\n");
     while (m_atWriteThread == true)
         this_thread::sleep_for(chrono::milliseconds(1));
 
     if (m_fSock != INVALID_SOCKET && ::shutdown(m_fSock, SD_SEND) != 0)
         m_iError = WSAGetLastError();   // this line is useless
 
+    if (m_fCloseing != nullptr)
+        m_fCloseing(this);
+
     delete this;
+}
+
+void TcpSocket::GetConnectionInfo()
+{
+    struct sockaddr_storage addrCl;
+    socklen_t addLen = sizeof(addrCl);
+    ::getpeername(m_fSock, (struct sockaddr*)&addrCl, &addLen);  // Get the IP to where the connection was established
+
+    struct sockaddr_storage addrPe;
+    addLen = sizeof(addrPe);
+    ::getsockname(m_fSock, (struct sockaddr*)&addrPe, &addLen);  // Get our IP where the connection was established
+
+    char caAddrClient[INET6_ADDRSTRLEN + 1] = { 0 };
+    char servInfoClient[NI_MAXSERV] = { 0 };
+    if (::getnameinfo((struct sockaddr*)&addrCl, sizeof(struct sockaddr_storage), caAddrClient, sizeof(caAddrClient), servInfoClient, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
+    {
+        m_strClientAddr = caAddrClient;
+        m_sClientPort = stoi(servInfoClient);
+    }
+
+    char caAddrPeer[INET6_ADDRSTRLEN + 1] = { 0 };
+    char servInfoPeer[NI_MAXSERV] = { 0 };
+    if (::getnameinfo((struct sockaddr*)&addrPe, sizeof(struct sockaddr_storage), caAddrPeer, sizeof(caAddrPeer), servInfoPeer, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
+    {
+        m_strIFaceAddr = caAddrPeer;
+        m_sIFacePort = stoi(servInfoPeer);
+    }
 }
 
 //************************************************************************************
@@ -645,14 +750,15 @@ size_t TcpServer::GetPendigConnectionCount()
 
 TcpSocket* TcpServer::GetNextPendingConnection()
 {
-    tuple<SOCKET, string, short, string, short> fSock;
+    m_mtAcceptList.lock();
+    if (m_vSockAccept.size() == 0)
     {
-        lock_guard<mutex> lock(m_mtAcceptList);
-        if (m_vSockAccept.size() == 0)
-            return nullptr;
-        fSock = *begin(m_vSockAccept);
-        m_vSockAccept.erase(begin(m_vSockAccept));
+        m_mtAcceptList.unlock();
+        return nullptr;
     }
+    SOCKET fSock = *begin(m_vSockAccept);
+    m_vSockAccept.erase(begin(m_vSockAccept));
+    m_mtAcceptList.unlock();
 
     return new TcpSocket(fSock);
 }
@@ -673,8 +779,8 @@ void TcpServer::Delete()
     lock_guard<mutex> lock(m_mtAcceptList);
     while (m_vSockAccept.size())
     {
-        ::shutdown(get<0>(m_vSockAccept[0]), SD_BOTH);
-        ::closesocket(get<0>(m_vSockAccept[0]));
+        ::shutdown(m_vSockAccept[0], SD_BOTH);
+        ::closesocket(m_vSockAccept[0]);
         m_vSockAccept.erase(begin(m_vSockAccept));
     }
 }
@@ -724,34 +830,8 @@ void TcpServer::SelectThread()
                             ::setsockopt(fdClient, IPPROTO_IPV6, IPV6_V6ONLY, &on, sizeof(on));
                         }
 
-                        struct sockaddr_storage addrPe;
-                        addLen = sizeof(addrPe);
-                        ::getsockname(fdClient, (struct sockaddr*)&addrPe, &addLen);  // Get our IP where the connection was established
-
-                        string strClientAddr;
-                        short sClientPort;
-
-                        char caAddrClient[INET6_ADDRSTRLEN + 1] = { 0 };
-                        char servInfoClient[NI_MAXSERV] = { 0 };
-                        if (::getnameinfo((struct sockaddr*)&addrCl, sizeof(struct sockaddr_storage), caAddrClient, sizeof(caAddrClient), servInfoClient, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
-                        {
-                            strClientAddr = caAddrClient;
-                            sClientPort = stoi(servInfoClient);
-                        }
-
-                        string strIFaceAddr;
-                        short sIFacePort;
-
-                        char caAddrPeer[INET6_ADDRSTRLEN + 1] = { 0 };
-                        char servInfoPeer[NI_MAXSERV] = { 0 };
-                        if (::getnameinfo((struct sockaddr*)&addrPe, sizeof(struct sockaddr_storage), caAddrPeer, sizeof(caAddrPeer), servInfoPeer, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
-                        {
-                            strIFaceAddr = caAddrPeer;
-                            sIFacePort = stoi(servInfoPeer);
-                        }
-
                         lock_guard<mutex> lock(m_mtAcceptList);
-                        m_vSockAccept.push_back(make_tuple(fdClient, strClientAddr, sClientPort, strIFaceAddr, sIFacePort));
+                        m_vSockAccept.push_back(fdClient);
                         ++nNewConnections;
                     }
                 }
@@ -860,7 +940,7 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp)
 		char loop = 1;
 
         if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
-		|| ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &hops, sizeof(hops)) != 0
+//		|| ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &hops, sizeof(hops)) != 0
 		|| ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &loop, sizeof(loop)) != 0)
         {
             m_iError = WSAGetLastError();
@@ -877,7 +957,7 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp)
 		char loop = 1;
 
         if (::setsockopt(m_fSock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
-		|| ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_TTL, &hops, sizeof(hops)) != 0
+//		|| ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_TTL, &hops, sizeof(hops)) != 0
 		|| ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop)) != 0)
         {
             m_iError = WSAGetLastError();

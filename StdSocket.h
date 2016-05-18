@@ -30,7 +30,6 @@ public:
     virtual void BindCloseFunction(function<void(BaseSocket*)> fCloseing);
 
 protected:
-    typedef tuple<SOCKET, string, short, string, short> SOCKINFO;
     virtual void SetSocketOption(SOCKET& fd);
     virtual void OnError();
 
@@ -74,12 +73,13 @@ public:
 
 protected:
     friend TcpServer;
-    TcpSocket(SOCKINFO SockInfo);
+    TcpSocket(SOCKET);
 
 private:
     void SelectThread();
     void ConnectThread();
     void AutoDelete();
+    void GetConnectionInfo();
 
 private:
     mutex            m_mxInDeque;
@@ -89,9 +89,11 @@ private:
     deque<DATA>      m_quOutData;
     atomic<uint32_t> m_atOutBytes;
     atomic<bool>     m_atWriteThread;
+    atomic<bool>     m_atDeleteThread;
 
     mutex            m_mtAutoDelete;
     bool             m_bAutoDelete;
+    bool             m_bCloseReq;
 
     string           m_strClientAddr;
     short            m_sClientPort;
@@ -117,8 +119,8 @@ private:
     void SelectThread();
 
 protected:
-    vector<SOCKINFO> m_vSockAccept;
-    mutex            m_mtAcceptList;
+    vector<SOCKET> m_vSockAccept;
+    mutex          m_mtAcceptList;
 
 private:
     vector<SOCKET> m_vSock;

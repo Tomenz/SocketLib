@@ -22,7 +22,7 @@ SslTcpSocket::SslTcpSocket(/*SslConnetion* pSslCon*/) : m_pSslCon(nullptr/*pSslC
     //m_thPumpSsl = thread(&SslTcpSocket::PumpThread, this);
 }
 
-SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, SOCKINFO SockInfo) : m_pSslCon(pSslCon), TcpSocket(SockInfo), m_bShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0), bHelper1(false), bHelper3(false)
+SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, SOCKET fSock) : m_pSslCon(pSslCon), TcpSocket(fSock), m_bShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0), bHelper1(false), bHelper3(false)
 {
     atomic_init(&m_atTmpBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
@@ -39,12 +39,13 @@ SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, SOCKINFO SockInfo) : m_pSslCon
 
 SslTcpSocket::~SslTcpSocket()
 {
+    OutputDebugString(L"SslTcpSocket::~SslTcpSocket\r\n");
     m_bStopThread = true;
     if (m_thPumpSsl.joinable() == true)
         m_thPumpSsl.join();
 
-    if (m_fCloseing != nullptr)
-        m_fCloseing(this);
+    //if (m_fCloseing != nullptr)
+    //    m_fCloseing(this);
 }
 
 bool SslTcpSocket::Connect(const char* const szIpToWhere, short sPort)
@@ -118,6 +119,7 @@ uint32_t SslTcpSocket::Write(const void* buf, uint32_t len)
 
 void SslTcpSocket::Close()
 {
+    OutputDebugString(L"SslTcpSocket::Close\r\n");
     m_bCloseReq = true;
 }
 
@@ -170,6 +172,10 @@ void SslTcpSocket::DatenEmpfangen(TcpSocket* pTcpSocket)
 
 void SslTcpSocket::Closeing(BaseSocket* pTcpSocket)
 {
+    OutputDebugString(L"SslTcpSocket::Closeing\r\n");
+    if (m_fCloseing != nullptr)
+        m_fCloseing(this);
+
     if (m_pSslCon != nullptr)
         delete m_pSslCon;
 }
@@ -330,14 +336,14 @@ void SslTcpSocket::PumpThread()
             if (m_iShutDown == 1 || m_iShutDown == -1)
             {
                 bHelper3 = true;
-                TcpSocket::Close();
+                break;
             }
         }
 
         if (m_bCloseReq == true && m_iShutDown == 1 && bHelper3 == false)
         {
             bHelper3 = true;
-            TcpSocket::Close();
+            break;
         }
 
         if (bDidSomeWork == false)
@@ -350,6 +356,7 @@ void SslTcpSocket::PumpThread()
     /* thread-local cleanup */
     ERR_remove_thread_state(nullptr);
 
+    TcpSocket::Close();
     bHelper1 = true;
 }
 
@@ -376,16 +383,17 @@ void SslTcpServer::NeueVerbindungen(TcpServer* pTcpServer, int nCountNewConnecti
 
 SslTcpSocket* SslTcpServer::GetNextPendingConnection()
 {
-    SOCKINFO SockInfo;
+    m_mtAcceptList.lock();
+    if (m_vSockAccept.size() == 0)
     {
-        lock_guard<mutex> lock(m_mtAcceptList);
-        if (m_vSockAccept.size() == 0)
-            return nullptr;
-        SockInfo = *begin(m_vSockAccept);
-        m_vSockAccept.erase(begin(m_vSockAccept));
+        m_mtAcceptList.unlock();
+        return nullptr;
     }
+    SOCKET fSock = *begin(m_vSockAccept);
+    m_vSockAccept.erase(begin(m_vSockAccept));
+    m_mtAcceptList.unlock();
 
-    return new SslTcpSocket(new SslConnetion(*m_SslCtx.begin()->get()), SockInfo);
+    return new SslTcpSocket(new SslConnetion(*m_SslCtx.begin()->get()), fSock);
 }
 
 bool SslTcpServer::AddCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey)

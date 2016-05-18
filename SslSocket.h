@@ -31,7 +31,7 @@ public:
     long CheckServerCertificate(const char* szHostName);
 
 private:
-	SslTcpSocket(SslConnetion* pSslCon, SOCKINFO SockInfo);
+	SslTcpSocket(SslConnetion* pSslCon, SOCKET fSock);
     void ConEstablished(TcpSocket* pTcpSocket);
 	void DatenEmpfangen(TcpSocket* pTcpSocket);
     void Closeing(BaseSocket* pTcpSocket);

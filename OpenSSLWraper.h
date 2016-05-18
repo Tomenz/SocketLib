@@ -6,7 +6,9 @@
 #include <iterator>
 #include <algorithm>
 
-// perl Configure debug-VC-WIN32 no-asm no-ssl2 no-ssl3 no-shared no-comp no-buf-freelists -D_USING_V110_SDK71_
+// perl Configure debug-VC-WIN32 no-asm no-ssl2 no-ssl3 no-shared no-comp no-buf-freelists no-idea no-mdc2 no-rc5 -D_USING_V110_SDK71_
+// ms\do_ms.bat
+// nmake -f ms\nt.mak |  nmake -f ms\ntdll.mak |  nmake -f ms\nt.mak clean |  nmake -f ms\nt.mak clean
 #include "./openssl/ssl.h"
 #include "./openssl/engine.h"
 #include "./openssl/conf.h"
