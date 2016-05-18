@@ -78,7 +78,6 @@ protected:
 private:
     void SelectThread();
     void ConnectThread();
-    void AutoDelete();
     void GetConnectionInfo();
 
 private:

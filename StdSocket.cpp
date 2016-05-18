@@ -387,45 +387,14 @@ void TcpSocket::Close()
     bTmp = false;
     if (m_fSock == INVALID_SOCKET && atomic_compare_exchange_strong(&m_atDeleteThread, &bTmp, true) == true)
     {
-        if (m_fCloseing != nullptr)
-            m_fCloseing(this);
-
-        if (m_bAutoDelClass == true)
-            thread([&]() { delete this; }).detach();
-    }
-
-/*
-    if (m_bAutoDelClass == true)
-	{
-		lock_guard<mutex> lock(m_mtAutoDelete);
-		if (m_bAutoDelete)
-			return;
-
-		m_bAutoDelete = true;
-		// this thread waits until all data is send and delete the class
-		thread(bind(&TcpSocket::AutoDelete, this)).detach();
-	}
-    else
-    {
-        m_mxOutDeque.lock();
-        atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
-        m_quOutData.clear();
-
-        if (m_fSock != INVALID_SOCKET && ::shutdown(m_fSock, SD_SEND) != 0)
-            ;// OutputDebugString(L"Error shutdown socket\r\n");
-        else
-            m_iShutDownState |= 2;
-        m_mxOutDeque.unlock();
-/*
-        if (m_fSock != INVALID_SOCKET)
-        {
+        thread([&]() {
             if (m_fCloseing != nullptr)
                 m_fCloseing(this);
 
-            ::closesocket(m_fSock);
-            m_fSock = INVALID_SOCKET;
-        }*/
-//    }
+            if (m_bAutoDelClass == true)
+                delete this;
+        }).detach();
+    }
 }
 
 uint32_t TcpSocket::GetBytesAvailible()
@@ -625,21 +594,6 @@ void TcpSocket::ConnectThread()
             }
         }
     }
-}
-
-void TcpSocket::AutoDelete()
-{
-    OutputDebugString(L"TcpSocket::AutoDelete\r\n");
-    while (m_atWriteThread == true)
-        this_thread::sleep_for(chrono::milliseconds(1));
-
-    if (m_fSock != INVALID_SOCKET && ::shutdown(m_fSock, SD_SEND) != 0)
-        m_iError = WSAGetLastError();   // this line is useless
-
-    if (m_fCloseing != nullptr)
-        m_fCloseing(this);
-
-    delete this;
 }
 
 void TcpSocket::GetConnectionInfo()
