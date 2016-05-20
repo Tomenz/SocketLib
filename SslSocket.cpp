@@ -286,6 +286,8 @@ void SslTcpSocket::PumpThread()
                 }
                 bDidSomeWork = true;
             }
+            else if (m_bShutDownReceive == true && m_atInBytes == 0 && m_fBytesRecived != nullptr)
+                m_fBytesRecived(this);
         }
 
         // The next to blocks send data,

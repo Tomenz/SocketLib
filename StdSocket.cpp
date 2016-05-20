@@ -503,8 +503,8 @@ void TcpSocket::SelectThread()
                             do
                             {
                                 nCountIn = nTotalReceived;
-                                if (m_atInBytes > 0)
-                                    m_fBytesRecived(this);
+                                //if (m_atInBytes > 0)
+                                m_fBytesRecived(this);
                             } while (nTotalReceived > nCountIn || m_atInBytes > 0);
 
                             if (iSaveShutDown != (m_iShutDownState & 1))
