@@ -138,7 +138,10 @@ TcpSocket::~TcpSocket()
 bool TcpSocket::Connect(const char* const szIpToWhere, short sPort)
 {
     if (m_fSock != INVALID_SOCKET)
+    {
         ::closesocket(m_fSock);
+        m_fSock = INVALID_SOCKET;
+    }
 
     struct addrinfo *lstAddr, input = { 0 };
     input.ai_family = PF_UNSPEC;
@@ -277,7 +280,7 @@ uint32_t TcpSocket::Write(const void* buf, uint32_t len)
 
                 if (::select(static_cast<int>(m_fSock + 1), nullptr, &writefd, &errorfd, &timeout) == 0)
                 {
-                    this_thread::sleep_for(chrono::milliseconds(1));
+                    //this_thread::sleep_for(chrono::milliseconds(1));
                     continue;
                 }
 
@@ -328,9 +331,8 @@ uint32_t TcpSocket::Write(const void* buf, uint32_t len)
             if (m_bCloseReq == true)
             {
                 if (::shutdown(m_fSock, SD_SEND) != 0)
-                    ;// OutputDebugString(L"Error shutdown socket\r\n");
-                else
-                    m_iShutDownState |= 2;
+                    m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
+                m_iShutDownState |= 2;
             }
 
             if ((m_iShutDownState & 3) == 3 && m_fSock != INVALID_SOCKET)
@@ -339,12 +341,14 @@ uint32_t TcpSocket::Write(const void* buf, uint32_t len)
                 m_fSock = INVALID_SOCKET;
             }
 
+            // if the socket was cloesed, and the cloesing callback was not called, we call it now 
             bool bTmp = false;
             if (m_fSock == INVALID_SOCKET && atomic_compare_exchange_strong(&m_atDeleteThread, &bTmp, true) == true)
             {
                 if (m_fCloseing != nullptr)
                     m_fCloseing(this);
 
+                // if it is a autodelete class we start the autodelete thread now
                 if (m_bAutoDelClass == true)
                     thread([&]() { delete this; }).detach();
             }
@@ -370,9 +374,8 @@ void TcpSocket::Close()
     if (atomic_compare_exchange_strong(&m_atWriteThread, &bTmp, true) == true)
     {
         if (::shutdown(m_fSock, SD_SEND) != 0)
-            ;// OutputDebugString(L"Error shutdown socket\r\n");
-        else
-            m_iShutDownState |= 2;
+            m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
+        m_iShutDownState |= 2;
         atomic_exchange(&m_atWriteThread, false);
     }
 
@@ -384,6 +387,7 @@ void TcpSocket::Close()
         m_fSock = INVALID_SOCKET;
     }
 
+    // if the socket was cloesed, and the cloesing callback was not called, we call it now 
     bTmp = false;
     if (m_fSock == INVALID_SOCKET && atomic_compare_exchange_strong(&m_atDeleteThread, &bTmp, true) == true)
     {
@@ -426,7 +430,7 @@ void TcpSocket::SelectThread()
     while (m_bStop == false)
     {
         fd_set readfd, errorfd;
-        struct timeval	timeout;
+        struct timeval timeout;
 
         timeout.tv_sec = 3;
         timeout.tv_usec = 0;
@@ -462,9 +466,8 @@ void TcpSocket::SelectThread()
                         // We set the flag, so we don't read on the connection any more
 
                         if (::shutdown(m_fSock, SD_RECEIVE) != 0)
-                            ;// OutputDebugString(L"Error shutdown socket\r\n");
-                        else
-                            m_iShutDownState |= 1;
+                            m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
+                        m_iShutDownState |= 1;
                         bNotify = true;
                     }
                     else
@@ -524,9 +527,8 @@ void TcpSocket::SelectThread()
     if ((m_iShutDownState & 1) == 0 && m_iError == 0)
     {
         if (::shutdown(m_fSock, SD_RECEIVE) != 0)
-            ;// OutputDebugString(L"Error RECEIVE shutdown socket\r\n");
-        else
-            m_iShutDownState |= 1;
+            m_iError = WSAGetLastError();// OutputDebugString(L"Error RECEIVE shutdown socket\r\n");
+        m_iShutDownState |= 1;
     }
 
     if (((m_iShutDownState & 3) == 3 || m_iError != 0) && m_fSock != INVALID_SOCKET)
@@ -538,12 +540,14 @@ void TcpSocket::SelectThread()
     while (m_afReadCall == true)
         this_thread::sleep_for(chrono::milliseconds(1));
 
+    // if the socket was cloesed, and the cloesing callback was not called, we call it now 
     bool bTmp = false;
     if (m_fSock == INVALID_SOCKET && atomic_compare_exchange_strong(&m_atDeleteThread, &bTmp, true) == true)
     {
         if (m_fCloseing != nullptr)
             m_fCloseing(this);
 
+        // if it is a autodelete class we start the autodelete thread now
         if (m_bAutoDelClass == true)
             thread([&]() { delete this; }).detach();
     }
@@ -817,10 +821,10 @@ UdpSocket::~UdpSocket()
 
     if (m_fSock != INVALID_SOCKET)
     {
+        ::closesocket(m_fSock);
+
         if (m_fCloseing != nullptr)
             m_fCloseing(this);
-
-        ::closesocket(m_fSock);
     }
 }
 
@@ -1030,7 +1034,7 @@ uint32_t UdpSocket::Write(const void* buf, uint32_t len, const string& strTo)
 
                 if (::select(static_cast<int>(m_fSock + 1), nullptr, &writefd, &errorfd, &timeout) == 0)
                 {
-                    this_thread::sleep_for(chrono::milliseconds(1));
+                    //this_thread::sleep_for(chrono::milliseconds(1));
                     continue;
                 }
 
@@ -1115,18 +1119,17 @@ void UdpSocket::Close()
     m_quOutData.clear();
 
     if (::shutdown(m_fSock, SD_BOTH) != 0)
-        ;// OutputDebugString(L"Error shutdown socket\r\n");
-    else
-        m_iShutDownState |= 3;
+        m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
+    m_iShutDownState |= 3;
     m_mxOutDeque.unlock();
 
     if (m_fSock != INVALID_SOCKET)
     {
-        if (m_fCloseing != nullptr)
-            m_fCloseing(this);
-
         ::closesocket(m_fSock);
         m_fSock = INVALID_SOCKET;
+
+        if (m_fCloseing != nullptr)
+            m_fCloseing(this);
     }
 }
 
@@ -1191,9 +1194,8 @@ void UdpSocket::SelectThread()
                     {   // The connection was shutdown from the other side, there will be no more bytes to read on that connection
                         // We set the flag, so we don't read on the connection any more
                         if ((m_iShutDownState & 1) == 0 && ::shutdown(m_fSock, SD_RECEIVE) != 0)
-                            ;// OutputDebugString(L"Error shutdown socket\r\n");
-                        else
-                            m_iShutDownState |= 1;
+                            m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
+                        m_iShutDownState |= 1;
                         bNotify = true;
                     }
                     else
@@ -1265,9 +1267,8 @@ void UdpSocket::SelectThread()
     if ((m_iShutDownState & 1) == 0)
     {
         if (::shutdown(m_fSock, SD_RECEIVE) != 0)
-            ;// OutputDebugString(L"Error RECEIVE shutdown socket\r\n");
-        else
-            m_iShutDownState |= 1;
+            m_iError = WSAGetLastError();// OutputDebugString(L"Error RECEIVE shutdown socket\r\n");
+        m_iShutDownState |= 1;
     }
 
     while (m_afReadCall == true)

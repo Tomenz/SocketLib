@@ -308,7 +308,7 @@ namespace OpenSSLWrapper
     class SslConnetion
     {
     public:
-        SslConnetion(SslContext& ctx, const char* szName = 0) : m_ssl(SSL_new(ctx())), m_iShutDownFlag(INT32_MAX), m_iWantState(0), m_szName(szName)
+        SslConnetion(SslContext* ctx, const char* szName = 0) : m_ssl(SSL_new((*ctx)())), m_iShutDownFlag(INT32_MAX), m_iWantState(0), m_szName(szName)
         {
             m_rbio = BIO_new(BIO_s_mem());
             m_wbio = BIO_new(BIO_s_mem());

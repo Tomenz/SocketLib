@@ -50,7 +50,8 @@ SslTcpSocket::~SslTcpSocket()
 
 bool SslTcpSocket::Connect(const char* const szIpToWhere, short sPort)
 {
-    m_pSslCon = new SslConnetion(SslClientContext());
+    m_pClientCtx = make_shared<SslClientContext>();
+    m_pSslCon = new SslConnetion(m_pClientCtx.get());
     m_pSslCon->SetErrorCb(bind(&BaseSocket::Close, this));
     if (m_vProtoList.size() > 0)
         m_pSslCon->SetAlpnProtokollNames(m_vProtoList);
@@ -395,7 +396,7 @@ SslTcpSocket* SslTcpServer::GetNextPendingConnection()
     m_vSockAccept.erase(begin(m_vSockAccept));
     m_mtAcceptList.unlock();
 
-    return new SslTcpSocket(new SslConnetion(*m_SslCtx.begin()->get()), fSock);
+    return new SslTcpSocket(new SslConnetion(m_SslCtx.begin()->get()), fSock);
 }
 
 bool SslTcpServer::AddCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey)

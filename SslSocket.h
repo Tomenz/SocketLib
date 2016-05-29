@@ -38,6 +38,7 @@ private:
     void PumpThread();
 
 private:
+    shared_ptr<SslClientContext>  m_pClientCtx;
     SslConnetion*    m_pSslCon;
     function<void(SslTcpSocket*)> m_fBytesRecived;
     function<void(SslTcpSocket*)> m_fCloseing;
