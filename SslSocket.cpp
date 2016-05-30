@@ -44,6 +44,9 @@ SslTcpSocket::~SslTcpSocket()
     if (m_thPumpSsl.joinable() == true)
         m_thPumpSsl.join();
 
+    if (m_pSslCon != nullptr)
+        delete m_pSslCon;
+
     //if (m_fCloseing != nullptr)
     //    m_fCloseing(this);
 }
@@ -177,8 +180,8 @@ void SslTcpSocket::Closeing(BaseSocket* pTcpSocket)
     if (m_fCloseing != nullptr)
         m_fCloseing(this);
 
-    if (m_pSslCon != nullptr)
-        delete m_pSslCon;
+//    if (m_pSslCon != nullptr)
+//        delete m_pSslCon;
 }
 
 void SslTcpSocket::SetAlpnProtokollNames(vector<string> vProtoList)
@@ -333,7 +336,7 @@ void SslTcpSocket::PumpThread()
         }
 
         // we close the ssl connection
-        if (m_bCloseReq == true && m_iShutDown == 0 && m_pSslCon->SslGetOutDataSize() == 0 && m_atOutBytes == 0)
+        if (m_bCloseReq == true && m_iShutDown == 0 && m_pSslCon->SslGetOutDataSize() == 0 && (m_atOutBytes == 0 || m_pSslCon->GetShutDownFlag() != INT32_MAX))
         {
             m_iShutDown = m_pSslCon->ShutDownConnection();
             if (m_iShutDown == 1 || m_iShutDown == -1)

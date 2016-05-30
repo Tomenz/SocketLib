@@ -38,6 +38,8 @@ namespace OpenSSLWrapper
 
         ~InitOpenSSL()
         {
+            CRYPTO_set_locking_callback(nullptr);
+
             /* thread-local cleanup */
             ERR_remove_thread_state(nullptr);
 
@@ -58,7 +60,21 @@ namespace OpenSSLWrapper
             SSL_load_error_strings();
             ERR_load_BIO_strings();
             OpenSSL_add_all_algorithms();
+
+            m_pmutLocks = make_unique<mutex[]>(CRYPTO_num_locks());
+            CRYPTO_set_locking_callback(CbLocking);
         }
+
+        static void CbLocking(int iMode, int iType, const char*, int iLine)
+        {
+            if (iMode & CRYPTO_LOCK)
+                m_pmutLocks.get()[iType].lock();
+            else
+                m_pmutLocks.get()[iType].unlock();
+        }
+
+    private:
+        static unique_ptr<mutex[]> m_pmutLocks;
     };
 
 
@@ -164,6 +180,7 @@ namespace OpenSSLWrapper
             SSL_CTX_set_mode(m_ctx, SSL_MODE_ENABLE_PARTIAL_WRITE);
             SSL_CTX_set_verify(m_ctx, SSL_VERIFY_NONE, nullptr);
             //SSL_CTX_set_session_cache_mode(m_ctx, SSL_SESS_CACHE_OFF);
+    SSL_CTX_set_mode(m_ctx, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
 
             SSL_CTX_set_ecdh_auto(m_ctx, 1);
 
