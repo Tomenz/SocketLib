@@ -150,6 +150,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="OpenSSLWraper.cpp" />
     <ClCompile Include="SslSocket.cpp" />
     <ClCompile Include="StdSocket.cpp" />
   </ItemGroup>
