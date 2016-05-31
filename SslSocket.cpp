@@ -406,6 +406,8 @@ bool SslTcpServer::AddCertificat(const char* szCAcertificate, const char* szHost
 {
     m_SslCtx.emplace_back(make_shared<SslServerContext>());
     m_SslCtx.back()->SetCertificates(szCAcertificate, szHostCertificate, szHostKey);
+
+    m_SslCtx.begin()->get()->AddVirtualHost(&m_SslCtx);
     return true;
 }
 

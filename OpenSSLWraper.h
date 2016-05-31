@@ -168,8 +168,6 @@ namespace OpenSSLWrapper
 
     class SslServerContext : public SslContext
     {
-        typedef vector<SslServerContext*> VHOSTLIST;
-
     public:
         SslServerContext() : SslContext(SSLv23_server_method())
         {
@@ -179,8 +177,7 @@ namespace OpenSSLWrapper
             SSL_CTX_set_mode(m_ctx, SSL_MODE_RELEASE_BUFFERS);
             SSL_CTX_set_mode(m_ctx, SSL_MODE_ENABLE_PARTIAL_WRITE);
             SSL_CTX_set_verify(m_ctx, SSL_VERIFY_NONE, nullptr);
-            //SSL_CTX_set_session_cache_mode(m_ctx, SSL_SESS_CACHE_OFF);
-    SSL_CTX_set_mode(m_ctx, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
+            SSL_CTX_set_mode(m_ctx, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
 
             SSL_CTX_set_ecdh_auto(m_ctx, 1);
 
@@ -189,6 +186,7 @@ namespace OpenSSLWrapper
 
             SSL_CTX_set_alpn_select_cb(m_ctx, ALPN_CB, 0);
             //SSL_CTX_set_next_proto_select_cb(m_ctx, NPN_CB, 0);
+            SSL_CTX_set_tlsext_servername_arg(m_ctx, nullptr);
             SSL_CTX_set_tlsext_servername_callback(m_ctx, SNI_CB);
         }
 
@@ -229,15 +227,10 @@ namespace OpenSSLWrapper
             return 1;
         }
 
-        void AddVirtualHost(SslServerContext* ctxVHost)
+        void AddVirtualHost(vector<shared_ptr<SslServerContext>>* pSslCtx)
         {
-            if (m_lVirtualHosts.size() == 0)
-                SSL_CTX_set_tlsext_servername_arg(m_ctx, (void*)&m_lVirtualHosts);
-
-            m_lVirtualHosts.emplace_back(ctxVHost);
+            SSL_CTX_set_tlsext_servername_arg(m_ctx, (void*)pSslCtx);
         }
-
-        size_t GetVirtualHostCount() { return m_lVirtualHosts.size(); }
 
     private:
         static int ALPN_CB(SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in, unsigned int inlen, void *arg)
@@ -294,17 +287,18 @@ namespace OpenSSLWrapper
 */
         static int SNI_CB(SSL *ssl, char iCmd, void* arg)
         {
-            VHOSTLIST* lVirtualHosts = (VHOSTLIST*)arg;
+            vector<shared_ptr<SslServerContext>>* pSslCtx = (vector<shared_ptr<SslServerContext>>*)arg;
+
             const char* szHostName = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 
-            if (lVirtualHosts != nullptr && szHostName != nullptr)
+            if (pSslCtx != nullptr && szHostName != nullptr)
             {
                 //wcout << "Hostname ssl connetion: " << szHostName << endl;
 
                 string strHostName(szHostName);
                 transform(begin(strHostName), end(strHostName), begin(strHostName), ::tolower);
 
-                for (auto& it : *lVirtualHosts)
+                for (auto& it : *pSslCtx)
                 {
                     if (it->m_strCertComName.compare(strHostName) == 0)
                     {
@@ -318,7 +312,6 @@ namespace OpenSSLWrapper
         }
 
     private:
-        VHOSTLIST m_lVirtualHosts;
         string    m_strCertComName;
     };
 
