@@ -39,7 +39,7 @@ SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, SOCKET fSock) : m_pSslCon(pSsl
 
 SslTcpSocket::~SslTcpSocket()
 {
-    OutputDebugString(L"SslTcpSocket::~SslTcpSocket\r\n");
+    //OutputDebugString(L"SslTcpSocket::~SslTcpSocket\r\n");
     m_bStopThread = true;
     if (m_thPumpSsl.joinable() == true)
         m_thPumpSsl.join();
@@ -123,7 +123,7 @@ uint32_t SslTcpSocket::Write(const void* buf, uint32_t len)
 
 void SslTcpSocket::Close()
 {
-    OutputDebugString(L"SslTcpSocket::Close\r\n");
+    //OutputDebugString(L"SslTcpSocket::Close\r\n");
     m_bCloseReq = true;
 }
 
@@ -176,7 +176,7 @@ void SslTcpSocket::DatenEmpfangen(TcpSocket* pTcpSocket)
 
 void SslTcpSocket::Closeing(BaseSocket* pTcpSocket)
 {
-    OutputDebugString(L"SslTcpSocket::Closeing\r\n");
+    //OutputDebugString(L"SslTcpSocket::Closeing\r\n");
     if (m_fCloseing != nullptr)
         m_fCloseing(this);
 

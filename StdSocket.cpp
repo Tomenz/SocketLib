@@ -120,7 +120,7 @@ TcpSocket::TcpSocket(SOCKET fSock) : m_bAutoDelete(false), m_bCloseReq(false)
 
 TcpSocket::~TcpSocket()
 {
-    OutputDebugString(L"TcpSocket::~TcpSocket\r\n");
+    //OutputDebugString(L"TcpSocket::~TcpSocket\r\n");
     m_bStop = true; // Stops the listening thread
 
     if (m_thListen.joinable() == true)
@@ -367,7 +367,7 @@ void TcpSocket::StartReceiving()
 
 void TcpSocket::Close()
 {
-    OutputDebugString(L"TcpSocket::Close\r\n");
+    //OutputDebugString(L"TcpSocket::Close\r\n");
     m_bCloseReq = true;
 
     bool bTmp = false;

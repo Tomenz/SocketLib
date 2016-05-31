@@ -7,7 +7,9 @@
     <ClCompile Include="SslSocket.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
-    <ClCompile Include="OpenSSLWraper.cpp" />
+    <ClCompile Include="OpenSSLWraper.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="OpenSSLWraper.h">
