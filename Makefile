@@ -2,10 +2,11 @@
 CC = g++
 #CFLAGS = -ggdb -w -m32 -D _DEBUG -D ZLIB_CONST -pthread
 CFLAGS = -w -O3 -std=c++14 -m32 -pthread -ffunction-sections -fdata-sections -fomit-frame-pointer
-TARGET = socketlib.a
+TARGET = libsocketlib.a
 INC_PATH = -I .
 
-OBJ = SslSocket.o StdSocket.o
+#OBJ = SslSocket.o StdSocket.o OpenSSLWraper.o
+OBJ = $(patsubst %.cpp,%.o,$(wildcard *.cpp))
 
 $(TARGET): $(OBJ)
 	ar rs $@ $^
