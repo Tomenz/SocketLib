@@ -15,26 +15,26 @@ class SslTcpSocket : public TcpSocket
 public:
 	SslTcpSocket(/*SslConnetion* pSslCon*/);
     virtual ~SslTcpSocket();
-    bool Connect(const char* const szIpToWhere, short sPort);
+    bool Connect(const char* const szIpToWhere, const short sPort);
     uint32_t Read(void* buf, uint32_t len) override;
     uint32_t Write(const void* buf, uint32_t len) override;
     void Close() override;
-    uint32_t GetBytesAvailible() override;
+    uint32_t GetBytesAvailible() const override;
     void BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) override;
     void BindCloseFunction(function<void(BaseSocket*)> fCloseing) override;
     void BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) override;
-    bool IsSslConnection() override { return true; }
+    bool IsSslConnection() const override { return true; }
 
     void SetAlpnProtokollNames(vector<string> vProtoList);
-    string GetSelAlpnProtocol();
-    void SetTrustedRootCertificates(const char* szTrustRootCert);
-    long CheckServerCertificate(const char* szHostName);
+    const string GetSelAlpnProtocol() const;
+    void SetTrustedRootCertificates(const char* const szTrustRootCert);
+    long CheckServerCertificate(const char* const szHostName);
 
 private:
-	SslTcpSocket(SslConnetion* pSslCon, SOCKET fSock);
-    void ConEstablished(TcpSocket* pTcpSocket);
-	void DatenEmpfangen(TcpSocket* pTcpSocket);
-    void Closeing(BaseSocket* pTcpSocket);
+	SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock);
+    void ConEstablished(const TcpSocket* const pTcpSocket);
+	void DatenEmpfangen(const TcpSocket* const pTcpSocket);
+    void Closeing(const BaseSocket* const pTcpSocket);
     void PumpThread();
 
 private:
@@ -76,10 +76,10 @@ public:
     virtual ~SslTcpServer();
     void BindNewConnection(function<void(SslTcpServer*, int)> fNewConnetion);
     SslTcpSocket* GetNextPendingConnection() override;
-    bool AddCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey);
+    bool AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey);
 
 private:
-    void NeueVerbindungen(TcpServer* pTcpServer, int nCountNewConnections);
+    void NeueVerbindungen(const TcpServer* const pTcpServer, const int nCountNewConnections);
 
 private:
     function<void(SslTcpServer*, int)> m_fNewConnection;

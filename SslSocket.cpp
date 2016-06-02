@@ -22,7 +22,7 @@ SslTcpSocket::SslTcpSocket(/*SslConnetion* pSslCon*/) : m_pSslCon(nullptr/*pSslC
     //m_thPumpSsl = thread(&SslTcpSocket::PumpThread, this);
 }
 
-SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, SOCKET fSock) : m_pSslCon(pSslCon), TcpSocket(fSock), m_bShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0), bHelper1(false), bHelper3(false)
+SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock) : m_pSslCon(pSslCon), TcpSocket(fSock), m_bShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0), bHelper1(false), bHelper3(false)
 {
     atomic_init(&m_atTmpBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
@@ -51,7 +51,7 @@ SslTcpSocket::~SslTcpSocket()
     //    m_fCloseing(this);
 }
 
-bool SslTcpSocket::Connect(const char* const szIpToWhere, short sPort)
+bool SslTcpSocket::Connect(const char* const szIpToWhere, const short sPort)
 {
     m_pClientCtx = make_shared<SslClientContext>();
     m_pSslCon = new SslConnetion(m_pClientCtx.get());
@@ -127,7 +127,7 @@ void SslTcpSocket::Close()
     m_bCloseReq = true;
 }
 
-uint32_t SslTcpSocket::GetBytesAvailible()
+uint32_t SslTcpSocket::GetBytesAvailible() const
 {
     return m_atInBytes;
 }
@@ -147,12 +147,12 @@ void SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConn
     m_fClientConneted = fClientConneted;
 }
 
-void SslTcpSocket::ConEstablished(TcpSocket* pTcpSocket)
+void SslTcpSocket::ConEstablished(const TcpSocket* const pTcpSocket)
 {
     m_thPumpSsl = thread(&SslTcpSocket::PumpThread, this);
 }
 
-void SslTcpSocket::DatenEmpfangen(TcpSocket* pTcpSocket)
+void SslTcpSocket::DatenEmpfangen(const TcpSocket* const pTcpSocket)
 {
     uint32_t nAvalible = TcpSocket::GetBytesAvailible();
 
@@ -174,7 +174,7 @@ void SslTcpSocket::DatenEmpfangen(TcpSocket* pTcpSocket)
     }
 }
 
-void SslTcpSocket::Closeing(BaseSocket* pTcpSocket)
+void SslTcpSocket::Closeing(const BaseSocket* const pTcpSocket)
 {
     //OutputDebugString(L"SslTcpSocket::Closeing\r\n");
     if (m_fCloseing != nullptr)
@@ -189,19 +189,19 @@ void SslTcpSocket::SetAlpnProtokollNames(vector<string> vProtoList)
     m_vProtoList = vProtoList;
 }
 
-string SslTcpSocket::GetSelAlpnProtocol()
+const string SslTcpSocket::GetSelAlpnProtocol() const
 {
     if (m_pSslCon != nullptr)
         return m_pSslCon->GetSelAlpnProtocol();
     return string();
 }
 
-void SslTcpSocket::SetTrustedRootCertificates(const char* szTrustRootCert)
+void SslTcpSocket::SetTrustedRootCertificates(const char* const szTrustRootCert)
 {
     m_strTrustRootCert = szTrustRootCert;
 }
 
-long SslTcpSocket::CheckServerCertificate(const char* szHostName)
+long SslTcpSocket::CheckServerCertificate(const char* const szHostName)
 {
     if (m_pSslCon != nullptr)
         return m_pSslCon->CheckServerCertificate(szHostName);
@@ -382,7 +382,7 @@ void SslTcpServer::BindNewConnection(function<void(SslTcpServer*, int)> fNewConn
     m_fNewConnection = fNewConnetion;
 }
 
-void SslTcpServer::NeueVerbindungen(TcpServer* pTcpServer, int nCountNewConnections)
+void SslTcpServer::NeueVerbindungen(const TcpServer* const pTcpServer, const int nCountNewConnections)
 {
     m_fNewConnection(this, nCountNewConnections);
 }
@@ -402,7 +402,7 @@ SslTcpSocket* SslTcpServer::GetNextPendingConnection()
     return new SslTcpSocket(new SslConnetion(m_SslCtx.begin()->get()), fSock);
 }
 
-bool SslTcpServer::AddCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey)
+bool SslTcpServer::AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey)
 {
     m_SslCtx.emplace_back(make_shared<SslServerContext>());
     m_SslCtx.back()->SetCertificates(szCAcertificate, szHostCertificate, szHostKey);

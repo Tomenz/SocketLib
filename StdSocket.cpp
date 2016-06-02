@@ -71,7 +71,7 @@ void BaseSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing)
     m_fCloseing = fCloseing;
 }
 
-void BaseSocket::SetSocketOption(SOCKET& fd)
+void BaseSocket::SetSocketOption(const SOCKET& fd)
 {
     SOCKOPT rc = 1;
     if (::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &rc, static_cast<int>(sizeof(rc))) != 0)
@@ -105,7 +105,7 @@ TcpSocket::TcpSocket() : m_bAutoDelete(false), m_bCloseReq(false)
     atomic_init(&m_atDeleteThread, false);
 }
 
-TcpSocket::TcpSocket(SOCKET fSock) : m_bAutoDelete(false), m_bCloseReq(false)
+TcpSocket::TcpSocket(const SOCKET fSock) : m_bAutoDelete(false), m_bCloseReq(false)
 {
     m_fSock = fSock;
     GetConnectionInfo();
@@ -135,7 +135,7 @@ TcpSocket::~TcpSocket()
     }
 }
 
-bool TcpSocket::Connect(const char* const szIpToWhere, short sPort)
+bool TcpSocket::Connect(const char* const szIpToWhere, const short sPort)
 {
     if (m_fSock != INVALID_SOCKET)
     {
@@ -401,12 +401,12 @@ void TcpSocket::Close()
     }
 }
 
-uint32_t TcpSocket::GetBytesAvailible()
+uint32_t TcpSocket::GetBytesAvailible() const
 {
     return m_atInBytes;
 }
 
-uint32_t TcpSocket::GetOutBytesInQue()
+uint32_t TcpSocket::GetOutBytesInQue() const
 {
     return m_atOutBytes;
 }
@@ -638,7 +638,7 @@ TcpServer::~TcpServer()
     Delete();
 }
 
-bool TcpServer::Start(const char* szIpAddr, short sPort)
+bool TcpServer::Start(const char* const szIpAddr, const short sPort)
 {
     struct addrinfo *lstAddr, input = { 0 };
     input.ai_family = PF_UNSPEC;
@@ -828,7 +828,7 @@ UdpSocket::~UdpSocket()
     }
 }
 
-bool UdpSocket::Create(const char* const szIpToWhere, short sPort)
+bool UdpSocket::Create(const char* const szIpToWhere, const short sPort)
 {
     struct addrinfo *lstAddr, input = { 0 };
     input.ai_family = PF_UNSPEC;
@@ -1133,7 +1133,7 @@ void UdpSocket::Close()
     }
 }
 
-uint32_t UdpSocket::GetBytesAvailible()
+uint32_t UdpSocket::GetBytesAvailible() const
 {
     return m_atInBytes;
 }

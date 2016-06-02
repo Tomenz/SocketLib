@@ -30,7 +30,7 @@ public:
     virtual void BindCloseFunction(function<void(BaseSocket*)> fCloseing);
 
 protected:
-    virtual void SetSocketOption(SOCKET& fd);
+    virtual void SetSocketOption(const SOCKET& fd);
     virtual void OnError();
 
 protected:
@@ -55,25 +55,25 @@ protected:
 public:
     TcpSocket();
     virtual ~TcpSocket();
-    virtual bool Connect(const char* const szIpToWhere, short sPort);
+    virtual bool Connect(const char* const szIpToWhere, const short sPort);
     virtual uint32_t Read(void* buf, uint32_t len);
     virtual uint32_t Write(const void* buf, uint32_t len);
     void StartReceiving();
     virtual void Close();
-    virtual uint32_t GetBytesAvailible();
-    virtual uint32_t GetOutBytesInQue();
+    virtual uint32_t GetBytesAvailible() const;
+    virtual uint32_t GetOutBytesInQue() const;
     virtual void BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived);
     virtual void BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted);
-    virtual bool IsSslConnection() { return false; }
+    virtual bool IsSslConnection() const { return false; }
 
-    string GetClientAddr() { return m_strClientAddr; }
-    short GetClientPort() { return m_sClientPort; }
-    string GetInterfaceAddr() { return m_strClientAddr; }
-    short GetInterfacePort() { return m_sIFacePort; }
+    string GetClientAddr() const { return m_strClientAddr; }
+    short GetClientPort() const { return m_sClientPort; }
+    string GetInterfaceAddr() const { return m_strClientAddr; }
+    short GetInterfacePort() const { return m_sIFacePort; }
 
 protected:
     friend TcpServer;
-    TcpSocket(SOCKET);
+    TcpSocket(const SOCKET);
 
 private:
     void SelectThread();
@@ -107,7 +107,7 @@ class TcpServer : public BaseSocket
 {
 public:
     virtual ~TcpServer();
-    bool Start(const char* szIpAddr, short sPort);
+    bool Start(const char* const szIpAddr, const short sPort);
     size_t GetPendigConnectionCount();
     virtual TcpSocket* GetNextPendingConnection();
     void BindNewConnection(function<void(TcpServer*, int)> fNewConnetion);
@@ -133,13 +133,13 @@ class UdpSocket : public BaseSocket
 public:
     UdpSocket();
     virtual ~UdpSocket();
-    bool Create(const char* const szIpToWhere, short sPort);
+    bool Create(const char* const szIpToWhere, const short sPort);
     bool AddToMulticastGroup(const char* const szMulticastIp);
     bool RemoveFromMulticastGroup(const char* const szMulticastIp);
     uint32_t Read(void* buf, uint32_t len, string& strFrom);
     uint32_t Write(const void* buf, uint32_t len, const string& strTo);
     void Close();
-    uint32_t GetBytesAvailible();
+    uint32_t GetBytesAvailible() const;
     void BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived);
 
 private:
