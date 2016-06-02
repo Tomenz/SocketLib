@@ -22,7 +22,7 @@ SslTcpSocket::SslTcpSocket(/*SslConnetion* pSslCon*/) : m_pSslCon(nullptr/*pSslC
     //m_thPumpSsl = thread(&SslTcpSocket::PumpThread, this);
 }
 
-SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock) : m_pSslCon(pSslCon), TcpSocket(fSock), m_bShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0), bHelper1(false), bHelper3(false)
+SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock) : TcpSocket(fSock), m_pSslCon(pSslCon), m_bShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0), bHelper1(false), bHelper3(false)
 {
     atomic_init(&m_atTmpBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
@@ -387,7 +387,7 @@ void SslTcpServer::NeueVerbindungen(const TcpServer* const pTcpServer, const int
     m_fNewConnection(this, nCountNewConnections);
 }
 
-SslTcpSocket* SslTcpServer::GetNextPendingConnection()
+SslTcpSocket* const SslTcpServer::GetNextPendingConnection()
 {
     m_mtAcceptList.lock();
     if (m_vSockAccept.size() == 0)

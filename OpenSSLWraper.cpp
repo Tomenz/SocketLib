@@ -8,16 +8,15 @@
 
 #if defined(_WIN32) || defined(_WIN64)
 #include "./openssl/conf.h"
-#else
-#include <openssl/conf.h>
-#endif
-
 #ifdef _WIN64
 #pragma comment(lib, "ssleay64.lib")
 #pragma comment(lib, "libeay64.lib")
 #else
 #pragma comment(lib, "ssleay32.lib")
 #pragma comment(lib, "libeay32.lib")
+#endif
+#else
+#include <openssl/conf.h>
 #endif
 
 #define WHERE_INFO(ssl, w, flag, msg) { if (w & flag) /*wcout << "\t" << msg << "  - " << SSL_state_string(ssl) << "  - " << SSL_state_string_long(ssl) << endl*/; }

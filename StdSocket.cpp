@@ -10,6 +10,9 @@
 #include "StdSocket.h"
 
 #if defined (_WIN32) || defined (_WIN64)
+//https://support.microsoft.com/de-de/kb/257460
+//#pragma comment(lib, "wsock32")
+#pragma comment(lib, "Ws2_32")
 typedef char SOCKOPT;
 #else
 #include <fcntl.h>
@@ -32,13 +35,9 @@ typedef char SOCKOPT;
 typedef int SOCKOPT;
 #endif
 
-//https://support.microsoft.com/de-de/kb/257460
-//#pragma comment(lib, "wsock32")
-#pragma comment(lib, "Ws2_32")
-
 atomic_uint BaseSocket::s_atRefCount;
 
-BaseSocket::BaseSocket() : m_fSock(INVALID_SOCKET), m_bStop(false), m_fError(bind(&BaseSocket::OnError, this)), m_bAutoDelClass(false), m_iError(0), m_iShutDownState(0)
+BaseSocket::BaseSocket() : m_fSock(INVALID_SOCKET), m_bStop(false), m_bAutoDelClass(false), m_iError(0), m_iShutDownState(0), m_fError(bind(&BaseSocket::OnError, this))
 {
     if (s_atRefCount++ == 0)
     {
@@ -148,7 +147,7 @@ bool TcpSocket::Connect(const char* const szIpToWhere, const short sPort)
     input.ai_socktype = SOCK_STREAM;
     input.ai_flags = AI_PASSIVE;
 
-    if (auto nError = ::getaddrinfo(szIpToWhere, to_string(sPort).c_str(), &input, &lstAddr) != 0)
+    if (::getaddrinfo(szIpToWhere, to_string(sPort).c_str(), &input, &lstAddr) != 0)
         return false;
 
     bool bRet = true;
@@ -645,7 +644,7 @@ bool TcpServer::Start(const char* const szIpAddr, const short sPort)
     input.ai_socktype = SOCK_STREAM;
     input.ai_flags = AI_PASSIVE;
 
-    if (auto nError = ::getaddrinfo(szIpAddr, to_string(sPort).c_str(), &input, &lstAddr) != 0)
+    if (::getaddrinfo(szIpAddr, to_string(sPort).c_str(), &input, &lstAddr) != 0)
         return false;
 
     bool bRet = true;
@@ -706,7 +705,7 @@ size_t TcpServer::GetPendigConnectionCount()
     return m_vSockAccept.size();
 }
 
-TcpSocket* TcpServer::GetNextPendingConnection()
+TcpSocket* const TcpServer::GetNextPendingConnection()
 {
     m_mtAcceptList.lock();
     if (m_vSockAccept.size() == 0)
@@ -835,7 +834,7 @@ bool UdpSocket::Create(const char* const szIpToWhere, const short sPort)
     input.ai_socktype = SOCK_DGRAM;
     input.ai_flags = AI_PASSIVE;
 
-    if (auto nError = ::getaddrinfo(szIpToWhere, to_string(sPort).c_str(), &input, &lstAddr) != 0)
+    if (::getaddrinfo(szIpToWhere, to_string(sPort).c_str(), &input, &lstAddr) != 0)
         return false;
 
     bool bRet = true;
@@ -883,7 +882,7 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp)
     input.ai_socktype = SOCK_DGRAM;
     input.ai_flags = AI_PASSIVE;
 
-    if (auto nError = ::getaddrinfo(szMulticastIp, "", &input, &lstAddr) != 0)
+    if (::getaddrinfo(szMulticastIp, "", &input, &lstAddr) != 0)
         return false;
 	int iAddFamily = lstAddr->ai_family;
 	::freeaddrinfo(lstAddr);
@@ -894,7 +893,7 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp)
         inet_pton(AF_INET6, szMulticastIp, &mreq.ipv6mr_multiaddr);
         mreq.ipv6mr_interface = htons(INADDR_ANY); // use default
 
-		char hops = 32;
+//		char hops = 32;
 		char loop = 1;
 
         if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
@@ -933,7 +932,7 @@ bool UdpSocket::RemoveFromMulticastGroup(const char* const szMulticastIp)
     input.ai_socktype = SOCK_DGRAM;
     input.ai_flags = AI_PASSIVE;
 
-    if (auto nError = ::getaddrinfo(szMulticastIp, "", &input, &lstAddr) != 0)
+    if (::getaddrinfo(szMulticastIp, "", &input, &lstAddr) != 0)
         return false;
 
     if (lstAddr->ai_family == AF_INET6)

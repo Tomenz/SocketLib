@@ -66,9 +66,9 @@ public:
     virtual void BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted);
     virtual bool IsSslConnection() const { return false; }
 
-    string GetClientAddr() const { return m_strClientAddr; }
+    const string& GetClientAddr() const { return m_strClientAddr; }
     short GetClientPort() const { return m_sClientPort; }
-    string GetInterfaceAddr() const { return m_strClientAddr; }
+    const string& GetInterfaceAddr() const { return m_strClientAddr; }
     short GetInterfacePort() const { return m_sIFacePort; }
 
 protected:
@@ -109,7 +109,7 @@ public:
     virtual ~TcpServer();
     bool Start(const char* const szIpAddr, const short sPort);
     size_t GetPendigConnectionCount();
-    virtual TcpSocket* GetNextPendingConnection();
+    virtual TcpSocket* const GetNextPendingConnection();
     void BindNewConnection(function<void(TcpServer*, int)> fNewConnetion);
     virtual void Close();
 

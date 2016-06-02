@@ -75,7 +75,7 @@ public:
     SslTcpServer();
     virtual ~SslTcpServer();
     void BindNewConnection(function<void(SslTcpServer*, int)> fNewConnetion);
-    SslTcpSocket* GetNextPendingConnection() override;
+    SslTcpSocket* const GetNextPendingConnection() override;
     bool AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey);
 
 private:

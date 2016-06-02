@@ -3,7 +3,7 @@
 
 CC = g++
 #CFLAGS = -ggdb -w -m32 -D _DEBUG -D ZLIB_CONST -pthread
-CFLAGS = -w -O3 -std=c++14 -pthread -ffunction-sections -fdata-sections
+CFLAGS = -Wall -O3 -std=c++14 -pthread -ffunction-sections -fdata-sections
 TARGET = libsocketlib.a
 INC_PATH = -I ../../openssl-1.0.2f/include
 
