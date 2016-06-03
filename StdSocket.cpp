@@ -910,7 +910,7 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp)
         inet_pton(AF_INET, szMulticastIp, &mreq.imr_multiaddr.s_addr);
         mreq.imr_interface.s_addr = htons(INADDR_ANY); // use default
 
-		char hops = 32;
+//		char hops = 32;
 		char loop = 1;
 
         if (::setsockopt(m_fSock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
