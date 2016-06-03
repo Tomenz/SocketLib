@@ -24,6 +24,8 @@
 namespace OpenSSLWrapper
 {
     // Initialize the OpenSSL Library
+    const InitOpenSSL* OpenSSLInit = InitOpenSSL::GetInstance();
+
     unique_ptr<mutex[]> InitOpenSSL::m_pmutLocks;
 
     InitOpenSSL* InitOpenSSL::GetInstance()

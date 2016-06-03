@@ -108,9 +108,6 @@ namespace OpenSSLWrapper
 
         const char* m_szName;
     };
-
-    // Initialize the OpenSSL Library
-    static InitOpenSSL* OpenSSLInit = InitOpenSSL::GetInstance();
 }
 
 #endif
