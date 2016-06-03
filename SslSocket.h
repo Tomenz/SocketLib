@@ -30,6 +30,9 @@ public:
     void SetTrustedRootCertificates(const char* const szTrustRootCert);
     long CheckServerCertificate(const char* const szHostName);
 
+#pragma message("TODO!!! Folge Zeile wieder entfernen.")
+    static atomic<uint32_t> s_atAnzahlPumps;
+
 private:
 	SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock);
     void ConEstablished(const TcpSocket* const pTcpSocket);

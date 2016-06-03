@@ -6,6 +6,9 @@
 
 using namespace std::placeholders;
 
+#pragma message("TODO!!! Folge Zeile wieder entfernen.")
+atomic<uint32_t> SslTcpSocket::s_atAnzahlPumps = 0;
+
 SslTcpSocket::SslTcpSocket(/*SslConnetion* pSslCon*/) : m_pSslCon(nullptr/*pSslCon*/), m_bShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0), bHelper1(false), bHelper3(false)
 {
     atomic_init(&m_atTmpBytes, static_cast<uint32_t>(0));
@@ -214,6 +217,8 @@ void SslTcpSocket::PumpThread()
     atomic_init(&m_afReadCall, false);
     uint64_t nTotalReceived = 0;
     bool bHandShakeOk = false;
+#pragma message("TODO!!! Folge Zeile wieder entfernen.")
+    s_atAnzahlPumps++;
 
     while (m_bStopThread == false)
     {
@@ -364,6 +369,8 @@ void SslTcpSocket::PumpThread()
 
     TcpSocket::Close();
     bHelper1 = true;
+#pragma message("TODO!!! Folge Zeile wieder entfernen.")
+    s_atAnzahlPumps--;
 }
 
 //************************************************************************************

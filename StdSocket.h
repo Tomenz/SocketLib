@@ -44,6 +44,8 @@ protected:
     function<void(BaseSocket*)> m_fCloseing;
 
 private:
+#pragma message("TODO!!! Folge Zeile wieder entfernen.")
+    friend int main(int, const char*[]);
     static atomic_uint s_atRefCount;
 };
 
