@@ -7,7 +7,7 @@
 using namespace std::placeholders;
 
 #pragma message("TODO!!! Folge Zeile wieder entfernen.")
-atomic<uint32_t> SslTcpSocket::s_atAnzahlPumps = 0;
+atomic<uint32_t> SslTcpSocket::s_atAnzahlPumps(0);
 
 SslTcpSocket::SslTcpSocket(/*SslConnetion* pSslCon*/) : m_pSslCon(nullptr/*pSslCon*/), m_bShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0), bHelper1(false), bHelper3(false)
 {
