@@ -64,6 +64,7 @@ private:
     bool             m_bStopThread;
     bool             m_bCloseReq;
     int              m_iShutDown;
+    mutex            m_mxNotify;
 
     vector<string>   m_vProtoList;
     string           m_strTrustRootCert;

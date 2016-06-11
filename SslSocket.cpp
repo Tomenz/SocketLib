@@ -171,9 +171,24 @@ void SslTcpSocket::DatenEmpfangen(const TcpSocket* const pTcpSocket)
 
     if (nRead > 0)
     {
-        lock_guard<mutex> lock(m_mxTmpDeque);
-        m_quTmpData.emplace_back(spBuffer, nRead);
-        m_atTmpBytes += nRead;
+        if (m_atTmpBytes == 0)
+        {
+            uint32_t nPut = m_pSslCon->SslPutInData(spBuffer.get(), nRead);
+            if (nPut != nRead)
+            {
+                size_t nRest = nRead - nPut;
+                shared_ptr<uint8_t> tmp(new uint8_t[nRest]);
+                copy(spBuffer.get() + nPut, spBuffer.get() + nPut + nRest, tmp.get());
+                m_quTmpData.emplace_front(tmp, nRest);
+                m_atTmpBytes += nRest;
+            }
+        }
+        else
+        {
+            lock_guard<mutex> lock(m_mxTmpDeque);
+            m_quTmpData.emplace_back(spBuffer, nRead);
+            m_atTmpBytes += nRead;
+        }
     }
 }
 
@@ -270,24 +285,35 @@ void SslTcpSocket::PumpThread()
 
                 if (m_fBytesRecived != 0)
                 {
-                    bool bTemp = false;
-                    if (atomic_compare_exchange_strong(&m_afReadCall, &bTemp, true) == true)
+                    lock_guard<mutex> lock(m_mxNotify);
+                    if (m_afReadCall == false)
                     {
-                        thread([&]() {
+                        atomic_exchange(&m_afReadCall, true);
+
+                        thread([&](bool bShutDownReceive) {
                             uint64_t nCountIn;
-                            bool bSaveShutDown = m_bShutDownReceive;
+
+                            if (bShutDownReceive == true && m_atInBytes == 0)  // If we start the thread, with no bytes in the Que, but the Shutdown is marked, we execute the callback below the loop
+                                bShutDownReceive = false;
+
                             do
                             {
                                 nCountIn = nTotalReceived;
                                 if (m_atInBytes > 0)
                                     m_fBytesRecived(this);
-                            } while (nTotalReceived > nCountIn);
+                            } while (nTotalReceived > nCountIn || m_atInBytes > 0);
 
-                            if (bSaveShutDown != m_bShutDownReceive)
-                                m_fBytesRecived(this);
+                            m_mxNotify.lock();
+                            if (bShutDownReceive != m_bShutDownReceive)
+                            {
+                                m_mxNotify.unlock();
+                                m_fBytesRecived(this), bHelper1 = true;
+                                m_mxNotify.lock();
+                            }
 
                             atomic_exchange(&m_afReadCall, false);
-                        }).detach();
+                            m_mxNotify.unlock();
+                        }, m_bShutDownReceive).detach();
                     }
 
                     //if (m_bShutDownReceive == true)
@@ -298,6 +324,8 @@ void SslTcpSocket::PumpThread()
             else if (m_bShutDownReceive == true && m_atInBytes == 0 && m_fBytesRecived != nullptr)
                 m_fBytesRecived(this);
         }
+        else if (bHandShakeOk == false && m_bShutDownReceive == true && m_fBytesRecived != nullptr)
+            m_fBytesRecived(this);
 
         // The next to blocks send data,
         // 1. we read the Que with unencrypted data and write it into the SSL layer
@@ -368,7 +396,7 @@ void SslTcpSocket::PumpThread()
     ERR_remove_thread_state(nullptr);
 
     TcpSocket::Close();
-    bHelper1 = true;
+
 #pragma message("TODO!!! Folge Zeile wieder entfernen.")
     s_atAnzahlPumps--;
 }

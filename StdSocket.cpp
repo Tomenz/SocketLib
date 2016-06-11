@@ -96,7 +96,7 @@ void BaseSocket::OnError()
 
 //************************************************************************************
 
-TcpSocket::TcpSocket() : m_bAutoDelete(false), m_bCloseReq(false)
+TcpSocket::TcpSocket() : m_bCloseReq(false)
 {
 	atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
 	atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
@@ -104,7 +104,7 @@ TcpSocket::TcpSocket() : m_bAutoDelete(false), m_bCloseReq(false)
     atomic_init(&m_atDeleteThread, false);
 }
 
-TcpSocket::TcpSocket(const SOCKET fSock) : m_bAutoDelete(false), m_bCloseReq(false)
+TcpSocket::TcpSocket(const SOCKET fSock) : m_bCloseReq(false)
 {
     m_fSock = fSock;
     GetConnectionInfo();
@@ -132,6 +132,9 @@ TcpSocket::~TcpSocket()
         if (m_fCloseing != nullptr)
             m_fCloseing(this);
     }
+
+    while (m_atWriteThread == true)
+        this_thread::sleep_for(chrono::milliseconds(1));
 }
 
 bool TcpSocket::Connect(const char* const szIpToWhere, const short sPort)
@@ -259,11 +262,14 @@ uint32_t TcpSocket::Write(const void* buf, uint32_t len)
     m_atOutBytes += len;
     m_mxOutDeque.unlock();
 
-    bool bTmp = false;
-    if (atomic_compare_exchange_strong(&m_atWriteThread, &bTmp, true) == true)
+    lock_guard<mutex> lock(m_mxWriteThr);
+    if (m_atWriteThread == false)
     {
+        atomic_exchange(&m_atWriteThread, true);
+
         thread([&]()
         {
+        repeat:
             while (m_atOutBytes != 0/* && m_bStop == false*/)
             {
                 fd_set writefd, errorfd;
@@ -285,8 +291,11 @@ uint32_t TcpSocket::Write(const void* buf, uint32_t len)
 
                 if (FD_ISSET(m_fSock, &errorfd))
                 {
-                    socklen_t iLen = sizeof(m_iError);
-                    getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
+                    if (m_iError == 0)
+                    {
+                        socklen_t iLen = sizeof(m_iError);
+                        getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
+                    }
                     if (m_fError != nullptr && m_bStop == false)
                         m_fError(this);
                     break;
@@ -327,6 +336,13 @@ uint32_t TcpSocket::Write(const void* buf, uint32_t len)
                 }
             }
 
+            m_mxWriteThr.lock();
+            if (m_atOutBytes != 0 && m_iError == 0)
+            {
+                m_mxWriteThr.unlock();
+                goto repeat;
+            }
+
             if (m_bCloseReq == true)
             {
                 if (::shutdown(m_fSock, SD_SEND) != 0)
@@ -340,19 +356,24 @@ uint32_t TcpSocket::Write(const void* buf, uint32_t len)
                 m_fSock = INVALID_SOCKET;
             }
 
-            // if the socket was cloesed, and the cloesing callback was not called, we call it now 
-            bool bTmp = false;
-            if (m_fSock == INVALID_SOCKET && atomic_compare_exchange_strong(&m_atDeleteThread, &bTmp, true) == true)
+            // if the socket was cloesed, and the cloesing callback was not called, we call it now
+            // if it is a autodelete class we start the autodelete thread now
+            if (m_bAutoDelClass == true)
             {
-                if (m_fCloseing != nullptr)
-                    m_fCloseing(this);
+                bool bTmp = false;
+                if (m_fSock == INVALID_SOCKET && atomic_compare_exchange_strong(&m_atDeleteThread, &bTmp, true) == true)
+                {
+                    thread([&]() {
+                        if (m_fCloseing != nullptr)
+                            m_fCloseing(this);
 
-                // if it is a autodelete class we start the autodelete thread now
-                if (m_bAutoDelClass == true)
-                    thread([&]() { delete this; }).detach();
+                        delete this;
+                    }).detach();
+                }
             }
 
             atomic_exchange(&m_atWriteThread, false);
+            m_mxWriteThr.unlock();
         }).detach();
     }
 
@@ -369,14 +390,14 @@ void TcpSocket::Close()
     //OutputDebugString(L"TcpSocket::Close\r\n");
     m_bCloseReq = true;
 
-    bool bTmp = false;
-    if (atomic_compare_exchange_strong(&m_atWriteThread, &bTmp, true) == true)
+    m_mxWriteThr.lock();
+    if (m_atWriteThread == false && (m_iShutDownState & 2) != 2 && m_atOutBytes == 0)
     {
         if (::shutdown(m_fSock, SD_SEND) != 0)
             m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
         m_iShutDownState |= 2;
-        atomic_exchange(&m_atWriteThread, false);
     }
+    m_mxWriteThr.unlock();
 
     m_bStop = true; // Stops the listening thread
 
@@ -386,17 +407,18 @@ void TcpSocket::Close()
         m_fSock = INVALID_SOCKET;
     }
 
-    // if the socket was cloesed, and the cloesing callback was not called, we call it now 
-    bTmp = false;
-    if (m_fSock == INVALID_SOCKET && atomic_compare_exchange_strong(&m_atDeleteThread, &bTmp, true) == true)
+    if (m_bAutoDelClass == true)
     {
-        thread([&]() {
-            if (m_fCloseing != nullptr)
-                m_fCloseing(this);
+        bool bTmp = false;
+        if (m_fSock == INVALID_SOCKET && atomic_compare_exchange_strong(&m_atDeleteThread, &bTmp, true) == true)
+        {
+            thread([&]() {
+                if (m_fCloseing != nullptr)
+                    m_fCloseing(this);
 
-            if (m_bAutoDelClass == true)
                 delete this;
-        }).detach();
+            }).detach();
+        }
     }
 }
 
@@ -455,8 +477,7 @@ void TcpSocket::SelectThread()
                 char buf[0x0000ffff];
                 bool bNotify = false;
 
-            repeat:
-                int32_t transferred = ::recv(m_fSock, (char*)buf, sizeof(buf), 0);
+                int32_t transferred = ::recv(m_fSock, buf, sizeof(buf), 0);
 
                 if (transferred <= 0)
                 {
@@ -490,30 +511,43 @@ void TcpSocket::SelectThread()
                     nTotalReceived += transferred;
                     bNotify = true;
 
-                    if (transferred == sizeof(buf))
-                        goto repeat;
                 }
 
                 if (bNotify == true && m_fBytesRecived != 0)
                 {
-                    bool bTemp = false;
-                    if (atomic_compare_exchange_strong(&m_afReadCall, &bTemp, true) == true)
+
+                    lock_guard<mutex> lock(m_mxNotify);
+                    if (m_afReadCall == false)
                     {
-                        thread([&]() {
+                        atomic_exchange(&m_afReadCall, true);
+                        bNotify = false;
+
+                        thread([&](int iShutDownState) {
                             uint64_t nCountIn;
-                            int iSaveShutDown = (m_iShutDownState & 1);
+
+                            if ((iShutDownState & 1) == 1 && m_atInBytes == 0)  // If we start the thread, with no bytes in the Que, but the Shutdown is marked, we execute the callback below the loop
+                                iShutDownState = 0;
+
                             do
                             {
                                 nCountIn = nTotalReceived;
-                                //if (m_atInBytes > 0)
-                                m_fBytesRecived(this);
+                                if (m_atInBytes > 0)
+                                    m_fBytesRecived(this);
                             } while (nTotalReceived > nCountIn || m_atInBytes > 0);
 
-                            if (iSaveShutDown != (m_iShutDownState & 1))
+                            m_mxNotify.lock();
+                            if ((iShutDownState & 1) != (m_iShutDownState & 1) && m_bCloseReq == false)
+                            {
+                                m_mxNotify.unlock();
                                 m_fBytesRecived(this);
+                                m_mxNotify.lock();
+                            }
 
                             atomic_exchange(&m_afReadCall, false);
-                        }).detach();
+                            m_mxNotify.unlock();
+
+                        }, m_iShutDownState).detach();
+
                     }
 
                     if ((m_iShutDownState & 1) == 1)
@@ -539,16 +573,18 @@ void TcpSocket::SelectThread()
     while (m_afReadCall == true)
         this_thread::sleep_for(chrono::milliseconds(1));
 
-    // if the socket was cloesed, and the cloesing callback was not called, we call it now 
-    bool bTmp = false;
-    if (m_fSock == INVALID_SOCKET && atomic_compare_exchange_strong(&m_atDeleteThread, &bTmp, true) == true)
+    // if it is a autodelete class we start the autodelete thread now
+    if (m_bAutoDelClass == true)
     {
-        if (m_fCloseing != nullptr)
-            m_fCloseing(this);
+        bool bTmp = false;
+        if (m_fSock == INVALID_SOCKET && atomic_compare_exchange_strong(&m_atDeleteThread, &bTmp, true) == true)
+        {
+            // if the socket was cloesed, and the cloesing callback was not called, we call it now
+            if (m_fCloseing != nullptr)
+                m_fCloseing(this);
 
-        // if it is a autodelete class we start the autodelete thread now
-        if (m_bAutoDelClass == true)
             thread([&]() { delete this; }).detach();
+        }
     }
 }
 
@@ -804,7 +840,7 @@ void TcpServer::SelectThread()
 
 //********************************************************************************
 
-UdpSocket::UdpSocket() : m_bAutoDelete(false)
+UdpSocket::UdpSocket()
 {
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));

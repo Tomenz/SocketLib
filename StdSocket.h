@@ -92,8 +92,8 @@ private:
     atomic<bool>     m_atWriteThread;
     atomic<bool>     m_atDeleteThread;
 
-    mutex            m_mtAutoDelete;
-    bool             m_bAutoDelete;
+    mutex            m_mxWriteThr;;
+    mutex            m_mxNotify;
     bool             m_bCloseReq;
 
     string           m_strClientAddr;
@@ -155,9 +155,6 @@ private:
     deque<DATA>      m_quOutData;
     atomic<uint32_t> m_atOutBytes;
     atomic<bool>     m_atWriteThread;
-
-    mutex            m_mtAutoDelete;
-    bool             m_bAutoDelete;
 
     function<void(UdpSocket*)> m_fBytesRecived;
 };
