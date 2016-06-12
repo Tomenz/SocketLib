@@ -171,25 +171,9 @@ void SslTcpSocket::DatenEmpfangen(const TcpSocket* const pTcpSocket)
 
     if (nRead > 0)
     {
-        if (m_atTmpBytes == 0)
-        {
-            uint32_t nPut = m_pSslCon->SslPutInData(spBuffer.get(), nRead);
-            if (nPut != nRead)
-            {
-                size_t nRest = nRead - nPut;
-                shared_ptr<uint8_t> tmp(new uint8_t[nRest]);
-                copy(spBuffer.get() + nPut, spBuffer.get() + nPut + nRest, tmp.get());
-                lock_guard<mutex> lock(m_mxTmpDeque);
-                m_quTmpData.emplace_front(tmp, nRest);
-                m_atTmpBytes += nRest;
-            }
-        }
-        else
-        {
-            lock_guard<mutex> lock(m_mxTmpDeque);
-            m_quTmpData.emplace_back(spBuffer, nRead);
-            m_atTmpBytes += nRead;
-        }
+        lock_guard<mutex> lock(m_mxTmpDeque);
+        m_quTmpData.emplace_back(spBuffer, nRead);
+        m_atTmpBytes += nRead;
     }
 }
 
