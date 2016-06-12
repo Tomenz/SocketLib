@@ -45,7 +45,11 @@ BaseSocket::BaseSocket() : m_fSock(INVALID_SOCKET), m_bStop(false), m_bAutoDelCl
         WSADATA wsaData;
         ::WSAStartup(MAKEWORD(2, 2), &wsaData);
 #else
-        signal(SIGPIPE, SIG_IGN);
+        //signal(SIGPIPE, SIG_IGN);
+        sigset_t sigset;
+        sigemptyset(&sigset);
+        sigaddset(&sigset, SIGPIPE);
+        sigprocmask(SIG_BLOCK, &sigset, NULL);
 #endif
     }
 }
@@ -295,9 +299,10 @@ uint32_t TcpSocket::Write(const void* buf, uint32_t len)
                     {
                         socklen_t iLen = sizeof(m_iError);
                         getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
+
+                        if (m_fError != nullptr && m_bStop == false)
+                            m_fError(this);
                     }
-                    if (m_fError != nullptr && m_bStop == false)
-                        m_fError(this);
                     break;
                 }
 
@@ -515,7 +520,6 @@ void TcpSocket::SelectThread()
 
                 if (bNotify == true && m_fBytesRecived != 0)
                 {
-
                     lock_guard<mutex> lock(m_mxNotify);
                     if (m_afReadCall == false)
                     {

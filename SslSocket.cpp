@@ -179,6 +179,7 @@ void SslTcpSocket::DatenEmpfangen(const TcpSocket* const pTcpSocket)
                 size_t nRest = nRead - nPut;
                 shared_ptr<uint8_t> tmp(new uint8_t[nRest]);
                 copy(spBuffer.get() + nPut, spBuffer.get() + nPut + nRest, tmp.get());
+                lock_guard<mutex> lock(m_mxTmpDeque);
                 m_quTmpData.emplace_front(tmp, nRest);
                 m_atTmpBytes += nRest;
             }
@@ -337,8 +338,8 @@ void SslTcpSocket::PumpThread()
             m_mxOutDeque.lock();
             DATA data = move(m_quOutData.front());
             m_quOutData.pop_front();
-            m_mxOutDeque.unlock();
             m_atOutBytes -= BUFLEN(data);
+            m_mxOutDeque.unlock();
 
             size_t nWritten = m_pSslCon->SslWrite(BUFFER(data).get(), BUFLEN(data));
             if (nWritten != BUFLEN(data))
@@ -377,12 +378,6 @@ void SslTcpSocket::PumpThread()
                 bHelper3 = true;
                 break;
             }
-        }
-
-        if (m_bCloseReq == true && m_iShutDown == 1 && bHelper3 == false)
-        {
-            bHelper3 = true;
-            break;
         }
 
         if (bDidSomeWork == false)
