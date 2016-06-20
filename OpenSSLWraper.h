@@ -2,8 +2,9 @@
 #ifndef OPENSSLWRAPPER
 #define OPENSSLWRAPPER
 
-// perl Configure debug-VC-WIN32 no-asm no-ssl2 no-ssl3 no-shared no-comp no-buf-freelists no-idea no-mdc2 no-rc5 -D_USING_V110_SDK71_
-// ms\do_ms.bat
+// perl Configure VC-WIN32 no-asm no-ssl2 no-ssl3 no-shared no-comp no-buf-freelists no-idea no-mdc2 no-rc5 -D_USING_V110_SDK71_
+// perl Configure VC-WIN64A no-asm no-ssl2 no-ssl3 no-shared no-comp no-buf-freelists no-idea no-mdc2 no-rc5 -D_USING_V110_SDK71_
+// ms\do_ms.bat oder ms\do_win64a
 // nmake -f ms\nt.mak |  nmake -f ms\ntdll.mak |  nmake -f ms\nt.mak clean |  nmake -f ms\nt.mak clean
 #if defined(_WIN32) || defined(_WIN64)
 #include "./openssl/ssl.h"
