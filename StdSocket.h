@@ -46,6 +46,7 @@ protected:
 private:
 #pragma message("TODO!!! Folge Zeile wieder entfernen.")
     friend int main(int, const char*[]);
+    friend void sigusr1_handler(int);
     static atomic_uint s_atRefCount;
 };
 
@@ -83,6 +84,9 @@ private:
     void GetConnectionInfo();
 
 private:
+#pragma message("TODO!!! Folge Zeile wieder entfernen.")
+    friend void sigusr1_handler(int);
+    friend int main(int, const char*[]);
     mutex            m_mxInDeque;
     deque<DATA>      m_quInData;
     atomic<uint32_t> m_atInBytes;

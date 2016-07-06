@@ -4,6 +4,7 @@
 #include <vector>
 #include <iterator>
 #include <algorithm>
+#include <fstream>
 #include "OpenSSLWraper.h"
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -162,7 +163,8 @@ namespace OpenSSLWrapper
         SSL_CTX_set_ecdh_auto(m_ctx, 1);
 
         //https://raymii.org/s/tutorials/Strong_SSL_Security_On_Apache2.html
-        SSL_CTX_set_cipher_list(m_ctx, "EECDH+AESGCM:EDH+AESGCM:ECDHE-RSA-AES128-GCM-SHA256:AES256+EECDH:DHE-RSA-AES128-GCM-SHA256:AES256+EDH:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4");
+//        SSL_CTX_set_cipher_list(m_ctx, "EECDH+AESGCM:EDH+AESGCM:ECDHE-RSA-AES128-GCM-SHA256:AES256+EECDH:DHE-RSA-AES128-GCM-SHA256:AES256+EDH:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4");
+        SSL_CTX_set_cipher_list(m_ctx, "EECDH+ECDSA+AESGCM:EECDH+aRSA+AESGCM:EECDH+ECDSA:EECDH:EDH+AESGCM:EDH:+3DES:ECDH+AESGCM:ECDH+AES:ECDH:AES:HIGH:MEDIUM:!RC4:!CAMELLIA:!SEED:!aNULL:!MD5:!eNULL:!LOW:!EXP:!DSS:!PSK:!SRP");
 
         SSL_CTX_set_alpn_select_cb(m_ctx, ALPN_CB, 0);
         //SSL_CTX_set_next_proto_select_cb(m_ctx, NPN_CB, 0);
@@ -215,9 +217,35 @@ namespace OpenSSLWrapper
         SSL_CTX_set_tlsext_servername_arg(m_ctx, (void*)pSslCtx);
     }
 
+    bool SslServerContext::SetDhParamFile(const char* const szDhParamFile)
+    {
+        fstream fin(szDhParamFile, ios::in | ios::binary);
+        if (fin.is_open() == true)
+        {
+            fin.seekg(0, ios::end);
+            streamoff nFileSize = fin.tellg();
+            fin.seekg(0, ios::beg);
+
+            auto pFileBuf = make_unique<char[]>(static_cast<size_t>(nFileSize));
+            fin.read(pFileBuf.get(), nFileSize);
+            fin.close();
+
+            BIO* rbio = BIO_new(BIO_s_mem());
+            BIO_write(rbio, pFileBuf.get(), static_cast<int>(nFileSize));
+
+            DH* pDhParam = PEM_read_bio_DHparams(rbio, nullptr, nullptr, nullptr);
+            BIO_free(rbio);
+
+            if (SSL_CTX_set_tmp_dh(m_ctx, pDhParam) == 1)
+                return true;
+        }
+
+        return false;
+    }
+
     int SslServerContext::ALPN_CB(SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in, unsigned int inlen, void *arg)
     {
-        vector<string> vProtos = { { "h2" },{ "h2-16" },{ "h2-15" },{ "h2-14" },{ "http/1.1" } };
+        static vector<string> vProtos = { { "h2" },{ "h2-16" },{ "h2-15" },{ "h2-14" },{ "http/1.1" } };
 
         for (auto& strProt : vProtos)
         {

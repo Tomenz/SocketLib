@@ -138,7 +138,7 @@ TcpSocket::~TcpSocket()
     }
 
     while (m_atWriteThread == true)
-        this_thread::sleep_for(chrono::milliseconds(1));
+        this_thread::sleep_for(chrono::milliseconds(10));
 }
 
 bool TcpSocket::Connect(const char* const szIpToWhere, const short sPort)
@@ -169,8 +169,8 @@ bool TcpSocket::Connect(const char* const szIpToWhere, const short sPort)
 
         if (lstAddr->ai_family == AF_INET6)
         {
-            char on = 1;
-            if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_V6ONLY, &on, sizeof(on)) == -1)
+            uint32_t on = 0;
+            if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<char*>(&on), sizeof(on)) == -1)
                 throw WSAGetLastError();
         }
 
@@ -279,8 +279,8 @@ uint32_t TcpSocket::Write(const void* buf, uint32_t len)
                 fd_set writefd, errorfd;
                 struct timeval	timeout;
 
-                timeout.tv_sec = 0;
-                timeout.tv_usec = 1;
+                timeout.tv_sec = 1;
+                timeout.tv_usec = 0;
                 FD_ZERO(&writefd);
                 FD_ZERO(&errorfd);
 
@@ -458,7 +458,7 @@ void TcpSocket::SelectThread()
         fd_set readfd, errorfd;
         struct timeval timeout;
 
-        timeout.tv_sec = 3;
+        timeout.tv_sec = 2;
         timeout.tv_usec = 0;
         FD_ZERO(&readfd);
         FD_ZERO(&errorfd);
@@ -575,7 +575,7 @@ void TcpSocket::SelectThread()
     }
 
     while (m_afReadCall == true)
-        this_thread::sleep_for(chrono::milliseconds(1));
+        this_thread::sleep_for(chrono::milliseconds(10));
 
     // if it is a autodelete class we start the autodelete thread now
     if (m_bAutoDelClass == true)
@@ -599,7 +599,7 @@ void TcpSocket::ConnectThread()
         fd_set writefd, errorfd;
         struct timeval	timeout;
 
-        timeout.tv_sec = 3;
+        timeout.tv_sec = 2;
         timeout.tv_usec = 0;
         FD_ZERO(&writefd);
         FD_ZERO(&errorfd);
@@ -703,8 +703,8 @@ bool TcpServer::Start(const char* const szIpAddr, const short sPort)
 
             if (curAddr->ai_family == AF_INET6)
             {
-                char on = 1;
-                if (::setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &on, sizeof(on)) == -1)
+                uint32_t on = 0;
+                if (::setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<char*>(&on), sizeof(on)) == -1)
                     throw WSAGetLastError();
             }
 
@@ -736,7 +736,7 @@ bool TcpServer::Start(const char* const szIpAddr, const short sPort)
 
 void TcpServer::Close()
 {
-    m_bStop = true; // Stops the listening thread, deletes all Sockets at the end of the listinig thread
+    m_bStop = true; // Stops the listening thread, deletes all Sockets at the end of the listening thread
 }
 
 size_t TcpServer::GetPendigConnectionCount()
@@ -790,7 +790,7 @@ void TcpServer::SelectThread()
         struct timeval	timeout;
         SOCKET maxFd = 0;
 
-        timeout.tv_sec = 3;
+        timeout.tv_sec = 2;
         timeout.tv_usec = 0;
         FD_ZERO(&readfd);
 
@@ -823,8 +823,8 @@ void TcpServer::SelectThread()
 
                         if (addrCl.ss_family == AF_INET6)
                         {
-                            char on = 1;
-                            ::setsockopt(fdClient, IPPROTO_IPV6, IPV6_V6ONLY, &on, sizeof(on));
+                            uint32_t on = 0;
+                            ::setsockopt(fdClient, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<char*>(&on), sizeof(on));
                         }
 
                         lock_guard<mutex> lock(m_mtAcceptList);
@@ -889,8 +889,8 @@ bool UdpSocket::Create(const char* const szIpToWhere, const short sPort)
 
         if (lstAddr->ai_family == AF_INET6)
         {
-            char on = 1;
-            if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_V6ONLY, &on, sizeof(on)) == -1)
+            uint32_t on = 0;
+            if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<char*>(&on), sizeof(on)) == -1)
                 throw WSAGetLastError();
         }
 
@@ -948,13 +948,13 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp)
     {
         ip_mreq mreq = { 0 };
         inet_pton(AF_INET, szMulticastIp, &mreq.imr_multiaddr.s_addr);
-        mreq.imr_interface.s_addr = htons(INADDR_ANY); // use default
+        mreq.imr_interface.s_addr = INADDR_ANY; // use default
 
-//		char hops = 32;
+		char hops = 32;
 		char loop = 1;
 
         if (::setsockopt(m_fSock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
-//		|| ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_TTL, &hops, sizeof(hops)) != 0
+		|| ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_TTL, &hops, sizeof(hops)) != 0
 		|| ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop)) != 0)
         {
             m_iError = WSAGetLastError();
@@ -1063,8 +1063,8 @@ uint32_t UdpSocket::Write(const void* buf, uint32_t len, const string& strTo)
                 fd_set writefd, errorfd;
                 struct timeval	timeout;
 
-                timeout.tv_sec = 0;
-                timeout.tv_usec = 1;
+                timeout.tv_sec = 1;
+                timeout.tv_usec = 0;
                 FD_ZERO(&writefd);
                 FD_ZERO(&errorfd);
 
@@ -1073,7 +1073,6 @@ uint32_t UdpSocket::Write(const void* buf, uint32_t len, const string& strTo)
 
                 if (::select(static_cast<int>(m_fSock + 1), nullptr, &writefd, &errorfd, &timeout) == 0)
                 {
-                    //this_thread::sleep_for(chrono::milliseconds(1));
                     continue;
                 }
 
@@ -1193,7 +1192,7 @@ void UdpSocket::SelectThread()
         fd_set readfd, errorfd;
         struct timeval	timeout;
 
-        timeout.tv_sec = 3;
+        timeout.tv_sec = 2;
         timeout.tv_usec = 0;
         FD_ZERO(&readfd);
         FD_ZERO(&errorfd);
@@ -1311,7 +1310,7 @@ void UdpSocket::SelectThread()
     }
 
     while (m_afReadCall == true)
-        this_thread::sleep_for(chrono::milliseconds(1));
+        this_thread::sleep_for(chrono::milliseconds(10));
 }
 
 #endif

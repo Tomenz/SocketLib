@@ -41,6 +41,9 @@ private:
     void PumpThread();
 
 private:
+#pragma message("TODO!!! Folge Zeile wieder entfernen.")
+    friend void sigusr1_handler(int);
+    friend int main(int, const char*[]);
     shared_ptr<SslClientContext>  m_pClientCtx;
     SslConnetion*    m_pSslCon;
     function<void(SslTcpSocket*)> m_fBytesRecived;
@@ -81,6 +84,7 @@ public:
     void BindNewConnection(function<void(SslTcpServer*, int)> fNewConnetion);
     SslTcpSocket* const GetNextPendingConnection() override;
     bool AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey);
+    bool SetDHParameter(const char* const szDhParamFileName);
 
 private:
     void NeueVerbindungen(const TcpServer* const pTcpServer, const int nCountNewConnections);

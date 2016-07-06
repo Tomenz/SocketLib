@@ -357,7 +357,7 @@ void SslTcpSocket::PumpThread()
         if (m_bCloseReq == true && m_iShutDown == 0 && m_pSslCon->SslGetOutDataSize() == 0 && (m_atOutBytes == 0 || m_pSslCon->GetShutDownFlag() != INT32_MAX))
         {
             m_iShutDown = m_pSslCon->ShutDownConnection();
-            if (m_iShutDown == 1 || m_iShutDown == -1)
+            if (m_iShutDown == 1 || m_iShutDown == -1 || (m_iShutDown == 0 && bHandShakeOk == false))
             {
                 bHelper3 = true;
                 break;
@@ -365,11 +365,11 @@ void SslTcpSocket::PumpThread()
         }
 
         if (bDidSomeWork == false)
-            this_thread::sleep_for(chrono::milliseconds(1));
+            this_thread::sleep_for(chrono::milliseconds(10));
     }
 
     while (m_afReadCall == true)
-        this_thread::sleep_for(chrono::milliseconds(1));
+        this_thread::sleep_for(chrono::milliseconds(10));
 
     /* thread-local cleanup */
     ERR_remove_thread_state(nullptr);
@@ -423,6 +423,11 @@ bool SslTcpServer::AddCertificat(const char* const szCAcertificate, const char* 
 
     m_SslCtx.begin()->get()->AddVirtualHost(&m_SslCtx);
     return true;
+}
+
+bool SslTcpServer::SetDHParameter(const char* const szDhParamFileName)
+{
+    return m_SslCtx.back()->SetDhParamFile(szDhParamFileName);
 }
 
 #endif

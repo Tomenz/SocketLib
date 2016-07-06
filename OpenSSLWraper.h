@@ -65,6 +65,7 @@ namespace OpenSSLWrapper
         string& GetCertCommonName();
         int SetCertificates(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey);
         void AddVirtualHost(vector<shared_ptr<SslServerContext>>* pSslCtx);
+        bool SetDhParamFile(const char* const szDhParamFile);
 
     private:
         static int ALPN_CB(SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in, unsigned int inlen, void *arg);
