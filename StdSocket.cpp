@@ -274,7 +274,7 @@ uint32_t TcpSocket::Write(const void* buf, uint32_t len)
         thread([&]()
         {
         repeat:
-            while (m_atOutBytes != 0/* && m_bStop == false*/)
+            while (m_atOutBytes != 0 && m_iError == 0/* && m_bStop == false*/)
             {
                 fd_set writefd, errorfd;
                 struct timeval	timeout;
@@ -289,7 +289,6 @@ uint32_t TcpSocket::Write(const void* buf, uint32_t len)
 
                 if (::select(static_cast<int>(m_fSock + 1), nullptr, &writefd, &errorfd, &timeout) == 0)
                 {
-                    //this_thread::sleep_for(chrono::milliseconds(1));
                     continue;
                 }
 
@@ -315,9 +314,10 @@ uint32_t TcpSocket::Write(const void* buf, uint32_t len)
                 uint32_t transferred = ::send(m_fSock, (const char*)BUFFER(data).get(), BUFLEN(data), 0);
                 if (transferred <= 0)
                 {
-                    m_iError = WSAGetLastError();
-                    if (m_iError != WSAEWOULDBLOCK)
+                    int iError = WSAGetLastError();
+                    if (iError != WSAEWOULDBLOCK)
                     {
+                        m_iError = iError;
                         if (m_fError != nullptr && m_bStop == false)
                             m_fError(this);
                         break;
@@ -348,14 +348,14 @@ uint32_t TcpSocket::Write(const void* buf, uint32_t len)
                 goto repeat;
             }
 
-            if (m_bCloseReq == true)
+            if (m_bCloseReq == true && m_iError == 0)
             {
                 if (::shutdown(m_fSock, SD_SEND) != 0)
                     m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
                 m_iShutDownState |= 2;
             }
 
-            if ((m_iShutDownState & 3) == 3 && m_fSock != INVALID_SOCKET)
+            if (((m_iShutDownState & 3) == 3 || m_iError != 0) && m_fSock != INVALID_SOCKET)
             {
                 ::closesocket(m_fSock);
                 m_fSock = INVALID_SOCKET;
@@ -497,9 +497,10 @@ void TcpSocket::SelectThread()
                     }
                     else
                     {
-                        m_iError = WSAGetLastError();
-                        if (m_iError != WSAEWOULDBLOCK)
+                        int iError = WSAGetLastError();
+                        if (iError != WSAEWOULDBLOCK)
                         {
+                            m_iError = iError;
                             if (m_fError != nullptr && m_bStop == false)
                                 m_fError(this);
                             break;
