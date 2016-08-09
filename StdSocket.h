@@ -28,6 +28,7 @@ public:
     virtual void Close() = 0;
     virtual void BindErrorFunction(function<void(BaseSocket*)> fError);
     virtual void BindCloseFunction(function<void(BaseSocket*)> fCloseing);
+    virtual int GetErrorNo() { return m_iError; }
 
 protected:
     virtual void SetSocketOption(const SOCKET& fd);
@@ -81,7 +82,7 @@ protected:
 private:
     void SelectThread();
     void ConnectThread();
-    void GetConnectionInfo();
+    bool GetConnectionInfo();
 
 private:
 #pragma message("TODO!!! Folge Zeile wieder entfernen.")

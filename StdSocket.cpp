@@ -361,8 +361,8 @@ uint32_t TcpSocket::Write(const void* buf, uint32_t len)
                 m_fSock = INVALID_SOCKET;
             }
 
-            // if the socket was cloesed, and the cloesing callback was not called, we call it now
-            // if it is a autodelete class we start the autodelete thread now
+            // if the socket was closed, and the closing callback was not called, we call it now
+            // if it is a auto-delete class we start the auto-delete thread now
             if (m_bAutoDelClass == true)
             {
                 bool bTmp = false;
@@ -451,7 +451,7 @@ void TcpSocket::SelectThread()
 {
     atomic<bool> m_afReadCall;
     atomic_init(&m_afReadCall, false);
-    uint64_t nTotalReceived = 0;
+    uint64_t nTotalReceived = 0;    // only for statistical use
 
     while (m_bStop == false)
     {
@@ -528,17 +528,12 @@ void TcpSocket::SelectThread()
                         bNotify = false;
 
                         thread([&](int iShutDownState) {
-                            uint64_t nCountIn;
 
                             if ((iShutDownState & 1) == 1 && m_atInBytes == 0)  // If we start the thread, with no bytes in the Que, but the Shutdown is marked, we execute the callback below the loop
                                 iShutDownState = 0;
 
-                            do
-                            {
-                                nCountIn = nTotalReceived;
-                                if (m_atInBytes > 0)
-                                    m_fBytesRecived(this);
-                            } while (nTotalReceived > nCountIn || m_atInBytes > 0);
+                            while (m_atInBytes > 0)
+                                m_fBytesRecived(this);
 
                             m_mxNotify.lock();
                             if ((iShutDownState & 1) != (m_iShutDownState & 1) && m_bCloseReq == false)
@@ -578,13 +573,13 @@ void TcpSocket::SelectThread()
     while (m_afReadCall == true)
         this_thread::sleep_for(chrono::milliseconds(10));
 
-    // if it is a autodelete class we start the autodelete thread now
+    // if it is a auto-delete class we start the auto-delete thread now
     if (m_bAutoDelClass == true)
     {
         bool bTmp = false;
         if (m_fSock == INVALID_SOCKET && atomic_compare_exchange_strong(&m_atDeleteThread, &bTmp, true) == true)
         {
-            // if the socket was cloesed, and the cloesing callback was not called, we call it now
+            // if the socket was closed, and the closing callback was not called, we call it now
             if (m_fCloseing != nullptr)
                 m_fCloseing(this);
 
@@ -640,15 +635,23 @@ void TcpSocket::ConnectThread()
     }
 }
 
-void TcpSocket::GetConnectionInfo()
+bool TcpSocket::GetConnectionInfo()
 {
     struct sockaddr_storage addrCl;
     socklen_t addLen = sizeof(addrCl);
-    ::getpeername(m_fSock, (struct sockaddr*)&addrCl, &addLen);  // Get the IP to where the connection was established
+    if (::getpeername(m_fSock, (struct sockaddr*)&addrCl, &addLen) != 0)  // Get the IP to where the connection was established
+    {
+        m_iError = WSAGetLastError();
+        return false;
+    }
 
     struct sockaddr_storage addrPe;
     addLen = sizeof(addrPe);
-    ::getsockname(m_fSock, (struct sockaddr*)&addrPe, &addLen);  // Get our IP where the connection was established
+    if (::getsockname(m_fSock, (struct sockaddr*)&addrPe, &addLen) != 0)  // Get our IP where the connection was established
+    {
+        m_iError = WSAGetLastError();
+        return false;
+    }
 
     char caAddrClient[INET6_ADDRSTRLEN + 1] = { 0 };
     char servInfoClient[NI_MAXSERV] = { 0 };
@@ -656,6 +659,11 @@ void TcpSocket::GetConnectionInfo()
     {
         m_strClientAddr = caAddrClient;
         m_sClientPort = stoi(servInfoClient);
+    }
+    else
+    {
+        m_iError = WSAGetLastError();
+        return false;
     }
 
     char caAddrPeer[INET6_ADDRSTRLEN + 1] = { 0 };
@@ -665,6 +673,13 @@ void TcpSocket::GetConnectionInfo()
         m_strIFaceAddr = caAddrPeer;
         m_sIFacePort = stoi(servInfoPeer);
     }
+    else
+    {
+        m_iError = WSAGetLastError();
+        return false;
+    }
+
+    return true;
 }
 
 //************************************************************************************
@@ -934,7 +949,7 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp)
         inet_pton(AF_INET6, szMulticastIp, &mreq.ipv6mr_multiaddr);
         mreq.ipv6mr_interface = htons(INADDR_ANY); // use default
 
-        char hops = 255;
+        char hops = '\xff';
         char loop = 1;
 
         // http://www.tldp.org/HOWTO/Multicast-HOWTO-6.html
@@ -952,7 +967,7 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp)
         inet_pton(AF_INET, szMulticastIp, &mreq.imr_multiaddr.s_addr);
         mreq.imr_interface.s_addr = INADDR_ANY; // use default
 
-        char hops = 255;
+        char hops = '\xff';
         char loop = 1;
 
         if (::setsockopt(m_fSock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
@@ -1283,10 +1298,9 @@ void UdpSocket::SelectThread()
                     {
                         thread([&]() {
                             int iSaveShutDown = (m_iShutDownState & 1);
-                            do
-                            {
+
+                            while (m_atInBytes > 0)
                                 m_fBytesRecived(this);
-                            } while (m_atInBytes > 0 || m_quInData.size() > 0);
 
                             if (iSaveShutDown != (m_iShutDownState & 1))
                                 m_fBytesRecived(this);
