@@ -934,12 +934,13 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp)
         inet_pton(AF_INET6, szMulticastIp, &mreq.ipv6mr_multiaddr);
         mreq.ipv6mr_interface = htons(INADDR_ANY); // use default
 
-//		char hops = 32;
-		char loop = 1;
+        char hops = 255;
+        char loop = 1;
 
+        // http://www.tldp.org/HOWTO/Multicast-HOWTO-6.html
         if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
-//		|| ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &hops, sizeof(hops)) != 0
-		|| ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &loop, sizeof(loop)) != 0)
+        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &hops, sizeof(hops)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &loop, sizeof(loop)) != 0)
         {
             m_iError = WSAGetLastError();
             return false;
@@ -951,8 +952,8 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp)
         inet_pton(AF_INET, szMulticastIp, &mreq.imr_multiaddr.s_addr);
         mreq.imr_interface.s_addr = INADDR_ANY; // use default
 
-		char hops = 32;
-		char loop = 1;
+        char hops = 255;
+        char loop = 1;
 
         if (::setsockopt(m_fSock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
 		|| ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_TTL, &hops, sizeof(hops)) != 0
@@ -1186,7 +1187,7 @@ void UdpSocket::SelectThread()
 {
     atomic<bool> m_afReadCall;
     atomic_init(&m_afReadCall, false);
-    uint64_t nTotalReceived = 0;
+    uint64_t nTotalReceived = 0;    // only for statistical use
 
     while (m_bStop == false)
     {
@@ -1281,13 +1282,11 @@ void UdpSocket::SelectThread()
                     if (atomic_compare_exchange_strong(&m_afReadCall, &bTemp, true) == true)
                     {
                         thread([&]() {
-                            uint64_t nCountIn;
                             int iSaveShutDown = (m_iShutDownState & 1);
                             do
                             {
-                                nCountIn = nTotalReceived;
                                 m_fBytesRecived(this);
-                            } while (nTotalReceived > nCountIn);
+                            } while (m_atInBytes > 0 || m_quInData.size() > 0);
 
                             if (iSaveShutDown != (m_iShutDownState & 1))
                                 m_fBytesRecived(this);
