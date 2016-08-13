@@ -1,3 +1,13 @@
+/* Copyright (C) Hauck Software Solutions - All Rights Reserved
+* You may use, distribute and modify this code under the terms
+* that changes to the code must be reported back the original
+* author
+*
+* Company: Hauck Software Solutions
+* Author:  Thomas Hauck
+* Email:   Thomas@fam-hauck.de
+*
+*/
 
 #ifndef SSLSOCKET
 #define SSLSOCKET
@@ -34,6 +44,9 @@ SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock) : TcpSocke
     m_pSslCon->SetErrorCb(bind(&BaseSocket::Close, this));
     TcpSocket::BindFuncBytesRecived(bind(&SslTcpSocket::DatenEmpfangen, this, _1));
     TcpSocket::BindCloseFunction(bind(&SslTcpSocket::Closeing, this, _1));
+
+    if (m_iError != 0)
+        return;
 
     SSL_set_accept_state((*m_pSslCon)());
 

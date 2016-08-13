@@ -1,3 +1,13 @@
+/* Copyright (C) Hauck Software Solutions - All Rights Reserved
+* You may use, distribute and modify this code under the terms
+* that changes to the code must be reported back the original
+* author
+*
+* Company: Hauck Software Solutions
+* Author:  Thomas Hauck
+* Email:   Thomas@fam-hauck.de
+*
+*/
 
 #include <memory>
 #include <mutex>
