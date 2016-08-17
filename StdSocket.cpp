@@ -20,9 +20,11 @@
 #include "StdSocket.h"
 
 #if defined (_WIN32) || defined (_WIN64)
+#include <iphlpapi.h>
 //https://support.microsoft.com/de-de/kb/257460
 //#pragma comment(lib, "wsock32")
 #pragma comment(lib, "Ws2_32")
+#pragma comment(lib, "IPHLPAPI.lib")
 typedef char SOCKOPT;
 #else
 #include <fcntl.h>
@@ -47,7 +49,7 @@ typedef int SOCKOPT;
 
 atomic_uint BaseSocket::s_atRefCount;
 
-BaseSocket::BaseSocket() : m_fSock(INVALID_SOCKET), m_bStop(false), m_bAutoDelClass(false), m_iError(0), m_iShutDownState(0), m_fError(bind(&BaseSocket::OnError, this))
+BaseSocket::BaseSocket() : m_fSock(INVALID_SOCKET), m_bStop(false), m_bAutoDelClass(false), m_iError(0), m_iShutDownState(0), m_fError(bind(&BaseSocket::OnError, this)), m_usBindPort(0)
 {
     if (s_atRefCount++ == 0)
     {
@@ -159,12 +161,8 @@ bool TcpSocket::Connect(const char* const szIpToWhere, const short sPort)
         m_fSock = INVALID_SOCKET;
     }
 
-    struct addrinfo *lstAddr, input = { 0 };
-    input.ai_family = PF_UNSPEC;
-    input.ai_socktype = SOCK_STREAM;
-    input.ai_flags = AI_PASSIVE;
-
-    if (::getaddrinfo(szIpToWhere, to_string(sPort).c_str(), &input, &lstAddr) != 0)
+    struct addrinfo *lstAddr;
+    if (::getaddrinfo(szIpToWhere, to_string(sPort).c_str(), nullptr, &lstAddr) != 0)
         return false;
 
     bool bRet = true;
@@ -705,12 +703,8 @@ TcpServer::~TcpServer()
 
 bool TcpServer::Start(const char* const szIpAddr, const short sPort)
 {
-    struct addrinfo *lstAddr, input = { 0 };
-    input.ai_family = PF_UNSPEC;
-    input.ai_socktype = SOCK_STREAM;
-    input.ai_flags = AI_PASSIVE;
-
-    if (::getaddrinfo(szIpAddr, to_string(sPort).c_str(), &input, &lstAddr) != 0)
+    struct addrinfo *lstAddr;
+    if (::getaddrinfo(szIpAddr, to_string(sPort).c_str(), nullptr, &lstAddr) != 0)
         return false;
 
     bool bRet = true;
@@ -736,6 +730,9 @@ bool TcpServer::Start(const char* const szIpAddr, const short sPort)
 
             if (::bind(fd, curAddr->ai_addr, static_cast<int>(curAddr->ai_addrlen)) < 0)
                 throw WSAGetLastError();
+
+            m_strBindAddress = szIpAddr;
+            m_usBindPort = sPort;
         }
 
         for (auto fSock : m_vSock)
@@ -923,6 +920,9 @@ bool UdpSocket::Create(const char* const szIpToWhere, const short sPort)
         if (::bind(m_fSock, lstAddr->ai_addr, static_cast<int>(lstAddr->ai_addrlen)) < 0)
             throw WSAGetLastError();
 
+        m_strBindAddress = szIpToWhere;
+        m_usBindPort = sPort;
+
         m_thListen = thread(&UdpSocket::SelectThread, this);
     }
 
@@ -943,29 +943,26 @@ bool UdpSocket::Create(const char* const szIpToWhere, const short sPort)
 
 bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp)
 {
-    struct addrinfo *lstAddr, input = { 0 };
-    input.ai_family = PF_UNSPEC;
-    input.ai_socktype = SOCK_DGRAM;
-    input.ai_flags = AI_PASSIVE;
-
-    if (::getaddrinfo(szMulticastIp, "", &input, &lstAddr) != 0)
+    struct addrinfo *lstAddr;
+    if (::getaddrinfo(szMulticastIp, nullptr, nullptr, &lstAddr) != 0)
         return false;
 	int iAddFamily = lstAddr->ai_family;
 	::freeaddrinfo(lstAddr);
+
+    char hops = '\xff';
+    char loop = 1;
 
     if (iAddFamily == AF_INET6)
     {
         ipv6_mreq mreq = { 0 };
         inet_pton(AF_INET6, szMulticastIp, &mreq.ipv6mr_multiaddr);
-        mreq.ipv6mr_interface = htons(INADDR_ANY); // use default
-
-        char hops = '\xff';
-        char loop = 1;
+        mreq.ipv6mr_interface = GetAdapterIndex();
 
         // http://www.tldp.org/HOWTO/Multicast-HOWTO-6.html
         if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
         || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &hops, sizeof(hops)) != 0
-        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &loop, sizeof(loop)) != 0)
+        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &loop, sizeof(loop)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_IF, (char*)&mreq.ipv6mr_interface, sizeof(mreq.ipv6mr_interface)) != 0)
         {
             m_iError = WSAGetLastError();
             return false;
@@ -975,14 +972,12 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp)
     {
         ip_mreq mreq = { 0 };
         inet_pton(AF_INET, szMulticastIp, &mreq.imr_multiaddr.s_addr);
-        mreq.imr_interface.s_addr = INADDR_ANY; // use default
-
-        char hops = '\xff';
-        char loop = 1;
+        inet_pton(AF_INET, m_strBindAddress.c_str(), &mreq.imr_interface.s_addr);
 
         if (::setsockopt(m_fSock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
 		|| ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_TTL, &hops, sizeof(hops)) != 0
-		|| ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop)) != 0)
+		|| ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_IF, (char*)&mreq.imr_interface, sizeof(IN_ADDR)) != 0)
         {
             m_iError = WSAGetLastError();
             return false;
@@ -994,23 +989,22 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp)
 
 bool UdpSocket::RemoveFromMulticastGroup(const char* const szMulticastIp)
 {
-    struct addrinfo *lstAddr, input = { 0 };
-    input.ai_family = PF_UNSPEC;
-    input.ai_socktype = SOCK_DGRAM;
-    input.ai_flags = AI_PASSIVE;
-
-    if (::getaddrinfo(szMulticastIp, "", &input, &lstAddr) != 0)
+    struct addrinfo *lstAddr;
+    if (::getaddrinfo(szMulticastIp, nullptr, nullptr, &lstAddr) != 0)
         return false;
+    int iAddFamily = lstAddr->ai_family;
+    ::freeaddrinfo(lstAddr);
 
-    if (lstAddr->ai_family == AF_INET6)
+    uint32_t AnyAddr = INADDR_ANY;
+
+    if (iAddFamily == AF_INET6)
     {
-        ::freeaddrinfo(lstAddr);
-
         ipv6_mreq mreq = { 0 };
         inet_pton(AF_INET6, szMulticastIp, &mreq.ipv6mr_multiaddr);
-        mreq.ipv6mr_interface = htons(INADDR_ANY); // use default
+        mreq.ipv6mr_interface = GetAdapterIndex(); // use default
 
-        if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0)
+        if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_IF, (char*)&AnyAddr, sizeof(uint32_t)) != 0)
         {
             m_iError = WSAGetLastError();
             return false;
@@ -1018,13 +1012,12 @@ bool UdpSocket::RemoveFromMulticastGroup(const char* const szMulticastIp)
     }
     else
     {
-        ::freeaddrinfo(lstAddr);
-
         ip_mreq mreq = { 0 };
         inet_pton(AF_INET, szMulticastIp, &mreq.imr_multiaddr.s_addr);
-        mreq.imr_interface.s_addr = htons(INADDR_ANY); // use default
+        inet_pton(AF_INET, m_strBindAddress.c_str(), &mreq.imr_interface.s_addr);
 
-        if (setsockopt(m_fSock, IPPROTO_IP, IP_DROP_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0)
+        if (setsockopt(m_fSock, IPPROTO_IP, IP_DROP_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_IF, (char*)&AnyAddr, sizeof(uint32_t)) != 0)
         {
             m_iError = WSAGetLastError();
             return false;
@@ -1118,12 +1111,12 @@ uint32_t UdpSocket::Write(const void* buf, uint32_t len, const string& strTo)
                 m_mxOutDeque.unlock();
                 m_atOutBytes -= BUFLEN(data);
 
-                struct addrinfo *lstAddr = nullptr, input = { 0 };
+                struct addrinfo *lstAddr = nullptr;
                 size_t nPosS = ADDRESS(data).find('[');
                 size_t nPosE = ADDRESS(data).find(']');
                 if (nPosS != string::npos && nPosE != string::npos)
                 {
-                    if (::getaddrinfo(ADDRESS(data).substr(nPosS + 1, nPosE - 1).c_str(), ADDRESS(data).substr(nPosE + 2).c_str(), &input, &lstAddr) != 0)
+                    if (::getaddrinfo(ADDRESS(data).substr(nPosS + 1, nPosE - 1).c_str(), ADDRESS(data).substr(nPosE + 2).c_str(), nullptr, &lstAddr) != 0)
                         break;    // we return 0, because of a wrong address
                 }
                 else
@@ -1131,7 +1124,7 @@ uint32_t UdpSocket::Write(const void* buf, uint32_t len, const string& strTo)
                     size_t nPos = ADDRESS(data).find(':');
                     if (nPos != string::npos)
                     {
-                        if (::getaddrinfo(ADDRESS(data).substr(0, nPos).c_str(), ADDRESS(data).substr(nPos + 1).c_str(), &input, &lstAddr) != 0)
+                        if (::getaddrinfo(ADDRESS(data).substr(0, nPos).c_str(), ADDRESS(data).substr(nPos + 1).c_str(), nullptr, &lstAddr) != 0)
                             break;    // we return 0, because of a wrong address
                     }
                     else
@@ -1140,6 +1133,7 @@ uint32_t UdpSocket::Write(const void* buf, uint32_t len, const string& strTo)
 
 
                 uint32_t transferred = ::sendto(m_fSock, (const char*)BUFFER(data).get(), BUFLEN(data), 0, lstAddr->ai_addr, lstAddr->ai_addrlen);
+                ::freeaddrinfo(lstAddr);
                 if (transferred <= 0)
                 {
                     m_iError = WSAGetLastError();
@@ -1336,5 +1330,37 @@ void UdpSocket::SelectThread()
     while (m_afReadCall == true)
         this_thread::sleep_for(chrono::milliseconds(10));
 }
+
+int UdpSocket::GetAdapterIndex()
+{
+#if defined (_WIN32) || defined (_WIN64)
+    ULONG nBuflen = 15000;
+    auto pBuffer = make_unique<char[]>(nBuflen);
+    IP_ADAPTER_ADDRESSES* pAdpAdrPtr = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(pBuffer.get());
+    if (GetAdaptersAddresses(AF_INET6, 0, nullptr, pAdpAdrPtr, &nBuflen) == ERROR_SUCCESS)
+    {
+        while (pAdpAdrPtr != nullptr)
+        {
+            if (pAdpAdrPtr->FirstUnicastAddress != nullptr)
+            {
+                PIP_ADAPTER_UNICAST_ADDRESS_LH pUnicast = pAdpAdrPtr->FirstUnicastAddress;
+                while (pUnicast != nullptr)
+                {
+                    string strTmp(255, 0);
+                    strTmp = inet_ntop(AF_INET6, &((struct sockaddr_in6*)pUnicast->Address.lpSockaddr)->sin6_addr, &strTmp.front(), 255);
+                    OutputDebugStringA(strTmp.c_str()); OutputDebugStringA("\r\n");
+                    if (m_strBindAddress.compare(strTmp) == 0)
+                    {
+                        return pAdpAdrPtr->Ipv6IfIndex;
+                    }
+                    pUnicast = pUnicast->Next;
+                }
+            }
+            pAdpAdrPtr = pAdpAdrPtr->Next;
+        }
+    }
+#endif
+    return 0;
+};
 
 #endif

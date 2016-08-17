@@ -39,6 +39,8 @@ public:
     virtual void BindErrorFunction(function<void(BaseSocket*)> fError);
     virtual void BindCloseFunction(function<void(BaseSocket*)> fCloseing);
     virtual int GetErrorNo() { return m_iError; }
+    virtual string& GetBindAddress() { return m_strBindAddress; }
+    virtual unsigned short GetBindPort() { return m_usBindPort; }
 
 protected:
     virtual void SetSocketOption(const SOCKET& fd);
@@ -53,6 +55,9 @@ protected:
     int    m_iShutDownState;
     function<void(BaseSocket*)> m_fError;
     function<void(BaseSocket*)> m_fCloseing;
+
+    string m_strBindAddress;
+    unsigned short m_usBindPort;
 
 private:
 #pragma message("TODO!!! Folge Zeile wieder entfernen.")
@@ -161,6 +166,7 @@ public:
 
 private:
     void SelectThread();
+    int GetAdapterIndex();
 
 private:
     mutex            m_mxInDeque;
