@@ -114,9 +114,9 @@ void BaseSocket::OnError()
 
 TcpSocket::TcpSocket() : m_bCloseReq(false)
 {
-	atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
-	atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
-	atomic_init(&m_atWriteThread, false);
+    atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
+    atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
+    atomic_init(&m_atWriteThread, false);
     atomic_init(&m_atDeleteThread, false);
 }
 
@@ -130,7 +130,7 @@ TcpSocket::TcpSocket(const SOCKET fSock) : m_bCloseReq(false)
     atomic_init(&m_atWriteThread, false);
     atomic_init(&m_atDeleteThread, false);
 
-	m_bAutoDelClass = true;
+    m_bAutoDelClass = true;
 }
 
 TcpSocket::~TcpSocket()
@@ -161,8 +161,11 @@ bool TcpSocket::Connect(const char* const szIpToWhere, const short sPort)
         m_fSock = INVALID_SOCKET;
     }
 
-    struct addrinfo *lstAddr;
-    if (::getaddrinfo(szIpToWhere, to_string(sPort).c_str(), nullptr, &lstAddr) != 0)
+    struct addrinfo *lstAddr, input = { 0 };
+    input.ai_family = PF_UNSPEC;
+    input.ai_socktype = SOCK_STREAM;
+
+    if (::getaddrinfo(szIpToWhere, to_string(sPort).c_str(), &input, &lstAddr) != 0)
         return false;
 
     bool bRet = true;
@@ -285,7 +288,7 @@ uint32_t TcpSocket::Write(const void* buf, uint32_t len)
             while (m_atOutBytes != 0 && m_iError == 0/* && m_bStop == false*/)
             {
                 fd_set writefd, errorfd;
-                struct timeval	timeout;
+                struct timeval timeout;
 
                 timeout.tv_sec = 1;
                 timeout.tv_usec = 0;
@@ -601,7 +604,7 @@ void TcpSocket::ConnectThread()
     while (m_bStop == false)
     {
         fd_set writefd, errorfd;
-        struct timeval	timeout;
+        struct timeval timeout;
 
         timeout.tv_sec = 2;
         timeout.tv_usec = 0;
@@ -621,8 +624,8 @@ void TcpSocket::ConnectThread()
                 if (m_fCloseing != nullptr)
                     m_fCloseing(this);
 
-				::closesocket(m_fSock);
-				m_fSock = INVALID_SOCKET;
+                ::closesocket(m_fSock);
+                m_fSock = INVALID_SOCKET;
 
                 if (m_fError != nullptr && m_bStop == false)
                     m_fError(this);
@@ -703,8 +706,12 @@ TcpServer::~TcpServer()
 
 bool TcpServer::Start(const char* const szIpAddr, const short sPort)
 {
-    struct addrinfo *lstAddr;
-    if (::getaddrinfo(szIpAddr, to_string(sPort).c_str(), nullptr, &lstAddr) != 0)
+    struct addrinfo *lstAddr, input = { 0 };
+    input.ai_family = PF_UNSPEC;
+    input.ai_socktype = SOCK_STREAM;
+    input.ai_flags = AI_PASSIVE;
+
+    if (::getaddrinfo(szIpAddr, to_string(sPort).c_str(), &input, &lstAddr) != 0)
         return false;
 
     bool bRet = true;
@@ -810,7 +817,7 @@ void TcpServer::SelectThread()
     while (m_bStop == false)
     {
         fd_set readfd;
-        struct timeval	timeout;
+        struct timeval timeout;
         SOCKET maxFd = 0;
 
         timeout.tv_sec = 2;
@@ -946,8 +953,8 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp)
     struct addrinfo *lstAddr;
     if (::getaddrinfo(szMulticastIp, nullptr, nullptr, &lstAddr) != 0)
         return false;
-	int iAddFamily = lstAddr->ai_family;
-	::freeaddrinfo(lstAddr);
+    int iAddFamily = lstAddr->ai_family;
+    ::freeaddrinfo(lstAddr);
 
     char hops = '\xff';
     char loop = 1;
@@ -975,9 +982,9 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp)
         inet_pton(AF_INET, m_strBindAddress.c_str(), &mreq.imr_interface.s_addr);
 
         if (::setsockopt(m_fSock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
-		|| ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_TTL, &hops, sizeof(hops)) != 0
-		|| ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop)) != 0
-        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_IF, (char*)&mreq.imr_interface, sizeof(IN_ADDR)) != 0)
+        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_TTL, &hops, sizeof(hops)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_IF, (char*)&mreq.imr_interface, sizeof(mreq.imr_interface)) != 0)
         {
             m_iError = WSAGetLastError();
             return false;
@@ -1081,7 +1088,7 @@ uint32_t UdpSocket::Write(const void* buf, uint32_t len, const string& strTo)
             while (m_atOutBytes != 0/* && m_bStop == false*/)
             {
                 fd_set writefd, errorfd;
-                struct timeval	timeout;
+                struct timeval timeout;
 
                 timeout.tv_sec = 1;
                 timeout.tv_usec = 0;
@@ -1211,7 +1218,7 @@ void UdpSocket::SelectThread()
     while (m_bStop == false)
     {
         fd_set readfd, errorfd;
-        struct timeval	timeout;
+        struct timeval timeout;
 
         timeout.tv_sec = 2;
         timeout.tv_usec = 0;
