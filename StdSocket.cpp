@@ -229,6 +229,7 @@ void TcpSocket::SetSocketOption(const SOCKET& fd)
 
 #if defined(_WIN32) || defined(_WIN64)
 #else
+    SOCKOPT rc = 1;
     if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &rc, sizeof(rc)) == -1)
         throw errno;
 #endif
@@ -784,6 +785,7 @@ void TcpServer::SetSocketOption(const SOCKET& fd)
 
 #if defined(_WIN32) || defined(_WIN64)
 #else
+    SOCKOPT rc = 1;
     if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &rc, sizeof(rc)) == -1)
         throw errno;
 #endif
