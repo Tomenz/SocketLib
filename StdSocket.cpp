@@ -98,8 +98,6 @@ void BaseSocket::SetSocketOption(const SOCKET& fd)
 #else
     if (fcntl(fd, F_SETFD, FD_CLOEXEC) == -1)
         throw errno;
-    if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &rc, sizeof(rc)) == -1)
-        throw errno;
     if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) == -1)
         throw errno;
 #endif
@@ -161,11 +159,11 @@ bool TcpSocket::Connect(const char* const szIpToWhere, const short sPort)
         m_fSock = INVALID_SOCKET;
     }
 
-    struct addrinfo *lstAddr, input = { 0 };
-    input.ai_family = PF_UNSPEC;
-    input.ai_socktype = SOCK_STREAM;
+    struct addrinfo *lstAddr, hint = { 0 };
+    hint.ai_family = PF_UNSPEC;
+    hint.ai_socktype = SOCK_STREAM;
 
-    if (::getaddrinfo(szIpToWhere, to_string(sPort).c_str(), &input, &lstAddr) != 0)
+    if (::getaddrinfo(szIpToWhere, to_string(sPort).c_str(), &hint, &lstAddr) != 0)
         return false;
 
     bool bRet = true;
@@ -223,6 +221,17 @@ bool TcpSocket::Connect(const char* const szIpToWhere, const short sPort)
     ::freeaddrinfo(lstAddr);
 
     return bRet;
+}
+
+void TcpSocket::SetSocketOption(const SOCKET& fd)
+{
+    BaseSocket::SetSocketOption(fd);
+
+#if defined(_WIN32) || defined(_WIN64)
+#else
+    if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &rc, sizeof(rc)) == -1)
+        throw errno;
+#endif
 }
 
 uint32_t TcpSocket::Read(void* buf, uint32_t len)
@@ -706,12 +715,12 @@ TcpServer::~TcpServer()
 
 bool TcpServer::Start(const char* const szIpAddr, const short sPort)
 {
-    struct addrinfo *lstAddr, input = { 0 };
-    input.ai_family = PF_UNSPEC;
-    input.ai_socktype = SOCK_STREAM;
-    input.ai_flags = AI_PASSIVE;
+    struct addrinfo *lstAddr, hint = { 0 };
+    hint.ai_family = PF_UNSPEC;
+    hint.ai_socktype = SOCK_STREAM;
+    hint.ai_flags = AI_PASSIVE;
 
-    if (::getaddrinfo(szIpAddr, to_string(sPort).c_str(), &input, &lstAddr) != 0)
+    if (::getaddrinfo(szIpAddr, to_string(sPort).c_str(), &hint, &lstAddr) != 0)
         return false;
 
     bool bRet = true;
@@ -767,6 +776,17 @@ bool TcpServer::Start(const char* const szIpAddr, const short sPort)
 void TcpServer::Close()
 {
     m_bStop = true; // Stops the listening thread, deletes all Sockets at the end of the listening thread
+}
+
+void TcpServer::SetSocketOption(const SOCKET& fd)
+{
+    BaseSocket::SetSocketOption(fd);
+
+#if defined(_WIN32) || defined(_WIN64)
+#else
+    if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &rc, sizeof(rc)) == -1)
+        throw errno;
+#endif
 }
 
 size_t TcpServer::GetPendigConnectionCount()
@@ -899,12 +919,12 @@ UdpSocket::~UdpSocket()
 
 bool UdpSocket::Create(const char* const szIpToWhere, const short sPort)
 {
-    struct addrinfo *lstAddr, input = { 0 };
-    input.ai_family = PF_UNSPEC;
-    input.ai_socktype = SOCK_DGRAM;
-    input.ai_flags = AI_PASSIVE;
+    struct addrinfo *lstAddr, hint = { 0 };
+    hint.ai_family = PF_UNSPEC;
+    hint.ai_socktype = SOCK_DGRAM;
+    hint.ai_flags = AI_PASSIVE;
 
-    if (::getaddrinfo(szIpToWhere, to_string(sPort).c_str(), &input, &lstAddr) != 0)
+    if (::getaddrinfo(szIpToWhere, to_string(sPort).c_str(), &hint, &lstAddr) != 0)
         return false;
 
     bool bRet = true;
@@ -927,7 +947,8 @@ bool UdpSocket::Create(const char* const szIpToWhere, const short sPort)
         if (::bind(m_fSock, lstAddr->ai_addr, static_cast<int>(lstAddr->ai_addrlen)) < 0)
             throw WSAGetLastError();
 
-        m_strBindAddress = szIpToWhere;
+        if (szIpToWhere != nullptr)
+            m_strBindAddress = szIpToWhere;
         m_usBindPort = sPort;
 
         m_thListen = thread(&UdpSocket::SelectThread, this);
@@ -948,13 +969,15 @@ bool UdpSocket::Create(const char* const szIpToWhere, const short sPort)
     return bRet;
 }
 
-bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp)
+bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp)
 {
     struct addrinfo *lstAddr;
     if (::getaddrinfo(szMulticastIp, nullptr, nullptr, &lstAddr) != 0)
         return false;
     int iAddFamily = lstAddr->ai_family;
     ::freeaddrinfo(lstAddr);
+
+    m_strBindAddress = szInterfaceIp;
 
     char hops = '\xff';
     char loop = 1;

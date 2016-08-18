@@ -93,6 +93,7 @@ public:
 protected:
     friend TcpServer;
     TcpSocket(const SOCKET);
+    virtual void SetSocketOption(const SOCKET& fd);
 
 private:
     void SelectThread();
@@ -135,6 +136,9 @@ public:
     void BindNewConnection(function<void(TcpServer*, int)> fNewConnetion);
     virtual void Close();
 
+protected:
+    virtual void SetSocketOption(const SOCKET& fd);
+
 private:
     void Delete();
     void SelectThread();
@@ -156,7 +160,7 @@ public:
     UdpSocket();
     virtual ~UdpSocket();
     bool Create(const char* const szIpToWhere, const short sPort);
-    bool AddToMulticastGroup(const char* const szMulticastIp);
+    bool AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp);
     bool RemoveFromMulticastGroup(const char* const szMulticastIp);
     uint32_t Read(void* buf, uint32_t len, string& strFrom);
     uint32_t Write(const void* buf, uint32_t len, const string& strTo);
