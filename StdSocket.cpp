@@ -417,7 +417,7 @@ void TcpSocket::Close()
     m_bCloseReq = true;
 
     m_mxWriteThr.lock();
-    if (m_atWriteThread == false && (m_iShutDownState & 2) != 2 && m_atOutBytes == 0)
+    if (m_atWriteThread == false && (m_iShutDownState & 2) != 2 && m_atOutBytes == 0 && m_iError == 0)
     {
         if (::shutdown(m_fSock, SD_SEND) != 0)
             m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
@@ -1391,6 +1391,25 @@ int UdpSocket::GetAdapterIndex()
             pAdpAdrPtr = pAdpAdrPtr->Next;
         }
     }
+#else
+    struct ifaddrs* lstAddr;
+    if (getifaddrs(&lstAddr) == 0)
+    {
+        for (struct ifaddrs *ptr = lstAddr; ptr != NULL; ptr = ptr->ifa_next)
+        {
+            if (ptr->ifa_addr == NULL)
+                continue;
+            char caAddrBuf[NI_MAXHOST];
+            memset(caAddrBuf, 0, NI_MAXHOST);
+            if (ptr->ifa_addr->sa_family == AF_INET6 && string(ptr->ifa_name).find("eth") != string::npos && getnameinfo(ptr->ifa_addr, (ptr->ifa_addr->sa_family == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6), caAddrBuf, NI_MAXHOST, NULL, 0, NI_NUMERICHOST) == 0 && m_strBindAddress.compare(caAddrBuf) == 0)
+            {
+                unsigned int iIfIndex = if_nametoindex(ptr->ifa_name);
+                freeifaddrs(ifaddr);
+                return iIfIndex;
+            }
+        }
+    }
+    freeifaddrs(ifaddr);
 #endif
     return 0;
 };
