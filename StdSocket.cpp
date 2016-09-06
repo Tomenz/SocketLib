@@ -36,6 +36,8 @@ typedef char SOCKOPT;
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <signal.h>
+#include <ifaddrs.h>
+#include <net/if.h>
 #define INVALID_SOCKET (-1)
 #define SOCKET_ERROR   (-1)
 #define closesocket(x) close(x)
@@ -1399,17 +1401,16 @@ int UdpSocket::GetAdapterIndex()
         {
             if (ptr->ifa_addr == NULL)
                 continue;
-            char caAddrBuf[NI_MAXHOST];
-            memset(caAddrBuf, 0, NI_MAXHOST);
+            char caAddrBuf[NI_MAXHOST] = { 0 };
             if (ptr->ifa_addr->sa_family == AF_INET6 && string(ptr->ifa_name).find("eth") != string::npos && getnameinfo(ptr->ifa_addr, (ptr->ifa_addr->sa_family == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6), caAddrBuf, NI_MAXHOST, NULL, 0, NI_NUMERICHOST) == 0 && m_strBindAddress.compare(caAddrBuf) == 0)
             {
                 unsigned int iIfIndex = if_nametoindex(ptr->ifa_name);
-                freeifaddrs(ifaddr);
+                freeifaddrs(lstAddr);
                 return iIfIndex;
             }
         }
     }
-    freeifaddrs(ifaddr);
+    freeifaddrs(lstAddr);
 #endif
     return 0;
 };
