@@ -983,8 +983,8 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp, const char*
 
     m_strBindAddress = szInterfaceIp;
 
-    char hops = '\xff';
-    char loop = 1;
+    uint32_t hops = '\xff';
+    uint32_t loop = 1;
 
     if (iAddFamily == AF_INET6)
     {
@@ -994,8 +994,8 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp, const char*
 
         // http://www.tldp.org/HOWTO/Multicast-HOWTO-6.html
         if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
-        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &hops, sizeof(hops)) != 0
-        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &loop, sizeof(loop)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, (char*)&hops, sizeof(hops)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, (char*)&loop, sizeof(loop)) != 0
         || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_IF, (char*)&mreq.ipv6mr_interface, sizeof(mreq.ipv6mr_interface)) != 0)
         {
             m_iError = WSAGetLastError();
@@ -1009,8 +1009,8 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp, const char*
         inet_pton(AF_INET, m_strBindAddress.c_str(), &mreq.imr_interface.s_addr);
 
         if (::setsockopt(m_fSock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
-        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_TTL, &hops, sizeof(hops)) != 0
-        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&hops, sizeof(hops)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_LOOP, (char*)&loop, sizeof(loop)) != 0
         || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_IF, (char*)&mreq.imr_interface, sizeof(mreq.imr_interface)) != 0)
         {
             m_iError = WSAGetLastError();
@@ -1381,7 +1381,7 @@ int UdpSocket::GetAdapterIndex()
                 while (pUnicast != nullptr)
                 {
                     string strTmp(255, 0);
-                    strTmp = inet_ntop(AF_INET6, &((struct sockaddr_in6*)pUnicast->Address.lpSockaddr)->sin6_addr, &strTmp.front(), 255);
+                    strTmp = inet_ntop(AF_INET6, &((struct sockaddr_in6*)pUnicast->Address.lpSockaddr)->sin6_addr, &strTmp[0], strTmp.size());
                     OutputDebugStringA(strTmp.c_str()); OutputDebugStringA("\r\n");
                     if (m_strBindAddress.compare(strTmp) == 0)
                     {
@@ -1401,8 +1401,8 @@ int UdpSocket::GetAdapterIndex()
         {
             if (ptr->ifa_addr == NULL)
                 continue;
-            char caAddrBuf[NI_MAXHOST] = { 0 };
-            if (ptr->ifa_addr->sa_family == AF_INET6 && string(ptr->ifa_name).find("eth") != string::npos && getnameinfo(ptr->ifa_addr, (ptr->ifa_addr->sa_family == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6), caAddrBuf, NI_MAXHOST, NULL, 0, NI_NUMERICHOST) == 0 && m_strBindAddress.compare(caAddrBuf) == 0)
+            string strAddrBuf(NI_MAXHOST, 0);
+            if (ptr->ifa_addr->sa_family == AF_INET6 /*&& string(ptr->ifa_name).find("eth") != string::npos*/ && getnameinfo(ptr->ifa_addr, (ptr->ifa_addr->sa_family == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6), &strAddrBuf[0], strAddrBuf.size(), NULL, 0, NI_NUMERICHOST) == 0 && m_strBindAddress.compare(strAddrBuf) == 0)
             {
                 unsigned int iIfIndex = if_nametoindex(ptr->ifa_name);
                 freeifaddrs(lstAddr);
