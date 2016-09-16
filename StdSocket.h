@@ -159,7 +159,7 @@ class UdpSocket : public BaseSocket
 public:
     UdpSocket();
     virtual ~UdpSocket();
-    bool Create(const char* const szIpToWhere, const short sPort);
+    bool Create(const char* const szIpToWhere, const short sPort, const char* const szIpToBind = nullptr);
     bool AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp);
     bool RemoveFromMulticastGroup(const char* const szMulticastIp);
     uint32_t Read(void* buf, uint32_t len, string& strFrom);

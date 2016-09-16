@@ -921,7 +921,7 @@ UdpSocket::~UdpSocket()
     }
 }
 
-bool UdpSocket::Create(const char* const szIpToWhere, const short sPort)
+bool UdpSocket::Create(const char* const szIpToWhere, const short sPort, const char* const szIpToBind/* = nullptr*/)
 {
     struct addrinfo *lstAddr, hint = { 0 };
     hint.ai_family = PF_UNSPEC;
@@ -948,8 +948,24 @@ bool UdpSocket::Create(const char* const szIpToWhere, const short sPort)
                 throw WSAGetLastError();
         }
 
-        if (::bind(m_fSock, lstAddr->ai_addr, static_cast<int>(lstAddr->ai_addrlen)) < 0)
-            throw WSAGetLastError();
+        if (szIpToBind != nullptr)
+        {
+            struct addrinfo *lstBind;
+            if (::getaddrinfo(szIpToBind, to_string(sPort).c_str(), nullptr, &lstBind) != 0)
+                throw WSAGetLastError();
+
+            if (::bind(m_fSock, lstBind->ai_addr, static_cast<int>(lstBind->ai_addrlen)) < 0)
+            {
+                ::freeaddrinfo(lstBind);
+                throw WSAGetLastError();
+            }
+            ::freeaddrinfo(lstBind);
+        }
+        else
+        {
+            if (::bind(m_fSock, lstAddr->ai_addr, static_cast<int>(lstAddr->ai_addrlen)) < 0)
+                throw WSAGetLastError();
+        }
 
         if (szIpToWhere != nullptr)
             m_strBindAddress = szIpToWhere;
