@@ -144,17 +144,16 @@ int BaseSocket::EnumIpAddresses(function<int(int, const string&, int)> fnCallBac
                     strTmp = inet_ntop(AF_INET, &((struct sockaddr_in*)pUnicast->Address.lpSockaddr)->sin_addr, &strTmp[0], strTmp.size());
                 if (fnCallBack(pUnicast->Address.lpSockaddr->sa_family, strTmp, pCurrentAddresses->IfIndex) != 0)
                 {
-                    ret = ERROR_CANCELLED;
-                    break;
+                    delete reinterpret_cast<char*>(pAddressList);
+                    return ERROR_CANCELLED;
                 }
             }
-            if (ret == ERROR_CANCELLED)
-                break;
         }
     }
 
     delete reinterpret_cast<char*>(pAddressList);
 #else
+    int ret = 0;
     struct ifaddrs* lstAddr;
     if (getifaddrs(&lstAddr) == 0)
     {
@@ -165,14 +164,14 @@ int BaseSocket::EnumIpAddresses(function<int(int, const string&, int)> fnCallBac
             if ((ptr->ifa_flags & IFF_UP) == 0 || (ptr->ifa_flags & IFF_LOOPBACK) == IFF_LOOPBACK)
                 continue;
             string strAddrBuf(NI_MAXHOST, 0);
-            if (/*&& string(ptr->ifa_name).find("eth") != string::npos*/ && getnameinfo(ptr->ifa_addr, (ptr->ifa_addr->sa_family == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6), &strAddrBuf[0], strAddrBuf.size(), NULL, 0, NI_NUMERICHOST) == 0)
+            if (/*&& string(ptr->ifa_name).find("eth") != string::npos &&*/ getnameinfo(ptr->ifa_addr, (ptr->ifa_addr->sa_family == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6), &strAddrBuf[0], strAddrBuf.size(), NULL, 0, NI_NUMERICHOST) == 0)
             {
                 unsigned int iIfIndex = if_nametoindex(ptr->ifa_name);
 
                 if (fnCallBack(ptr->ifa_addr->sa_family, strAddrBuf, iIfIndex) != 0)
                 {
-                    ret = ERROR_CANCELLED;
-                    break;
+                    freeifaddrs(lstAddr);
+                    return ECANCELED;
                 }
             }
         }
@@ -1086,7 +1085,7 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp, const uint3
     {
         ip_mreq mreq = { 0 };
         inet_pton(AF_INET, szMulticastIp, &mreq.imr_multiaddr.s_addr);
-        mreq.imr_interface.S_un.S_un_b.s_b4 = nInterfaceIndex;
+        mreq.imr_interface.s_addr = htonl(nInterfaceIndex);
 
         if (::setsockopt(m_fSock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
         || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&hops, sizeof(hops)) != 0
@@ -1128,7 +1127,7 @@ bool UdpSocket::RemoveFromMulticastGroup(const char* const szMulticastIp, const 
     {
         ip_mreq mreq = { 0 };
         inet_pton(AF_INET, szMulticastIp, &mreq.imr_multiaddr.s_addr);
-        mreq.imr_interface.S_un.S_un_b.s_b4 = nInterfaceIndex;
+        mreq.imr_interface.s_addr = htonl(nInterfaceIndex);
 
         if (setsockopt(m_fSock, IPPROTO_IP, IP_DROP_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
         || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_IF, (char*)&AnyAddr, sizeof(uint32_t)) != 0)
