@@ -1054,7 +1054,7 @@ bool UdpSocket::Create(const char* const szIpToWhere, const short sPort, const c
     return bRet;
 }
 
-bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp, const uint32_t nInterfaceIndex)
+bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex)
 {
     struct addrinfo *lstAddr;
     if (::getaddrinfo(szMulticastIp, nullptr, nullptr, &lstAddr) != 0)
@@ -1085,7 +1085,11 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp, const uint3
     {
         ip_mreq mreq = { 0 };
         inet_pton(AF_INET, szMulticastIp, &mreq.imr_multiaddr.s_addr);
+#if defined(_WIN32) || defined(_WIN64)
         mreq.imr_interface.s_addr = htonl(nInterfaceIndex);
+#else
+        inet_pton(AF_INET, szInterfaceIp, &mreq.imr_interface.s_addr);
+#endif
 
         if (::setsockopt(m_fSock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
         || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&hops, sizeof(hops)) != 0
