@@ -9,9 +9,6 @@
 *
 */
 
-#ifndef STDSOCKET
-#define STDSOCKET
-
 #define _CRTDBG_MAP_ALLOC
 
 #include <sstream>
@@ -51,7 +48,7 @@ typedef int SOCKOPT;
 
 atomic_uint BaseSocket::s_atRefCount;
 
-BaseSocket::BaseSocket() : m_fSock(INVALID_SOCKET), m_bStop(false), m_bAutoDelClass(false), m_iError(0), m_iShutDownState(0), m_fError(bind(&BaseSocket::OnError, this)), m_usBindPort(0)
+BaseSocket::BaseSocket() : m_fSock(INVALID_SOCKET), m_bStop(false), m_bAutoDelClass(false), m_iError(0), m_iShutDownState(0), m_fError(bind(&BaseSocket::OnError, this))
 {
     if (s_atRefCount++ == 0)
     {
@@ -108,6 +105,82 @@ void BaseSocket::SetSocketOption(const SOCKET& fd)
 void BaseSocket::OnError()
 {
     Close();
+}
+
+int BaseSocket::EnumIpAddresses(function<int(int, const string&, int)> fnCallBack)
+{
+#if defined(_WIN32) || defined(_WIN64)
+    ULONG outBufLen = 16384;
+    PIP_ADAPTER_ADDRESSES pAddressList = reinterpret_cast<PIP_ADAPTER_ADDRESSES>(new char[outBufLen]);
+    if (pAddressList == nullptr)
+        return ERROR_OUTOFMEMORY;
+    DWORD ret = GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER, nullptr, pAddressList, &outBufLen);
+
+    if (ret == ERROR_BUFFER_OVERFLOW)
+    {
+        delete reinterpret_cast<char*>(pAddressList);
+        pAddressList = reinterpret_cast<PIP_ADAPTER_ADDRESSES>(new char[outBufLen]);
+        if (pAddressList == nullptr)
+            return ERROR_OUTOFMEMORY;
+        ret = GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER, nullptr, pAddressList, &outBufLen);
+    }
+
+    if (ret == ERROR_SUCCESS)
+    {
+        for (PIP_ADAPTER_ADDRESSES pCurrentAddresses = pAddressList; pCurrentAddresses != nullptr; pCurrentAddresses = pCurrentAddresses->Next)
+        {
+            if (pCurrentAddresses->IfType == IF_TYPE_SOFTWARE_LOOPBACK || pCurrentAddresses->OperStatus != IfOperStatusUp)
+                continue;
+
+            for (PIP_ADAPTER_UNICAST_ADDRESS pUnicast = pCurrentAddresses->FirstUnicastAddress; pUnicast != nullptr; pUnicast = pUnicast->Next)
+            {
+                if ((pUnicast->Flags & IP_ADAPTER_ADDRESS_TRANSIENT) == IP_ADAPTER_ADDRESS_TRANSIENT)
+                    continue;
+
+                string strTmp(255, 0);
+                if (pUnicast->Address.lpSockaddr->sa_family == AF_INET6)
+                    strTmp = inet_ntop(AF_INET6, &((struct sockaddr_in6*)pUnicast->Address.lpSockaddr)->sin6_addr, &strTmp[0], strTmp.size());
+                else
+                    strTmp = inet_ntop(AF_INET, &((struct sockaddr_in*)pUnicast->Address.lpSockaddr)->sin_addr, &strTmp[0], strTmp.size());
+                if (fnCallBack(pUnicast->Address.lpSockaddr->sa_family, strTmp, pCurrentAddresses->IfIndex) != 0)
+                {
+                    ret = ERROR_CANCELLED;
+                    break;
+                }
+            }
+            if (ret == ERROR_CANCELLED)
+                break;
+        }
+    }
+
+    delete reinterpret_cast<char*>(pAddressList);
+#else
+    struct ifaddrs* lstAddr;
+    if (getifaddrs(&lstAddr) == 0)
+    {
+        for (struct ifaddrs *ptr = lstAddr; ptr != nullptr; ptr = ptr->ifa_next)
+        {
+            if (ptr->ifa_addr == nullptr || (ptr->ifa_addr->sa_family != AF_INET && ptr->ifa_addr->sa_family != AF_INET6))
+                continue;
+            if ((ptr->ifa_flags & IFF_UP) == 0 || (ptr->ifa_flags & IFF_LOOPBACK) == IFF_LOOPBACK)
+                continue;
+            string strAddrBuf(NI_MAXHOST, 0);
+            if (/*&& string(ptr->ifa_name).find("eth") != string::npos*/ && getnameinfo(ptr->ifa_addr, (ptr->ifa_addr->sa_family == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6), &strAddrBuf[0], strAddrBuf.size(), NULL, 0, NI_NUMERICHOST) == 0)
+            {
+                unsigned int iIfIndex = if_nametoindex(ptr->ifa_name);
+
+                if (fnCallBack(ptr->ifa_addr->sa_family, strAddrBuf, iIfIndex) != 0)
+                {
+                    ret = ERROR_CANCELLED;
+                    break;
+                }
+            }
+        }
+
+        freeifaddrs(lstAddr);
+    }
+#endif
+    return ret;
 }
 
 //************************************************************************************
@@ -749,9 +822,6 @@ bool TcpServer::Start(const char* const szIpAddr, const short sPort)
 
             if (::bind(fd, curAddr->ai_addr, static_cast<int>(curAddr->ai_addrlen)) < 0)
                 throw WSAGetLastError();
-
-            m_strBindAddress = szIpAddr;
-            m_usBindPort = sPort;
         }
 
         for (auto fSock : m_vSock)
@@ -967,10 +1037,6 @@ bool UdpSocket::Create(const char* const szIpToWhere, const short sPort, const c
                 throw WSAGetLastError();
         }
 
-        if (szIpToWhere != nullptr)
-            m_strBindAddress = szIpToWhere;
-        m_usBindPort = sPort;
-
         m_thListen = thread(&UdpSocket::SelectThread, this);
     }
 
@@ -989,15 +1055,13 @@ bool UdpSocket::Create(const char* const szIpToWhere, const short sPort, const c
     return bRet;
 }
 
-bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp)
+bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp, const uint32_t nInterfaceIndex)
 {
     struct addrinfo *lstAddr;
     if (::getaddrinfo(szMulticastIp, nullptr, nullptr, &lstAddr) != 0)
         return false;
     int iAddFamily = lstAddr->ai_family;
     ::freeaddrinfo(lstAddr);
-
-    m_strBindAddress = szInterfaceIp;
 
     uint32_t hops = '\xff';
     uint32_t loop = 1;
@@ -1006,7 +1070,7 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp, const char*
     {
         ipv6_mreq mreq = { 0 };
         inet_pton(AF_INET6, szMulticastIp, &mreq.ipv6mr_multiaddr);
-        mreq.ipv6mr_interface = GetAdapterIndex();
+        mreq.ipv6mr_interface = nInterfaceIndex;
 
         // http://www.tldp.org/HOWTO/Multicast-HOWTO-6.html
         if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
@@ -1022,7 +1086,7 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp, const char*
     {
         ip_mreq mreq = { 0 };
         inet_pton(AF_INET, szMulticastIp, &mreq.imr_multiaddr.s_addr);
-        inet_pton(AF_INET, m_strBindAddress.c_str(), &mreq.imr_interface.s_addr);
+        mreq.imr_interface.S_un.S_un_b.s_b4 = nInterfaceIndex;
 
         if (::setsockopt(m_fSock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
         || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&hops, sizeof(hops)) != 0
@@ -1037,7 +1101,7 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp, const char*
     return true;
 }
 
-bool UdpSocket::RemoveFromMulticastGroup(const char* const szMulticastIp)
+bool UdpSocket::RemoveFromMulticastGroup(const char* const szMulticastIp, const uint32_t nInterfaceIndex)
 {
     struct addrinfo *lstAddr;
     if (::getaddrinfo(szMulticastIp, nullptr, nullptr, &lstAddr) != 0)
@@ -1051,7 +1115,7 @@ bool UdpSocket::RemoveFromMulticastGroup(const char* const szMulticastIp)
     {
         ipv6_mreq mreq = { 0 };
         inet_pton(AF_INET6, szMulticastIp, &mreq.ipv6mr_multiaddr);
-        mreq.ipv6mr_interface = GetAdapterIndex(); // use default
+        mreq.ipv6mr_interface = nInterfaceIndex; // use default
 
         if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
         || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_IF, (char*)&AnyAddr, sizeof(uint32_t)) != 0)
@@ -1064,7 +1128,7 @@ bool UdpSocket::RemoveFromMulticastGroup(const char* const szMulticastIp)
     {
         ip_mreq mreq = { 0 };
         inet_pton(AF_INET, szMulticastIp, &mreq.imr_multiaddr.s_addr);
-        inet_pton(AF_INET, m_strBindAddress.c_str(), &mreq.imr_interface.s_addr);
+        mreq.imr_interface.S_un.S_un_b.s_b4 = nInterfaceIndex;
 
         if (setsockopt(m_fSock, IPPROTO_IP, IP_DROP_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
         || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_IF, (char*)&AnyAddr, sizeof(uint32_t)) != 0)
@@ -1380,55 +1444,3 @@ void UdpSocket::SelectThread()
     while (m_afReadCall == true)
         this_thread::sleep_for(chrono::milliseconds(10));
 }
-
-int UdpSocket::GetAdapterIndex()
-{
-#if defined (_WIN32) || defined (_WIN64)
-    ULONG nBuflen = 15000;
-    auto pBuffer = make_unique<char[]>(nBuflen);
-    IP_ADAPTER_ADDRESSES* pAdpAdrPtr = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(pBuffer.get());
-    if (GetAdaptersAddresses(AF_INET6, 0, nullptr, pAdpAdrPtr, &nBuflen) == ERROR_SUCCESS)
-    {
-        while (pAdpAdrPtr != nullptr)
-        {
-            if (pAdpAdrPtr->FirstUnicastAddress != nullptr)
-            {
-                PIP_ADAPTER_UNICAST_ADDRESS_LH pUnicast = pAdpAdrPtr->FirstUnicastAddress;
-                while (pUnicast != nullptr)
-                {
-                    string strTmp(255, 0);
-                    strTmp = inet_ntop(AF_INET6, &((struct sockaddr_in6*)pUnicast->Address.lpSockaddr)->sin6_addr, &strTmp[0], strTmp.size());
-                    OutputDebugStringA(strTmp.c_str()); OutputDebugStringA("\r\n");
-                    if (m_strBindAddress.compare(strTmp) == 0)
-                    {
-                        return pAdpAdrPtr->Ipv6IfIndex;
-                    }
-                    pUnicast = pUnicast->Next;
-                }
-            }
-            pAdpAdrPtr = pAdpAdrPtr->Next;
-        }
-    }
-#else
-    struct ifaddrs* lstAddr;
-    if (getifaddrs(&lstAddr) == 0)
-    {
-        for (struct ifaddrs *ptr = lstAddr; ptr != NULL; ptr = ptr->ifa_next)
-        {
-            if (ptr->ifa_addr == NULL)
-                continue;
-            string strAddrBuf(NI_MAXHOST, 0);
-            if (ptr->ifa_addr->sa_family == AF_INET6 /*&& string(ptr->ifa_name).find("eth") != string::npos*/ && getnameinfo(ptr->ifa_addr, (ptr->ifa_addr->sa_family == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6), &strAddrBuf[0], strAddrBuf.size(), NULL, 0, NI_NUMERICHOST) == 0 && m_strBindAddress.compare(strAddrBuf) == 0)
-            {
-                unsigned int iIfIndex = if_nametoindex(ptr->ifa_name);
-                freeifaddrs(lstAddr);
-                return iIfIndex;
-            }
-        }
-    }
-    freeifaddrs(lstAddr);
-#endif
-    return 0;
-};
-
-#endif

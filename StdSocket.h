@@ -9,6 +9,8 @@
 *
 */
 #pragma once
+#ifndef STDSOCKET
+#define STDSOCKET
 
 #include <thread>
 #include <future>
@@ -39,8 +41,8 @@ public:
     virtual void BindErrorFunction(function<void(BaseSocket*)> fError);
     virtual void BindCloseFunction(function<void(BaseSocket*)> fCloseing);
     virtual int GetErrorNo() { return m_iError; }
-    virtual string& GetBindAddress() { return m_strBindAddress; }
-    virtual unsigned short GetBindPort() { return m_usBindPort; }
+
+    static int EnumIpAddresses(function<int(int,const string&,int)> fnCallBack);
 
 protected:
     virtual void SetSocketOption(const SOCKET& fd);
@@ -55,9 +57,6 @@ protected:
     int    m_iShutDownState;
     function<void(BaseSocket*)> m_fError;
     function<void(BaseSocket*)> m_fCloseing;
-
-    string m_strBindAddress;
-    unsigned short m_usBindPort;
 
 private:
 #pragma message("TODO!!! Folge Zeile wieder entfernen.")
@@ -160,8 +159,8 @@ public:
     UdpSocket();
     virtual ~UdpSocket();
     bool Create(const char* const szIpToWhere, const short sPort, const char* const szIpToBind = nullptr);
-    bool AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp);
-    bool RemoveFromMulticastGroup(const char* const szMulticastIp);
+    bool AddToMulticastGroup(const char* const szMulticastIp, const uint32_t nInterfaceIndex);
+    bool RemoveFromMulticastGroup(const char* const szMulticastIp, const uint32_t nInterfaceIndex);
     uint32_t Read(void* buf, uint32_t len, string& strFrom);
     uint32_t Write(const void* buf, uint32_t len, const string& strTo);
     void Close();
@@ -170,7 +169,6 @@ public:
 
 private:
     void SelectThread();
-    int GetAdapterIndex();
 
 private:
     mutex            m_mxInDeque;
@@ -183,3 +181,5 @@ private:
 
     function<void(UdpSocket*)> m_fBytesRecived;
 };
+
+#endif
