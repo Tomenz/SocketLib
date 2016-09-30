@@ -107,7 +107,7 @@ void BaseSocket::OnError()
     Close();
 }
 
-int BaseSocket::EnumIpAddresses(function<int(int, const string&, int)> fnCallBack)
+int BaseSocket::EnumIpAddresses(function<int(int, const string&, int, void*)> fnCallBack, void* vpUser)
 {
 #if defined(_WIN32) || defined(_WIN64)
     ULONG outBufLen = 16384;
@@ -142,7 +142,7 @@ int BaseSocket::EnumIpAddresses(function<int(int, const string&, int)> fnCallBac
                     strTmp = inet_ntop(AF_INET6, &((struct sockaddr_in6*)pUnicast->Address.lpSockaddr)->sin6_addr, &strTmp[0], strTmp.size());
                 else
                     strTmp = inet_ntop(AF_INET, &((struct sockaddr_in*)pUnicast->Address.lpSockaddr)->sin_addr, &strTmp[0], strTmp.size());
-                if (fnCallBack(pUnicast->Address.lpSockaddr->sa_family, strTmp, pCurrentAddresses->IfIndex) != 0)
+                if (fnCallBack(pUnicast->Address.lpSockaddr->sa_family, strTmp, pCurrentAddresses->IfIndex, vpUser) != 0)
                 {
                     delete reinterpret_cast<char*>(pAddressList);
                     return ERROR_CANCELLED;
@@ -1104,7 +1104,7 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp, const char*
     return true;
 }
 
-bool UdpSocket::RemoveFromMulticastGroup(const char* const szMulticastIp, const uint32_t nInterfaceIndex)
+bool UdpSocket::RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex)
 {
     struct addrinfo *lstAddr;
     if (::getaddrinfo(szMulticastIp, nullptr, nullptr, &lstAddr) != 0)
@@ -1131,7 +1131,11 @@ bool UdpSocket::RemoveFromMulticastGroup(const char* const szMulticastIp, const 
     {
         ip_mreq mreq = { 0 };
         inet_pton(AF_INET, szMulticastIp, &mreq.imr_multiaddr.s_addr);
+#if defined(_WIN32) || defined(_WIN64)
         mreq.imr_interface.s_addr = htonl(nInterfaceIndex);
+#else
+        inet_pton(AF_INET, szInterfaceIp, &mreq.imr_interface.s_addr);
+#endif
 
         if (setsockopt(m_fSock, IPPROTO_IP, IP_DROP_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
         || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_IF, (char*)&AnyAddr, sizeof(uint32_t)) != 0)

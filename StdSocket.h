@@ -42,7 +42,7 @@ public:
     virtual void BindCloseFunction(function<void(BaseSocket*)> fCloseing);
     virtual int GetErrorNo() { return m_iError; }
 
-    static int EnumIpAddresses(function<int(int,const string&,int)> fnCallBack);
+    static int EnumIpAddresses(function<int(int,const string&,int,void*)> fnCallBack, void* vpUser);
 
 protected:
     virtual void SetSocketOption(const SOCKET& fd);
@@ -160,7 +160,7 @@ public:
     virtual ~UdpSocket();
     bool Create(const char* const szIpToWhere, const short sPort, const char* const szIpToBind = nullptr);
     bool AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
-    bool RemoveFromMulticastGroup(const char* const szMulticastIp, const uint32_t nInterfaceIndex);
+    bool RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
     uint32_t Read(void* buf, uint32_t len, string& strFrom);
     uint32_t Write(const void* buf, uint32_t len, const string& strTo);
     void Close();
