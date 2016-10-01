@@ -46,7 +46,7 @@ typedef char SOCKOPT;
 typedef int SOCKOPT;
 #endif
 
-atomic_uint BaseSocket::s_atRefCount = 0;
+atomic_uint BaseSocket::s_atRefCount(0);
 
 BaseSocket::BaseSocket() : m_fSock(INVALID_SOCKET), m_bStop(false), m_bAutoDelClass(false), m_iError(0), m_iShutDownState(0), m_fError(bind(&BaseSocket::OnError, this))
 {
@@ -168,7 +168,7 @@ int BaseSocket::EnumIpAddresses(function<int(int, const string&, int, void*)> fn
             {
                 unsigned int iIfIndex = if_nametoindex(ptr->ifa_name);
 
-                if (fnCallBack(ptr->ifa_addr->sa_family, strAddrBuf, iIfIndex) != 0)
+                if (fnCallBack(ptr->ifa_addr->sa_family, strAddrBuf, iIfIndex, vpUser) != 0)
                 {
                     freeifaddrs(lstAddr);
                     return ECANCELED;
