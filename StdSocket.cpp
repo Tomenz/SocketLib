@@ -46,7 +46,7 @@ typedef char SOCKOPT;
 typedef int SOCKOPT;
 #endif
 
-atomic_uint BaseSocket::s_atRefCount;
+atomic_uint BaseSocket::s_atRefCount = 0;
 
 BaseSocket::BaseSocket() : m_fSock(INVALID_SOCKET), m_bStop(false), m_bAutoDelClass(false), m_iError(0), m_iShutDownState(0), m_fError(bind(&BaseSocket::OnError, this))
 {
