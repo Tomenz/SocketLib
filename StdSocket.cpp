@@ -471,6 +471,12 @@ uint32_t TcpSocket::Write(const void* buf, uint32_t len)
                     }).detach();
                 }
             }
+            else if (m_fSock == INVALID_SOCKET)
+            {
+                // if the socket was closed, and the closing callback was not called, we call it now
+                if (m_fCloseing != nullptr)
+                    m_fCloseing(this);
+            }
 
             atomic_exchange(&m_atWriteThread, false);
             m_mxWriteThr.unlock();
@@ -680,6 +686,12 @@ void TcpSocket::SelectThread()
 
             thread([&]() { delete this; }).detach();
         }
+    }
+    else if (m_fSock == INVALID_SOCKET)
+    {
+        // if the socket was closed, and the closing callback was not called, we call it now
+        if (m_fCloseing != nullptr)
+            m_fCloseing(this);
     }
 }
 
