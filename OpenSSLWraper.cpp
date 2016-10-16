@@ -255,19 +255,17 @@ namespace OpenSSLWrapper
 
     int SslServerContext::ALPN_CB(SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in, unsigned int inlen, void *arg)
     {
-        static vector<string> vProtos = { { "h2" },{ "h2-16" },{ "h2-15" },{ "h2-14" },{ "http/1.1" } };
+        const static vector<string> vProtos = { { "h2" },{ "h2-16" },{ "h2-15" },{ "h2-14" },{ "http/1.1" } };
 
         for (auto& strProt : vProtos)
         {
-            basic_string<unsigned char> strTmp(begin(strProt), end(strProt));
-
             for (unsigned int i = 0; i < inlen; ++i)
             {
                 int nLen = *in++;
-                basic_string<unsigned char> strProtokoll(in, nLen);
+                string strProtokoll(reinterpret_cast<const char*>(in), nLen);
                 transform(begin(strProtokoll), end(strProtokoll), begin(strProtokoll), ::tolower);
 
-                if (strProtokoll.compare(strTmp) == 0)
+                if (strProtokoll == strProt)
                 {
                     *out = in, *outlen = nLen;
                     return 0;
@@ -285,15 +283,13 @@ namespace OpenSSLWrapper
 
         for (auto& strProt : vProtos)
         {
-            basic_string<unsigned char> strTmp(begin(strProt), end(strProt));
-
             for (unsigned int i = 0; i < inlen; ++i)
             {
                 int nLen = *in++;
-                basic_string<unsigned char> strProtokoll(in, nLen);
+                basic_string<unsigned char> strProtokoll(reinterpret_cast<const char*>(in), nLen);
                 transform(begin(strProtokoll), end(strProtokoll), begin(strProtokoll), ::tolower);
 
-                if (strProtokoll.compare(strTmp) == 0)
+                if (strProtokoll == strProt)
                 {
                     *out = (unsigned char*)in, *outlen = nLen;
                     return 0;
@@ -318,7 +314,7 @@ namespace OpenSSLWrapper
 
             for (auto& it : *pSslCtx)
             {
-                if (it->m_strCertComName.compare(strHostName) == 0)
+                if (it->m_strCertComName == strHostName)
                 {
                     SSL_set_SSL_CTX(ssl, (*it)());
                     return SSL_TLSEXT_ERR_OK;
@@ -512,7 +508,7 @@ namespace OpenSSLWrapper
         return iRead;
     }
 
-    size_t SslConnetion::SslWrite(uint8_t* szBuffer, uint32_t nWriteLen)
+    uint32_t SslConnetion::SslWrite(uint8_t* szBuffer, uint32_t nWriteLen)
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
@@ -580,10 +576,7 @@ namespace OpenSSLWrapper
         unsigned int iProtoLen = 0;
         SSL_get0_alpn_selected(m_ssl, &cpAlpnProto, &iProtoLen);
         if (cpAlpnProto != nullptr && iProtoLen > 0)
-        {
-            basic_string<unsigned char> strProto(cpAlpnProto, iProtoLen);
-            return string(begin(strProto), end(strProto));
-        }
+            return string(reinterpret_cast<const char*>(cpAlpnProto), iProtoLen);
 
         return string();
     }
@@ -619,7 +612,7 @@ namespace OpenSSLWrapper
         long lResult = SSL_get_verify_result(m_ssl);
 
         // Check 3, compare common name
-        if (strComName.compare(szHostName) != 0 && lResult == X509_V_OK)
+        if (strComName != szHostName && lResult == X509_V_OK)
             lResult = X509_V_ERR_HOSTNAME_MISMATCH;
         return lResult;
     }

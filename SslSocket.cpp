@@ -87,7 +87,7 @@ uint32_t SslTcpSocket::Read(void* buf, uint32_t len)
     if (m_atInBytes == 0)
         return 0;
 
-    size_t nOffset = 0;
+    uint32_t nOffset = 0;
     uint32_t nRet = 0;
 
     NextFromQue:
@@ -97,14 +97,14 @@ uint32_t SslTcpSocket::Read(void* buf, uint32_t len)
     m_mxInDeque.unlock();
 
     // Copy the data into the destination buffer
-    size_t nToCopy = min(BUFLEN(data), len);
+    uint32_t nToCopy = min(BUFLEN(data), len);
     copy(BUFFER(data).get(), BUFFER(data).get() + nToCopy, static_cast<char*>(buf) + nOffset);
     m_atInBytes -= nToCopy;
     nRet += nToCopy;
 
     if (nToCopy < BUFLEN(data))
     {   // Put the Rest of the Data back to the Que
-        size_t nRest = BUFLEN(data) - nToCopy;
+        uint32_t nRest = BUFLEN(data) - nToCopy;
         shared_ptr<uint8_t> tmp(new uint8_t[nRest]);
         copy(BUFFER(data).get() + nToCopy, BUFFER(data).get() + nToCopy + nRest, tmp.get());
         m_mxInDeque.lock();
@@ -254,7 +254,7 @@ void SslTcpSocket::PumpThread()
             uint32_t nPut = m_pSslCon->SslPutInData(BUFFER(data).get(), BUFLEN(data));
             if (nPut != BUFLEN(data))
             {
-                size_t nRest = BUFLEN(data) - nPut;
+                uint32_t nRest = BUFLEN(data) - nPut;
                 shared_ptr<uint8_t> tmp(new uint8_t[nRest]);
                 copy(BUFFER(data).get() + nPut, BUFFER(data).get() + nPut + nRest, tmp.get());
                 m_quTmpData.emplace_front(tmp, nRest);
@@ -338,10 +338,10 @@ void SslTcpSocket::PumpThread()
             m_atOutBytes -= BUFLEN(data);
             m_mxOutDeque.unlock();
 
-            size_t nWritten = m_pSslCon->SslWrite(BUFFER(data).get(), BUFLEN(data));
+            uint32_t nWritten = m_pSslCon->SslWrite(BUFFER(data).get(), BUFLEN(data));
             if (nWritten != BUFLEN(data))
             {
-                size_t nRest = BUFLEN(data) - nWritten;
+                uint32_t nRest = BUFLEN(data) - nWritten;
 
                 shared_ptr<uint8_t> tmp(new uint8_t[nRest]);
                 copy(BUFFER(data).get() + nWritten, BUFFER(data).get() + nWritten + nRest, tmp.get());

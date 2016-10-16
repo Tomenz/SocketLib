@@ -314,7 +314,7 @@ uint32_t TcpSocket::Read(void* buf, uint32_t len)
     if (m_atInBytes == 0)
         return 0;
 
-    size_t nOffset = 0;
+    uint32_t nOffset = 0;
     uint32_t nRet = 0;
 
     NextFromQue:
@@ -324,14 +324,14 @@ uint32_t TcpSocket::Read(void* buf, uint32_t len)
     m_mxInDeque.unlock();
 
     // Copy the data into the destination buffer
-    size_t nToCopy = min(BUFLEN(data), len);
-    copy(BUFFER(data).get(), BUFFER(data).get() + nToCopy, static_cast<char*>(buf) + nOffset);
+    uint32_t nToCopy = min(BUFLEN(data), len);
+    copy(BUFFER(data).get(), BUFFER(data).get() + nToCopy, &static_cast<char*>(buf)[nOffset]);
     m_atInBytes -= nToCopy;
     nRet += nToCopy;
 
     if (nToCopy < BUFLEN(data))
     {   // Put the Rest of the Data back to the Que
-        size_t nRest = BUFLEN(data) - nToCopy;
+        uint32_t nRest = BUFLEN(data) - nToCopy;
         shared_ptr<uint8_t> tmp(new uint8_t[nRest]);
         copy(BUFFER(data).get() + nToCopy, BUFFER(data).get() + nToCopy + nRest, tmp.get());
         m_mxInDeque.lock();
@@ -474,8 +474,10 @@ uint32_t TcpSocket::Write(const void* buf, uint32_t len)
             else if (m_fSock == INVALID_SOCKET)
             {
                 // if the socket was closed, and the closing callback was not called, we call it now
-                if (m_fCloseing != nullptr)
+                thread([&]() {
+                    if (m_fCloseing != nullptr)
                     m_fCloseing(this);
+                }).detach();
             }
 
             atomic_exchange(&m_atWriteThread, false);
@@ -690,8 +692,10 @@ void TcpSocket::SelectThread()
     else if (m_fSock == INVALID_SOCKET)
     {
         // if the socket was closed, and the closing callback was not called, we call it now
-        if (m_fCloseing != nullptr)
-            m_fCloseing(this);
+        thread([&]() {
+            if (m_fCloseing != nullptr)
+                m_fCloseing(this);
+        }).detach();
     }
 }
 
@@ -717,12 +721,6 @@ void TcpSocket::ConnectThread()
                 socklen_t iLen = sizeof(m_iError);
                 getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
 
-                if (m_fCloseing != nullptr)
-                    m_fCloseing(this);
-
-                ::closesocket(m_fSock);
-                m_fSock = INVALID_SOCKET;
-
                 if (m_fError != nullptr && m_bStop == false)
                     m_fError(this);
                 break;
@@ -739,6 +737,20 @@ void TcpSocket::ConnectThread()
                 break;
             }
         }
+    }
+
+    if (m_iError != 0 && m_fSock != INVALID_SOCKET)
+    {
+        ::closesocket(m_fSock);
+        m_fSock = INVALID_SOCKET;
+    }
+
+    if (m_fSock == INVALID_SOCKET)
+    {
+        thread([&]() {
+            if (m_fCloseing != nullptr)
+                m_fCloseing(this);
+        }).detach();
     }
 }
 
@@ -939,7 +951,7 @@ void TcpServer::SelectThread()
         int iRes = ::select(static_cast<int>(maxFd + 1), &readfd, nullptr, nullptr, &timeout);
         if (iRes > 0)
         {
-            size_t nNewConnections = 0;
+            uint32_t nNewConnections = 0;
 
             for (auto Sock : m_vSock)
             {
@@ -1165,7 +1177,7 @@ uint32_t UdpSocket::Read(void* buf, uint32_t len, string& strFrom)
     if (m_atInBytes == 0)
         return 0;
 
-    size_t nOffset = 0;
+    uint32_t nOffset = 0;
     uint32_t nRet = 0;
 
     m_mxInDeque.lock();
@@ -1174,7 +1186,7 @@ uint32_t UdpSocket::Read(void* buf, uint32_t len, string& strFrom)
     m_mxInDeque.unlock();
 
     // Copy the data into the destination buffer
-    size_t nToCopy = min(BUFLEN(data), len);
+    uint32_t nToCopy = min(BUFLEN(data), len);
     copy(BUFFER(data).get(), BUFFER(data).get() + nToCopy, static_cast<char*>(buf) + nOffset);
     m_atInBytes -= nToCopy;
     strFrom = ADDRESS(data);
@@ -1182,7 +1194,7 @@ uint32_t UdpSocket::Read(void* buf, uint32_t len, string& strFrom)
 
     if (nToCopy < BUFLEN(data))
     {   // Put the Rest of the Data back to the Que
-        size_t nRest = BUFLEN(data) - nToCopy;
+        uint32_t nRest = BUFLEN(data) - nToCopy;
         shared_ptr<uint8_t> tmp(new uint8_t[nRest]);
         copy(BUFFER(data).get() + nToCopy, BUFFER(data).get() + nToCopy + nRest, tmp.get());
         m_mxInDeque.lock();
@@ -1265,7 +1277,7 @@ uint32_t UdpSocket::Write(const void* buf, uint32_t len, const string& strTo)
                 }
 
 
-                uint32_t transferred = ::sendto(m_fSock, (const char*)BUFFER(data).get(), BUFLEN(data), 0, lstAddr->ai_addr, lstAddr->ai_addrlen);
+                uint32_t transferred = ::sendto(m_fSock, reinterpret_cast<const char*>(BUFFER(data).get()), BUFLEN(data), 0, lstAddr->ai_addr, static_cast<int>(lstAddr->ai_addrlen));
                 ::freeaddrinfo(lstAddr);
                 if (transferred <= 0)
                 {

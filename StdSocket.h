@@ -68,7 +68,7 @@ private:
 class TcpSocket : public BaseSocket
 {
 protected:
-    typedef tuple<shared_ptr<uint8_t>, size_t> DATA;
+    typedef tuple<shared_ptr<uint8_t>, uint32_t> DATA;
 
 public:
     TcpSocket();
@@ -153,7 +153,7 @@ private:
 
 class UdpSocket : public BaseSocket
 {
-    typedef tuple<shared_ptr<uint8_t>, size_t, string> DATA;
+    typedef tuple<shared_ptr<uint8_t>, uint32_t, string> DATA;
 
 public:
     UdpSocket();

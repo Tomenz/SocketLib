@@ -103,7 +103,7 @@ namespace OpenSSLWrapper
         bool HandShakeComplet();
         int GetShutDownFlag();
         uint32_t SslRead(uint8_t* szBuffer, uint32_t nBufLen);
-        size_t SslWrite(uint8_t* szBuffer, uint32_t nWriteLen);
+        uint32_t SslWrite(uint8_t* szBuffer, uint32_t nWriteLen);
         int ShutDownConnection();
         void SetAlpnProtokollNames(vector<string> vProtoList);
         string GetSelAlpnProtocol();
