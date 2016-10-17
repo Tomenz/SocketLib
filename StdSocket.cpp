@@ -476,7 +476,7 @@ uint32_t TcpSocket::Write(const void* buf, uint32_t len)
                 // if the socket was closed, and the closing callback was not called, we call it now
                 thread([&]() {
                     if (m_fCloseing != nullptr)
-                    m_fCloseing(this);
+                        m_fCloseing(this);
                 }).detach();
             }
 
