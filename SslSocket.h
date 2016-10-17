@@ -27,7 +27,7 @@ public:
     virtual ~SslTcpSocket();
     bool Connect(const char* const szIpToWhere, const short sPort);
     uint32_t Read(void* buf, uint32_t len) override;
-    uint32_t Write(const void* buf, uint32_t len) override;
+    size_t Write(const void* buf, size_t len) override;
     void Close() override;
     uint32_t GetBytesAvailible() const override;
     void BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) override;

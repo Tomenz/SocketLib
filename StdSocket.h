@@ -75,7 +75,7 @@ public:
     virtual ~TcpSocket();
     virtual bool Connect(const char* const szIpToWhere, const short sPort);
     virtual uint32_t Read(void* buf, uint32_t len);
-    virtual uint32_t Write(const void* buf, uint32_t len);
+    virtual size_t Write(const void* buf, size_t len);
     void StartReceiving();
     virtual void Close();
     virtual uint32_t GetBytesAvailible() const;
@@ -162,7 +162,7 @@ public:
     bool AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
     bool RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
     uint32_t Read(void* buf, uint32_t len, string& strFrom);
-    uint32_t Write(const void* buf, uint32_t len, const string& strTo);
+    size_t Write(const void* buf, size_t len, const string& strTo);
     void Close();
     uint32_t GetBytesAvailible() const;
     void BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived);

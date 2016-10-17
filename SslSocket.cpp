@@ -122,7 +122,7 @@ uint32_t SslTcpSocket::Read(void* buf, uint32_t len)
     return nRet;
 }
 
-uint32_t SslTcpSocket::Write(const void* buf, uint32_t len)
+size_t SslTcpSocket::Write(const void* buf, size_t len)
 {
     if (m_bStop == true || len == 0 || m_bCloseReq == true)
         return 0;
@@ -130,8 +130,8 @@ uint32_t SslTcpSocket::Write(const void* buf, uint32_t len)
     shared_ptr<uint8_t> tmp(new uint8_t[len]);
     copy(static_cast<const char*>(buf), static_cast<const char*>(buf) + len, tmp.get());
     m_mxOutDeque.lock();
-    m_quOutData.emplace_back(tmp, len);
-    m_atOutBytes += len;
+    m_quOutData.emplace_back(tmp, static_cast<uint32_t>(len));
+    m_atOutBytes += static_cast<uint32_t>(len);
     m_mxOutDeque.unlock();
 
     return len;

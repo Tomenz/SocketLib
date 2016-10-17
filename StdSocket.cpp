@@ -349,7 +349,7 @@ uint32_t TcpSocket::Read(void* buf, uint32_t len)
     return nRet;
 }
 
-uint32_t TcpSocket::Write(const void* buf, uint32_t len)
+size_t TcpSocket::Write(const void* buf, size_t len)
 {
     if (m_bStop == true || m_bCloseReq == true || len == 0)
         return 0;
@@ -357,8 +357,8 @@ uint32_t TcpSocket::Write(const void* buf, uint32_t len)
     shared_ptr<uint8_t> tmp(new uint8_t[len]);
     copy(static_cast<const char*>(buf), static_cast<const char*>(buf) + len, tmp.get());
     m_mxOutDeque.lock();
-    m_quOutData.emplace_back(tmp, len);
-    m_atOutBytes += len;
+    m_quOutData.emplace_back(tmp, static_cast<uint32_t>(len));
+    m_atOutBytes += static_cast<uint32_t>(len);
     m_mxOutDeque.unlock();
 
     lock_guard<mutex> lock(m_mxWriteThr);
@@ -1206,7 +1206,7 @@ uint32_t UdpSocket::Read(void* buf, uint32_t len, string& strFrom)
     return nRet;
 }
 
-uint32_t UdpSocket::Write(const void* buf, uint32_t len, const string& strTo)
+size_t UdpSocket::Write(const void* buf, size_t len, const string& strTo)
 {
     if (m_bStop == true || len == 0 || strTo.empty() == true)
         return 0;
@@ -1214,8 +1214,8 @@ uint32_t UdpSocket::Write(const void* buf, uint32_t len, const string& strTo)
     shared_ptr<uint8_t> tmp(new uint8_t[len]);
     copy(static_cast<const char*>(buf), static_cast<const char*>(buf) + len, tmp.get());
     m_mxOutDeque.lock();
-    m_quOutData.emplace_back(tmp, len, strTo);
-    m_atOutBytes += len;
+    m_quOutData.emplace_back(tmp, static_cast<uint32_t>(len), strTo);
+    m_atOutBytes += static_cast<uint32_t>(len);
     m_mxOutDeque.unlock();
 
     bool bTmp = false;
