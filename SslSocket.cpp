@@ -319,7 +319,7 @@ void SslTcpSocket::PumpThread()
                 }
                 bDidSomeWork = true;
             }
-            else if (m_bShutDownReceive == true && m_atInBytes == 0 && m_fBytesRecived != nullptr)
+            else if (m_bShutDownReceive == true && m_atTmpBytes == 0 && m_atInBytes == 0 && m_afReadCall == false && m_fBytesRecived != nullptr)
                 m_fBytesRecived(this);
         }
         else if (bHandShakeOk == false && m_bShutDownReceive == true && m_fBytesRecived != nullptr)
