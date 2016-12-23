@@ -91,7 +91,7 @@ public:
 
 protected:
     friend TcpServer;
-    TcpSocket(const SOCKET);
+    explicit TcpSocket(const SOCKET);
     virtual void SetSocketOption(const SOCKET& fd);
 
 private:

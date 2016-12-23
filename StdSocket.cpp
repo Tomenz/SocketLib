@@ -628,7 +628,6 @@ void TcpSocket::SelectThread()
                     if (m_afReadCall == false)
                     {
                         atomic_exchange(&m_afReadCall, true);
-                        bNotify = false;
 
                         thread([&](int iShutDownState) {
 

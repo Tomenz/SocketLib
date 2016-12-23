@@ -46,7 +46,7 @@ namespace OpenSSLWrapper
     class SslContext
     {
     public:
-        SslContext(const SSL_METHOD* sslMethod);
+        explicit SslContext(const SSL_METHOD* sslMethod);
         virtual ~SslContext();
         SSL_CTX* operator() ();
 
