@@ -98,7 +98,7 @@ uint32_t SslTcpSocket::Read(void* buf, uint32_t len)
 
     // Copy the data into the destination buffer
     uint32_t nToCopy = min(BUFLEN(data), len);
-    copy(BUFFER(data).get(), BUFFER(data).get() + nToCopy, static_cast<char*>(buf) + nOffset);
+    copy(BUFFER(data).get(), BUFFER(data).get() + nToCopy, static_cast<uint8_t*>(buf) + nOffset);
     m_atInBytes -= nToCopy;
     nRet += nToCopy;
 
@@ -128,7 +128,7 @@ size_t SslTcpSocket::Write(const void* buf, size_t len)
         return 0;
 
     shared_ptr<uint8_t> tmp(new uint8_t[len]);
-    copy(static_cast<const char*>(buf), static_cast<const char*>(buf) + len, tmp.get());
+    copy(static_cast<const uint8_t*>(buf), static_cast<const uint8_t*>(buf) + len, tmp.get());
     m_mxOutDeque.lock();
     m_quOutData.emplace_back(tmp, static_cast<uint32_t>(len));
     m_atOutBytes += static_cast<uint32_t>(len);

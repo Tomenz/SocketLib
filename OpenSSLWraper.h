@@ -89,7 +89,7 @@ namespace OpenSSLWrapper
     class SslConnetion
     {
     public:
-        SslConnetion(SslContext* ctx, const char* szName = 0);
+        SslConnetion(SslContext* ctx);
         ~SslConnetion();
 //      static long CbBioInfo(struct bio_st* pBioInfo, int iInt1, const char* cpBuf, int iInt2, long l1, long lRet);
         SSL* operator() ();
@@ -117,8 +117,6 @@ namespace OpenSSLWrapper
         int  m_iShutDownFlag;
         function<void()> m_fError;
         int m_iWantState;
-
-        const char* m_szName;
     };
 }
 

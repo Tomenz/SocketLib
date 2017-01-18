@@ -46,33 +46,46 @@ typedef char SOCKOPT;
 typedef int SOCKOPT;
 #endif
 
+// Initialize the Socket Library
+const InitSocket* SocketInit = InitSocket::GetInstance();
+
+InitSocket* InitSocket::GetInstance()
+{
+    static InitSocket iniSocket;
+    return &iniSocket;
+}
+
+InitSocket::~InitSocket()
+{
+#if defined(_WIN32) || defined(_WIN64)
+    ::WSACleanup();
+#endif
+}
+
+InitSocket::InitSocket()
+{
+#if defined(_WIN32) || defined(_WIN64)
+    WSADATA wsaData;
+    ::WSAStartup(MAKEWORD(2, 2), &wsaData);
+#else
+    //signal(SIGPIPE, SIG_IGN);
+    sigset_t sigset;
+    sigemptyset(&sigset);
+    sigaddset(&sigset, SIGPIPE);
+    sigprocmask(SIG_BLOCK, &sigset, NULL);
+#endif
+}
+
 atomic_uint BaseSocket::s_atRefCount(0);
 
 BaseSocket::BaseSocket() : m_fSock(INVALID_SOCKET), m_bStop(false), m_bAutoDelClass(false), m_iError(0), m_iShutDownState(0), m_fError(bind(&BaseSocket::OnError, this))
 {
-    if (s_atRefCount++ == 0)
-    {
-#if defined(_WIN32) || defined(_WIN64)
-        WSADATA wsaData;
-        ::WSAStartup(MAKEWORD(2, 2), &wsaData);
-#else
-        //signal(SIGPIPE, SIG_IGN);
-        sigset_t sigset;
-        sigemptyset(&sigset);
-        sigaddset(&sigset, SIGPIPE);
-        sigprocmask(SIG_BLOCK, &sigset, NULL);
-#endif
-    }
+    ++s_atRefCount;
 }
 
 BaseSocket::~BaseSocket()
 {
-    if (--s_atRefCount == 0)
-    {
-#if defined(_WIN32) || defined(_WIN64)
-        ::WSACleanup();
-#endif
-    }
+    --s_atRefCount;
 }
 
 void BaseSocket::BindErrorFunction(function<void(BaseSocket*)> fError)
@@ -325,7 +338,7 @@ uint32_t TcpSocket::Read(void* buf, uint32_t len)
 
     // Copy the data into the destination buffer
     uint32_t nToCopy = min(BUFLEN(data), len);
-    copy(BUFFER(data).get(), BUFFER(data).get() + nToCopy, &static_cast<char*>(buf)[nOffset]);
+    copy(BUFFER(data).get(), BUFFER(data).get() + nToCopy, &static_cast<uint8_t*>(buf)[nOffset]);
     m_atInBytes -= nToCopy;
     nRet += nToCopy;
 
@@ -355,7 +368,7 @@ size_t TcpSocket::Write(const void* buf, size_t len)
         return 0;
 
     shared_ptr<uint8_t> tmp(new uint8_t[len]);
-    copy(static_cast<const char*>(buf), static_cast<const char*>(buf) + len, tmp.get());
+    copy(static_cast<const uint8_t*>(buf), static_cast<const uint8_t*>(buf) + len, tmp.get());
     m_mxOutDeque.lock();
     m_quOutData.emplace_back(tmp, static_cast<uint32_t>(len));
     m_atOutBytes += static_cast<uint32_t>(len);
@@ -406,7 +419,7 @@ size_t TcpSocket::Write(const void* buf, size_t len)
                 m_mxOutDeque.unlock();
                 m_atOutBytes -= BUFLEN(data);
 
-                uint32_t transferred = ::send(m_fSock, (const char*)BUFFER(data).get(), BUFLEN(data), 0);
+                uint32_t transferred = ::send(m_fSock, reinterpret_cast<char*>(BUFFER(data).get()), BUFLEN(data), 0);
                 if (transferred <= 0)
                 {
                     int iError = WSAGetLastError();
@@ -1095,10 +1108,10 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp, const char*
         mreq.ipv6mr_interface = nInterfaceIndex;
 
         // http://www.tldp.org/HOWTO/Multicast-HOWTO-6.html
-        if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
-        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, (char*)&hops, sizeof(hops)) != 0
-        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, (char*)&loop, sizeof(loop)) != 0
-        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_IF, (char*)&mreq.ipv6mr_interface, sizeof(mreq.ipv6mr_interface)) != 0)
+        if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, reinterpret_cast<char*>(&mreq), sizeof(mreq)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, reinterpret_cast<char*>(&hops), sizeof(hops)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, reinterpret_cast<char*>(&loop), sizeof(loop)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_IF, reinterpret_cast<char*>(&mreq.ipv6mr_interface), sizeof(mreq.ipv6mr_interface)) != 0)
         {
             m_iError = WSAGetLastError();
             return false;
@@ -1115,9 +1128,9 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp, const char*
 #endif
 
         if (::setsockopt(m_fSock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
-        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&hops, sizeof(hops)) != 0
-        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_LOOP, (char*)&loop, sizeof(loop)) != 0
-        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_IF, (char*)&mreq.imr_interface, sizeof(mreq.imr_interface)) != 0)
+        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_TTL, reinterpret_cast<char*>(&hops), sizeof(hops)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_LOOP, reinterpret_cast<char*>(&loop), sizeof(loop)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_IF, reinterpret_cast<char*>(&mreq.imr_interface), sizeof(mreq.imr_interface)) != 0)
         {
             m_iError = WSAGetLastError();
             return false;
@@ -1144,7 +1157,7 @@ bool UdpSocket::RemoveFromMulticastGroup(const char* const szMulticastIp, const 
         mreq.ipv6mr_interface = nInterfaceIndex; // use default
 
         if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
-        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_IF, (char*)&AnyAddr, sizeof(uint32_t)) != 0)
+        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_IF, reinterpret_cast<char*>(&AnyAddr), sizeof(uint32_t)) != 0)
         {
             m_iError = WSAGetLastError();
             return false;
@@ -1161,7 +1174,7 @@ bool UdpSocket::RemoveFromMulticastGroup(const char* const szMulticastIp, const 
 #endif
 
         if (setsockopt(m_fSock, IPPROTO_IP, IP_DROP_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
-        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_IF, (char*)&AnyAddr, sizeof(uint32_t)) != 0)
+        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_IF, reinterpret_cast<char*>(&AnyAddr), sizeof(uint32_t)) != 0)
         {
             m_iError = WSAGetLastError();
             return false;
@@ -1186,7 +1199,7 @@ uint32_t UdpSocket::Read(void* buf, uint32_t len, string& strFrom)
 
     // Copy the data into the destination buffer
     uint32_t nToCopy = min(BUFLEN(data), len);
-    copy(BUFFER(data).get(), BUFFER(data).get() + nToCopy, static_cast<char*>(buf) + nOffset);
+    copy(BUFFER(data).get(), BUFFER(data).get() + nToCopy, static_cast<uint8_t*>(buf) + nOffset);
     m_atInBytes -= nToCopy;
     strFrom = ADDRESS(data);
     nRet += nToCopy;
@@ -1211,7 +1224,7 @@ size_t UdpSocket::Write(const void* buf, size_t len, const string& strTo)
         return 0;
 
     shared_ptr<uint8_t> tmp(new uint8_t[len]);
-    copy(static_cast<const char*>(buf), static_cast<const char*>(buf) + len, tmp.get());
+    copy(static_cast<const uint8_t*>(buf), static_cast<const uint8_t*>(buf) + len, tmp.get());
     m_mxOutDeque.lock();
     m_quOutData.emplace_back(tmp, static_cast<uint32_t>(len), strTo);
     m_atOutBytes += static_cast<uint32_t>(len);
@@ -1389,7 +1402,7 @@ void UdpSocket::SelectThread()
                 }SenderAddr;
                 socklen_t   sinLen = sizeof(SenderAddr);
 
-                int32_t transferred = ::recvfrom(m_fSock, (char*)buf, sizeof(buf), 0, (sockaddr*)&SenderAddr, &sinLen);
+                int32_t transferred = ::recvfrom(m_fSock, buf, sizeof(buf), 0, (sockaddr*)&SenderAddr, &sinLen);
 
                 if (transferred <= 0)
                 {

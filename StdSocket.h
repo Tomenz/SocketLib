@@ -32,6 +32,16 @@ using namespace std;
 
 class TcpServer;
 
+class InitSocket
+{
+public:
+    static InitSocket* GetInstance();
+    ~InitSocket();
+
+private:
+    InitSocket();
+};
+
 class BaseSocket
 {
 public:
@@ -153,19 +163,20 @@ private:
 
 class UdpSocket : public BaseSocket
 {
+protected:
     typedef tuple<shared_ptr<uint8_t>, uint32_t, string> DATA;
 
 public:
     UdpSocket();
     virtual ~UdpSocket();
-    bool Create(const char* const szIpToWhere, const short sPort, const char* const szIpToBind = nullptr);
-    bool AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
-    bool RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
-    uint32_t Read(void* buf, uint32_t len, string& strFrom);
-    size_t Write(const void* buf, size_t len, const string& strTo);
-    void Close();
-    uint32_t GetBytesAvailible() const;
-    void BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived);
+    virtual bool Create(const char* const szIpToWhere, const short sPort, const char* const szIpToBind = nullptr);
+    virtual bool AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
+    virtual bool RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
+    virtual uint32_t Read(void* buf, uint32_t len, string& strFrom);
+    virtual size_t Write(const void* buf, size_t len, const string& strTo);
+    virtual void Close();
+    virtual uint32_t GetBytesAvailible() const;
+    virtual void BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived);
 
 private:
     void SelectThread();

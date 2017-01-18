@@ -326,7 +326,7 @@ namespace OpenSSLWrapper
     }
 
 
-    SslConnetion::SslConnetion(SslContext* ctx, const char* szName/* = 0*/) : m_ssl(SSL_new((*ctx)())), m_iShutDownFlag(INT32_MAX), m_iWantState(0), m_szName(szName)
+    SslConnetion::SslConnetion(SslContext* ctx) : m_ssl(SSL_new((*ctx)())), m_iShutDownFlag(INT32_MAX), m_iWantState(0)
     {
         m_rbio = BIO_new(BIO_s_mem());
         m_wbio = BIO_new(BIO_s_mem());
@@ -583,7 +583,7 @@ namespace OpenSSLWrapper
 
     void SslConnetion::SetTrustedRootCertificates(const char* szFileName)
     {
-        SSL_CTX_load_verify_locations(m_ssl->ctx, szFileName, nullptr);
+        SSL_CTX_load_verify_locations(SSL_get_SSL_CTX(m_ssl), szFileName, nullptr);
     }
 
     long SslConnetion::CheckServerCertificate(const char* szHostName)
