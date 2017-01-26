@@ -381,9 +381,13 @@ size_t TcpSocket::Write(const void* buf, size_t len)
 
         thread([&]()
         {
-        repeat:
-            while (m_atOutBytes != 0 && m_iError == 0/* && m_bStop == false*/)
+
+            m_mxWriteThr.lock();
+            uint32_t nOutBytes = m_atOutBytes;
+            while (nOutBytes != 0 && m_iError == 0/* && m_bStop == false*/)
             {
+                m_mxWriteThr.unlock();
+
                 fd_set writefd, errorfd;
                 struct timeval timeout;
 
@@ -447,13 +451,9 @@ size_t TcpSocket::Write(const void* buf, size_t len)
                     m_mxOutDeque.unlock();
                     m_atOutBytes += (BUFLEN(data) - transferred);
                 }
-            }
 
-            m_mxWriteThr.lock();
-            if (m_atOutBytes != 0 && m_iError == 0)
-            {
-                m_mxWriteThr.unlock();
-                goto repeat;
+                m_mxWriteThr.lock();
+                nOutBytes = m_atOutBytes;
             }
 
             if (m_bCloseReq == true && m_iError == 0)
