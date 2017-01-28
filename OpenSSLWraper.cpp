@@ -48,10 +48,10 @@ namespace OpenSSLWrapper
     InitOpenSSL::~InitOpenSSL()
     {
         CRYPTO_set_locking_callback(nullptr);
-
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
         /* thread-local cleanup */
         ERR_remove_thread_state(nullptr);
-
+#endif
         /* thread-safe cleanup */
         ENGINE_cleanup();
         CONF_modules_unload(1);

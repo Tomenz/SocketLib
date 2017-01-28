@@ -235,7 +235,7 @@ TcpSocket::~TcpSocket()
     }
 
     while (m_atWriteThread == true)
-        this_thread::sleep_for(chrono::milliseconds(10));
+        this_thread::sleep_for(chrono::milliseconds(1));
 }
 
 bool TcpSocket::Connect(const char* const szIpToWhere, const short sPort)
@@ -686,7 +686,7 @@ void TcpSocket::SelectThread()
     }
 
     while (m_afReadCall == true)
-        this_thread::sleep_for(chrono::milliseconds(10));
+        this_thread::sleep_for(chrono::milliseconds(1));
 
     // if it is a auto-delete class we start the auto-delete thread now
     if (m_bAutoDelClass == true)
@@ -1485,5 +1485,5 @@ void UdpSocket::SelectThread()
     }
 
     while (m_afReadCall == true)
-        this_thread::sleep_for(chrono::milliseconds(10));
+        this_thread::sleep_for(chrono::milliseconds(1));
 }

@@ -378,15 +378,15 @@ void SslTcpSocket::PumpThread()
         }
 
         if (bDidSomeWork == false)
-            this_thread::sleep_for(chrono::milliseconds(10));
+            this_thread::sleep_for(chrono::milliseconds(1));
     }
 
     while (m_afReadCall == true)
-        this_thread::sleep_for(chrono::milliseconds(10));
-
+        this_thread::sleep_for(chrono::milliseconds(1));
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
     /* thread-local cleanup */
     ERR_remove_thread_state(nullptr);
-
+#endif
     TcpSocket::Close();
 
 #pragma message("TODO!!! Folge Zeile wieder entfernen.")
