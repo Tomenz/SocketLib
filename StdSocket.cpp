@@ -381,7 +381,6 @@ size_t TcpSocket::Write(const void* buf, size_t len)
 
         thread([&]()
         {
-
             m_mxWriteThr.lock();
             uint32_t nOutBytes = m_atOutBytes;
             while (nOutBytes != 0 && m_iError == 0/* && m_bStop == false*/)
