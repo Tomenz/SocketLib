@@ -81,6 +81,17 @@ namespace OpenSSLWrapper
         string m_strCertComName;
     };
 
+    class SslUdpContext : public SslContext
+    {
+    public:
+        SslUdpContext();
+        int SetCertificates(const char* szHostCertificate, const char* szHostKey);
+    private:
+        static int verify_callback(int preverify_ok, X509_STORE_CTX *ctx);
+    private:
+        string m_strCertComName;
+    };
+
     class SslConnetion
     {
     public:

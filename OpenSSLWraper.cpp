@@ -321,6 +321,55 @@ namespace OpenSSLWrapper
         return SSL_TLSEXT_ERR_NOACK;
     }
 
+    SslUdpContext::SslUdpContext() : SslContext(DTLSv1_method())
+    {
+        SSL_CTX_set_options(m_ctx, SSL_OP_CIPHER_SERVER_PREFERENCE | SSL_OP_SINGLE_DH_USE | SSL_OP_SINGLE_ECDH_USE | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION | SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
+        SSL_CTX_set_mode(m_ctx, SSL_MODE_AUTO_RETRY);
+        SSL_CTX_set_mode(m_ctx, SSL_MODE_RELEASE_BUFFERS);
+        SSL_CTX_set_verify(m_ctx, SSL_VERIFY_PEER, verify_callback);
+
+        SSL_CTX_set_ecdh_auto(m_ctx, 1);
+
+        SSL_CTX_set_cipher_list(m_ctx, "EECDH+AESGCM:EDH+AESGCM:ECDHE-RSA-AES128-GCM-SHA256:AES256+EECDH:DHE-RSA-AES128-GCM-SHA256:AES256+EDH:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4");
+    }
+
+    int SslUdpContext::SetCertificates(const char* szHostCertificate, const char* szHostKey)
+    {
+        if (SSL_CTX_use_certificate_file(m_ctx, szHostCertificate, SSL_FILETYPE_PEM) != 1)
+            return -2;//throw runtime_error("error loading host certificate");
+
+        if (SSL_CTX_use_PrivateKey_file(m_ctx, szHostKey, SSL_FILETYPE_PEM) != 1)
+            return -3;//throw runtime_error("error loading certificate key");
+
+        if (SSL_CTX_check_private_key(m_ctx) != 1)
+            return -4;//throw runtime_error("error key not matching certificate");
+
+        X509 *cert = SSL_CTX_get0_certificate(m_ctx);
+        if (cert)
+        {
+            char caBuf[256];
+            X509_NAME_oneline(X509_get_subject_name(cert), caBuf, 256);
+
+            m_strCertComName = caBuf;
+            size_t nPos = m_strCertComName.find("/CN=");
+            if (nPos != string::npos)
+            {
+                m_strCertComName.erase(0, nPos + 4);
+                nPos = m_strCertComName.find("/");
+                if (nPos != string::npos)
+                    m_strCertComName.erase(nPos, string::npos);
+                transform(begin(m_strCertComName), end(m_strCertComName), begin(m_strCertComName), ::tolower);
+            }
+        }
+
+        return 1;
+    }
+
+    int SslUdpContext::verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
+    {
+        return 1;
+    }
+
 
     SslConnetion::SslConnetion(SslContext* ctx) : m_ssl(SSL_new((*ctx)())), m_iShutDownFlag(INT32_MAX), m_iWantState(0)
     {
@@ -343,6 +392,7 @@ namespace OpenSSLWrapper
         if (nullptr != m_ssl)
             SSL_free(m_ssl);
     }
+
     /*
     long SslConnetion::CbBioInfo(struct bio_st* pBioInfo, int iInt1, const char* cpBuf, int iInt2, long l1, long lRet)
     {
