@@ -122,7 +122,7 @@ private:
     atomic<bool>     m_atWriteThread;
     atomic<bool>     m_atDeleteThread;
 
-    mutex            m_mxWriteThr;;
+    mutex            m_mxWriteThr;
     mutex            m_mxNotify;
     bool             m_bCloseReq;
 
@@ -140,10 +140,9 @@ class TcpServer : public BaseSocket
 public:
     virtual ~TcpServer();
     bool Start(const char* const szIpAddr, const short sPort);
-    size_t GetPendigConnectionCount();
-    virtual TcpSocket* const GetNextPendingConnection();
-    void BindNewConnection(function<void(TcpServer*, int)> fNewConnetion);
+    void BindNewConnection(function<void(vector<TcpSocket*>&)>);
     virtual void Close();
+    virtual TcpSocket* const MakeClientConnection(const SOCKET&);
 
 protected:
     virtual void SetSocketOption(const SOCKET& fd);
@@ -158,7 +157,7 @@ protected:
 
 private:
     vector<SOCKET> m_vSock;
-    function<void(TcpServer*, int)> m_fNewConnection;
+    function<void(vector<TcpSocket*>&)> m_fNewConnection;
 };
 
 class UdpSocket : public BaseSocket

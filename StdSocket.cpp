@@ -315,6 +315,9 @@ void TcpSocket::SetSocketOption(const SOCKET& fd)
     BaseSocket::SetSocketOption(fd);
 
 #if defined(_WIN32) || defined(_WIN64)
+    SOCKOPT rc = 1;
+    if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &rc, sizeof(rc)) == -1)
+        throw errno;
 #else
     SOCKOPT rc = 1;
     if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &rc, sizeof(rc)) == -1)
@@ -381,11 +384,11 @@ size_t TcpSocket::Write(const void* buf, size_t len)
 
         thread([&]()
         {
-            m_mxWriteThr.lock();
+            m_mxOutDeque.lock();
             uint32_t nOutBytes = m_atOutBytes;
             while (nOutBytes != 0 && m_iError == 0/* && m_bStop == false*/)
             {
-                m_mxWriteThr.unlock();
+                m_mxOutDeque.unlock();
 
                 fd_set writefd, errorfd;
                 struct timeval timeout;
@@ -451,9 +454,13 @@ size_t TcpSocket::Write(const void* buf, size_t len)
                     m_atOutBytes += (BUFLEN(data) - transferred);
                 }
 
-                m_mxWriteThr.lock();
+
+                m_mxOutDeque.lock();
                 nOutBytes = m_atOutBytes;
             }
+
+            lock_guard<mutex> lock(m_mxWriteThr);
+            m_mxOutDeque.unlock();
 
             if (m_bCloseReq == true && m_iError == 0)
             {
@@ -493,7 +500,6 @@ size_t TcpSocket::Write(const void* buf, size_t len)
             }
 
             atomic_exchange(&m_atWriteThread, false);
-            m_mxWriteThr.unlock();
         }).detach();
     }
 
@@ -890,6 +896,9 @@ void TcpServer::SetSocketOption(const SOCKET& fd)
     BaseSocket::SetSocketOption(fd);
 
 #if defined(_WIN32) || defined(_WIN64)
+    SOCKOPT rc = 1;
+    if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &rc, sizeof(rc)) == -1)
+        throw errno;
 #else
     SOCKOPT rc = 1;
     if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &rc, sizeof(rc)) == -1)
@@ -897,28 +906,12 @@ void TcpServer::SetSocketOption(const SOCKET& fd)
 #endif
 }
 
-size_t TcpServer::GetPendigConnectionCount()
+TcpSocket* const TcpServer::MakeClientConnection(const SOCKET& fSock)
 {
-    lock_guard<mutex> lock(m_mtAcceptList);
-    return m_vSockAccept.size();
-}
-
-TcpSocket* const TcpServer::GetNextPendingConnection()
-{
-    m_mtAcceptList.lock();
-    if (m_vSockAccept.size() == 0)
-    {
-        m_mtAcceptList.unlock();
-        return nullptr;
-    }
-    SOCKET fSock = *begin(m_vSockAccept);
-    m_vSockAccept.erase(begin(m_vSockAccept));
-    m_mtAcceptList.unlock();
-
     return new TcpSocket(fSock);
 }
 
-void TcpServer::BindNewConnection(function<void(TcpServer*, int)> fNewConnetion)
+void TcpServer::BindNewConnection(function<void(vector<TcpSocket*>&)> fNewConnetion)
 {
     m_fNewConnection = fNewConnetion;
 }
@@ -962,7 +955,7 @@ void TcpServer::SelectThread()
         int iRes = ::select(static_cast<int>(maxFd + 1), &readfd, nullptr, nullptr, &timeout);
         if (iRes > 0)
         {
-            uint32_t nNewConnections = 0;
+            vector<TcpSocket*> vNewConnections;
 
             for (auto Sock : m_vSock)
             {
@@ -977,23 +970,21 @@ void TcpServer::SelectThread()
                         if (fdClient == INVALID_SOCKET)
                             break;
 
-                        SetSocketOption(fdClient);
-
                         if (addrCl.ss_family == AF_INET6)
                         {
                             uint32_t on = 0;
                             ::setsockopt(fdClient, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<char*>(&on), sizeof(on));
                         }
 
-                        lock_guard<mutex> lock(m_mtAcceptList);
-                        m_vSockAccept.push_back(fdClient);
-                        ++nNewConnections;
+                        TcpSocket* pClient = MakeClientConnection(fdClient);
+                        pClient->SetSocketOption(fdClient);
+                        vNewConnections.push_back(pClient);
                     }
                 }
             }
 
-            if (m_fNewConnection != nullptr)
-                thread(m_fNewConnection, this, nNewConnections).detach();
+            if (vNewConnections.size() > 0)
+                thread(m_fNewConnection, vNewConnections).detach();
         }
     }
 

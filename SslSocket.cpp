@@ -397,35 +397,14 @@ void SslTcpSocket::PumpThread()
 
 SslTcpServer::SslTcpServer()
 {
-    TcpServer::BindNewConnection(bind(&SslTcpServer::NeueVerbindungen, this, _1, _2));
 }
 
 SslTcpServer::~SslTcpServer()
 {
 }
 
-void SslTcpServer::BindNewConnection(function<void(SslTcpServer*, int)> fNewConnetion)
+SslTcpSocket* const SslTcpServer::MakeClientConnection(const SOCKET& fSock)
 {
-    m_fNewConnection = fNewConnetion;
-}
-
-void SslTcpServer::NeueVerbindungen(const TcpServer* const pTcpServer, const int nCountNewConnections)
-{
-    m_fNewConnection(this, nCountNewConnections);
-}
-
-SslTcpSocket* const SslTcpServer::GetNextPendingConnection()
-{
-    m_mtAcceptList.lock();
-    if (m_vSockAccept.size() == 0)
-    {
-        m_mtAcceptList.unlock();
-        return nullptr;
-    }
-    SOCKET fSock = *begin(m_vSockAccept);
-    m_vSockAccept.erase(begin(m_vSockAccept));
-    m_mtAcceptList.unlock();
-
     return new SslTcpSocket(new SslConnetion(m_SslCtx.begin()->get()), fSock);
 }
 
@@ -443,6 +422,7 @@ bool SslTcpServer::SetDHParameter(const char* const szDhParamFileName)
     return m_SslCtx.back()->SetDhParamFile(szDhParamFileName);
 }
 
+//************************************************************************************
 
 SslUdpSocket::SslUdpSocket() : m_bStopThread(false), m_bCloseReq(false)
 {
@@ -957,9 +937,9 @@ void SslUdpSocket::PumpThread()
         if (bDidSomeWork == false)
             this_thread::sleep_for(chrono::milliseconds(1));
     }
-
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
     ERR_remove_thread_state(nullptr);
-
+#endif
     UdpSocket::Close();
 }
 

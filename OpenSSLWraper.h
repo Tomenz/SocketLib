@@ -16,6 +16,11 @@
 // perl Configure VC-WIN64A no-asm no-ssl2 no-ssl3 no-shared no-comp no-buf-freelists no-idea no-mdc2 no-rc5 -D_USING_V110_SDK71_
 // ms\do_ms.bat oder ms\do_win64a
 // nmake -f ms\nt.mak |  nmake -f ms\ntdll.mak |  nmake -f ms\nt.mak clean |  nmake -f ms\nt.mak clean
+
+// From openssl ver. 1.1.0
+// perl Configure VC-WIN32 no-asm -D_USING_V110_SDK71_ --api=1.1.0
+// perl Configure VC-WIN64A no-asm -D_USING_V110_SDK71_ --api=1.1.0
+// Replace the /MD with /MT in the makefile
 #include <openssl/ssl.h>
 #include <openssl/engine.h>
 
@@ -31,10 +36,12 @@ namespace OpenSSLWrapper
 
     private:
         InitOpenSSL();
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
         static void CbLocking(int iMode, int iType, const char*, int iLine);
 
     private:
         static unique_ptr<mutex[]> m_pmutLocks;
+#endif
     };
 
 

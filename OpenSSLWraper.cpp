@@ -32,9 +32,9 @@ namespace OpenSSLWrapper
 {
     // Initialize the OpenSSL Library
     const InitOpenSSL* OpenSSLInit = InitOpenSSL::GetInstance();
-
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
     unique_ptr<mutex[]> InitOpenSSL::m_pmutLocks;
-
+#endif
     InitOpenSSL* InitOpenSSL::GetInstance()
     {
         static InitOpenSSL iniOpenSsl;
@@ -43,11 +43,10 @@ namespace OpenSSLWrapper
 
     InitOpenSSL::~InitOpenSSL()
     {
-        CRYPTO_set_locking_callback(nullptr);
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
+        CRYPTO_set_locking_callback(nullptr);
         /* thread-local cleanup */
         ERR_remove_thread_state(nullptr);
-#endif
         /* thread-safe cleanup */
         ENGINE_cleanup();
         CONF_modules_unload(1);
@@ -56,19 +55,25 @@ namespace OpenSSLWrapper
         ERR_free_strings();
         EVP_cleanup();
         CRYPTO_cleanup_all_ex_data();
+#endif
     }
 
     InitOpenSSL::InitOpenSSL()
     {
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
         SSL_library_init();
         SSL_load_error_strings();
+#endif
         ERR_load_BIO_strings();
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
         OpenSSL_add_all_algorithms();
 
         m_pmutLocks = make_unique<mutex[]>(CRYPTO_num_locks());
         CRYPTO_set_locking_callback(CbLocking);
+#endif
     }
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
     void InitOpenSSL::CbLocking(int iMode, int iType, const char*, int iLine)
     {
         if (iMode & CRYPTO_LOCK)
@@ -76,7 +81,7 @@ namespace OpenSSLWrapper
         else
             m_pmutLocks.get()[iType].unlock();
     }
-
+#endif
 
     SslContext::SslContext(const SSL_METHOD* sslMethod) : m_ctx(SSL_CTX_new(sslMethod))
     {
@@ -129,9 +134,9 @@ namespace OpenSSLWrapper
         SSL_CTX_set_options(m_ctx, (SSL_OP_ALL & ~SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS) | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION | SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
         SSL_CTX_set_mode(m_ctx, SSL_MODE_AUTO_RETRY);
         SSL_CTX_set_mode(m_ctx, SSL_MODE_RELEASE_BUFFERS);
-
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
         SSL_CTX_set_ecdh_auto(m_ctx, 1);
-
+#endif
         SSL_CTX_set_cipher_list(m_ctx, "EECDH+AESGCM:EDH+AESGCM:ECDHE-RSA-AES128-GCM-SHA256:AES256+EECDH:DHE-RSA-AES128-GCM-SHA256:AES256+EDH:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4");
     }
 
@@ -165,9 +170,9 @@ namespace OpenSSLWrapper
         SSL_CTX_set_mode(m_ctx, SSL_MODE_ENABLE_PARTIAL_WRITE);
         SSL_CTX_set_verify(m_ctx, SSL_VERIFY_NONE, nullptr);
         SSL_CTX_set_mode(m_ctx, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
-
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
         SSL_CTX_set_ecdh_auto(m_ctx, 1);
-
+#endif
         //https://raymii.org/s/tutorials/Strong_SSL_Security_On_Apache2.html
 //        SSL_CTX_set_cipher_list(m_ctx, "EECDH+AESGCM:EDH+AESGCM:ECDHE-RSA-AES128-GCM-SHA256:AES256+EECDH:DHE-RSA-AES128-GCM-SHA256:AES256+EDH:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4");
         SSL_CTX_set_cipher_list(m_ctx, "EECDH+ECDSA+AESGCM:EECDH+aRSA+AESGCM:EECDH+ECDSA:EECDH:EDH+AESGCM:EDH:+3DES:ECDH+AESGCM:ECDH+AES:ECDH:AES:HIGH:MEDIUM:!RC4:!CAMELLIA:!SEED:!aNULL:!MD5:!eNULL:!LOW:!EXP:!DSS:!PSK:!SRP");
@@ -321,15 +326,15 @@ namespace OpenSSLWrapper
         return SSL_TLSEXT_ERR_NOACK;
     }
 
-    SslUdpContext::SslUdpContext() : SslContext(DTLSv1_method())
+    SslUdpContext::SslUdpContext() : SslContext(DTLS_method())
     {
         SSL_CTX_set_options(m_ctx, SSL_OP_CIPHER_SERVER_PREFERENCE | SSL_OP_SINGLE_DH_USE | SSL_OP_SINGLE_ECDH_USE | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION | SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
         SSL_CTX_set_mode(m_ctx, SSL_MODE_AUTO_RETRY);
         SSL_CTX_set_mode(m_ctx, SSL_MODE_RELEASE_BUFFERS);
         SSL_CTX_set_verify(m_ctx, SSL_VERIFY_PEER, verify_callback);
-
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
         SSL_CTX_set_ecdh_auto(m_ctx, 1);
-
+#endif
         SSL_CTX_set_cipher_list(m_ctx, "EECDH+AESGCM:EDH+AESGCM:ECDHE-RSA-AES128-GCM-SHA256:AES256+EECDH:DHE-RSA-AES128-GCM-SHA256:AES256+EDH:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4");
     }
 

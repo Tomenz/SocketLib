@@ -91,16 +91,13 @@ class SslTcpServer : public TcpServer
 public:
     SslTcpServer();
     virtual ~SslTcpServer();
-    void BindNewConnection(function<void(SslTcpServer*, int)> fNewConnetion);
-    SslTcpSocket* const GetNextPendingConnection() override;
+    SslTcpSocket* const MakeClientConnection(const SOCKET&);
     bool AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey);
     bool SetDHParameter(const char* const szDhParamFileName);
 
 private:
-    void NeueVerbindungen(const TcpServer* const pTcpServer, const int nCountNewConnections);
 
 private:
-    function<void(SslTcpServer*, int)> m_fNewConnection;
     vector<shared_ptr<SslServerContext>> m_SslCtx;
 };
 
