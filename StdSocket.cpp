@@ -911,7 +911,7 @@ TcpSocket* const TcpServer::MakeClientConnection(const SOCKET& fSock)
     return new TcpSocket(fSock);
 }
 
-void TcpServer::BindNewConnection(function<void(vector<TcpSocket*>&)> fNewConnetion)
+void TcpServer::BindNewConnection(function<void(const vector<TcpSocket*>&)> fNewConnetion)
 {
     m_fNewConnection = fNewConnetion;
 }

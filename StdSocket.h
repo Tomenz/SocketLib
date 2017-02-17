@@ -140,7 +140,7 @@ class TcpServer : public BaseSocket
 public:
     virtual ~TcpServer();
     bool Start(const char* const szIpAddr, const short sPort);
-    void BindNewConnection(function<void(vector<TcpSocket*>&)>);
+    void BindNewConnection(function<void(const vector<TcpSocket*>&)>);
     virtual void Close();
     virtual TcpSocket* const MakeClientConnection(const SOCKET&);
 
@@ -157,7 +157,7 @@ protected:
 
 private:
     vector<SOCKET> m_vSock;
-    function<void(vector<TcpSocket*>&)> m_fNewConnection;
+    function<void(const vector<TcpSocket*>&)> m_fNewConnection;
 };
 
 class UdpSocket : public BaseSocket

@@ -109,12 +109,12 @@ public:
     bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
     bool CreateServerSide(const char* const szIpToWhere, const short sPort, const char* const szIpToBind = nullptr);
     bool CreateClientSide(const char* const szIpToWhere, const short sPort, const char* const szDestAddr, const char* const szIpToBind = nullptr);
-    virtual uint32_t Read(void* buf, uint32_t len, string& strFrom) sealed;
-    virtual size_t Write(const void* buf, size_t len, const string& strTo) sealed;
-    virtual void Close() sealed;
-    virtual uint32_t GetBytesAvailible() const sealed;
-    virtual void BindCloseFunction(function<void(BaseSocket*)> fCloseing) sealed;
-    virtual void BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) sealed;
+    virtual uint32_t Read(void* buf, uint32_t len, string& strFrom);
+    virtual size_t Write(const void* buf, size_t len, const string& strTo);
+    virtual void Close();
+    virtual uint32_t GetBytesAvailible() const;
+    virtual void BindCloseFunction(function<void(BaseSocket*)> fCloseing);
+    virtual void BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived);
 
 private:
     void DatenEmpfangen(const UdpSocket* const pUdpSocket);

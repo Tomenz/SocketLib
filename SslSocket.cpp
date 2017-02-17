@@ -839,7 +839,7 @@ void SslUdpSocket::PumpThread()
                         int iRet2 = SSL_get_error((*m_pSslCon)(), iRet);
                         if (iRet2 <= 0)
                         {
-                            OutputDebugString(L"SSL Error\r\n");
+//                            OutputDebugString(L"SSL Error\r\n");
                         }
                     }
                 }
