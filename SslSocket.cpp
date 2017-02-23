@@ -246,10 +246,11 @@ void SslTcpSocket::PumpThread()
 
         if (m_pSslCon->GetShutDownFlag() != 1 && m_atTmpBytes > 0)
         {
-            lock_guard<mutex> lock(m_mxTmpDeque);
+            m_mxTmpDeque.lock();
             DATA data = move(m_quTmpData.front());
             m_quTmpData.pop_front();
             m_atTmpBytes -= BUFLEN(data);
+            m_mxTmpDeque.unlock();
 
             uint32_t nPut = m_pSslCon->SslPutInData(BUFFER(data).get(), BUFLEN(data));
             if (nPut != BUFLEN(data))
@@ -257,6 +258,7 @@ void SslTcpSocket::PumpThread()
                 uint32_t nRest = BUFLEN(data) - nPut;
                 shared_ptr<uint8_t> tmp(new uint8_t[nRest]);
                 copy(BUFFER(data).get() + nPut, BUFFER(data).get() + nPut + nRest, tmp.get());
+                lock_guard<mutex> lock(m_mxTmpDeque);
                 m_quTmpData.emplace_front(tmp, nRest);
                 m_atTmpBytes += nRest;
             }
@@ -276,10 +278,11 @@ void SslTcpSocket::PumpThread()
             {
                 shared_ptr<uint8_t> tmp(new uint8_t[len]);
                 copy(Buffer, Buffer + len, tmp.get());
-                lock_guard<mutex> lock(m_mxInDeque);
+                m_mxInDeque.lock();
                 m_quInData.emplace_back(tmp, len);
                 m_atInBytes += len;
                 nTotalReceived += len;
+                m_mxInDeque.unlock();
 
                 if (m_fBytesRecived != 0)
                 {
@@ -813,11 +816,12 @@ void SslUdpSocket::PumpThread()
 
         if (m_atTmpBytes > 0)
         {
-            lock_guard<mutex> lock(m_mxTmpDeque);
+            m_mxTmpDeque.lock();
             DATA data = move(m_quTmpData.front());
             m_quTmpData.pop_front();
-            strLastReadAddr = ADDRESS(data);
             m_atTmpBytes -= BUFLEN(data);
+            m_mxTmpDeque.unlock();
+            strLastReadAddr = ADDRESS(data);
 
             uint32_t nPut = m_pSslCon->SslPutInData(BUFFER(data).get(), BUFLEN(data));
             if (nPut != BUFLEN(data))
@@ -825,6 +829,7 @@ void SslUdpSocket::PumpThread()
                 uint32_t nRest = BUFLEN(data) - nPut;
                 shared_ptr<uint8_t> tmp(new uint8_t[nRest]);
                 copy(BUFFER(data).get() + nPut, BUFFER(data).get() + nPut + nRest, tmp.get());
+                lock_guard<mutex> lock(m_mxTmpDeque);
                 m_quTmpData.emplace_front(tmp, nRest, strLastReadAddr);
                 m_atTmpBytes += nRest;
             }
@@ -863,10 +868,11 @@ void SslUdpSocket::PumpThread()
             {
                 shared_ptr<uint8_t> tmp(new uint8_t[len]);
                 copy(Buffer, Buffer + len, tmp.get());
-                lock_guard<mutex> lock(m_mxInDeque);
+                m_mxInDeque.lock();
                 m_quInData.emplace_back(tmp, len, strLastReadAddr);
                 m_atInBytes += len;
                 nTotalReceived += len;
+                m_mxInDeque.unlock();
 
                 if (m_fBytesRecived != 0)
                 {
