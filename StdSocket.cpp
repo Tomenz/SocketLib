@@ -314,15 +314,9 @@ void TcpSocket::SetSocketOption(const SOCKET& fd)
 {
     BaseSocket::SetSocketOption(fd);
 
-#if defined(_WIN32) || defined(_WIN64)
     SOCKOPT rc = 1;
     if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &rc, sizeof(rc)) == -1)
         throw errno;
-#else
-    SOCKOPT rc = 1;
-    if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &rc, sizeof(rc)) == -1)
-        throw errno;
-#endif
 }
 
 uint32_t TcpSocket::Read(void* buf, uint32_t len)
@@ -895,15 +889,9 @@ void TcpServer::SetSocketOption(const SOCKET& fd)
 {
     BaseSocket::SetSocketOption(fd);
 
-#if defined(_WIN32) || defined(_WIN64)
     SOCKOPT rc = 1;
     if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &rc, sizeof(rc)) == -1)
         throw errno;
-#else
-    SOCKOPT rc = 1;
-    if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &rc, sizeof(rc)) == -1)
-        throw errno;
-#endif
 }
 
 TcpSocket* const TcpServer::MakeClientConnection(const SOCKET& fSock)
