@@ -45,9 +45,6 @@ SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock) : TcpSocke
     TcpSocket::BindFuncBytesRecived(bind(&SslTcpSocket::DatenEmpfangen, this, _1));
     TcpSocket::BindCloseFunction(bind(&SslTcpSocket::Closeing, this, _1));
 
-    if (m_iError != 0)
-        return;
-
     SSL_set_accept_state((*m_pSslCon)());
 
     m_thPumpSsl = thread(&SslTcpSocket::PumpThread, this);
@@ -228,7 +225,7 @@ void SslTcpSocket::PumpThread()
 {
     atomic<bool> m_afReadCall;
     atomic_init(&m_afReadCall, false);
-    uint64_t nTotalReceived = 0;
+    mutex mxNotify;
     bool bHandShakeOk = false;
 #pragma message("TODO!!! Folge Zeile wieder entfernen.")
     s_atAnzahlPumps++;
@@ -281,39 +278,37 @@ void SslTcpSocket::PumpThread()
                 m_mxInDeque.lock();
                 m_quInData.emplace_back(tmp, len);
                 m_atInBytes += len;
-                nTotalReceived += len;
                 m_mxInDeque.unlock();
 
                 if (m_fBytesRecived != 0)
                 {
-                    lock_guard<mutex> lock(m_mxNotify);
+                    lock_guard<mutex> lock(mxNotify);
                     if (m_afReadCall == false)
                     {
                         atomic_exchange(&m_afReadCall, true);
 
-                        thread([&](bool bShutDownReceive) {
-                            uint64_t nCountIn;
-
+                        thread([&](bool bShutDownReceive)
+                        {
                             if (bShutDownReceive == true && m_atInBytes == 0)  // If we start the thread, with no bytes in the Que, but the Shutdown is marked, we execute the callback below the loop
                                 bShutDownReceive = false;
 
-                            do
+                            mxNotify.lock();
+                            while (m_atInBytes > 0)
                             {
-                                nCountIn = nTotalReceived;
-                                if (m_atInBytes > 0)
-                                    m_fBytesRecived(this);
-                            } while (nTotalReceived > nCountIn || m_atInBytes > 0);
+                                mxNotify.unlock();
+                                m_fBytesRecived(this);
+                                mxNotify.lock();
+                            }
 
-                            m_mxNotify.lock();
                             if (bShutDownReceive != m_bShutDownReceive)
                             {
-                                m_mxNotify.unlock();
+                                mxNotify.unlock();
                                 m_fBytesRecived(this), bHelper1 = true;
-                                m_mxNotify.lock();
+                                mxNotify.lock();
                             }
 
                             atomic_exchange(&m_afReadCall, false);
-                            m_mxNotify.unlock();
+                            mxNotify.unlock();
                         }, m_bShutDownReceive).detach();
                     }
 
@@ -628,171 +623,12 @@ void SslUdpSocket::Closeing(const BaseSocket* const pUdpSocket)
     if (m_fCloseing != nullptr)
         m_fCloseing(this);
 }
-/*
+
 void SslUdpSocket::PumpThread()
 {
     atomic<bool> m_afReadCall;
     atomic_init(&m_afReadCall, false);
-    uint64_t nTotalReceived = 0;
-    bool bHandShakeOk = false;
-    string strLastReadAddr(m_strDestAddr);
-    string strLastSendAddr(m_strDestAddr);
-
-    while (m_bStopThread == false)
-    {
-        bool bDidSomeWork = false;
-
-        if (bHandShakeOk == false && m_pSslCon->HandShakeComplet() == true)
-            bHandShakeOk = true;
-        //else if (bHandShakeOk == false)
-        //    SSL_do_handshake((*m_pSslCon)());
-
-        if (m_pSslCon->GetShutDownFlag() != 1 && m_atTmpBytes > 0)
-        {
-            m_mxTmpDeque.lock();
-            DATA data = move(m_quTmpData.front());
-            m_quTmpData.pop_front();
-            m_atTmpBytes -= BUFLEN(data);
-            m_mxTmpDeque.unlock();
-            strLastReadAddr = ADDRESS(data);
-
-            uint32_t nPut = m_pSslCon->SslPutInData(BUFFER(data).get(), BUFLEN(data));
-            if (nPut != BUFLEN(data))
-            {
-                uint32_t nRest = BUFLEN(data) - nPut;
-                shared_ptr<uint8_t> tmp(new uint8_t[nRest]);
-                copy(BUFFER(data).get() + nPut, BUFFER(data).get() + nPut + nRest, tmp.get());
-                lock_guard<mutex> lock(m_mxTmpDeque);
-                m_quTmpData.emplace_front(tmp, nRest, strLastReadAddr);
-                m_atTmpBytes += nRest;
-            }
-
-            bDidSomeWork = true;
-        }
-
-        // The encrypted data the socket received are written to the SSL layer in the DatenEmpfangen function
-        // 1. we read from the SSL layer the unencrypted bytes we received and put them into the Que, the application can get them
-        // we notify the application that we have data to get
-
-        if (bHandShakeOk == true && m_pSslCon->GetShutDownFlag() == INT32_MAX)
-        {
-            uint8_t Buffer[0x0000ffff];
-            int32_t len = m_pSslCon->SslRead(Buffer, sizeof(Buffer)); // get receive data from the SSL layer, and put it into the unencrypted receive Que
-            if (len > 0)
-            {
-                shared_ptr<uint8_t> tmp(new uint8_t[len]);
-                copy(Buffer, Buffer + len, tmp.get());
-                m_mxInDeque.lock();
-                m_quInData.emplace_back(tmp, len, strLastReadAddr);
-                m_atInBytes += len;
-                nTotalReceived += len;
-                m_mxInDeque.unlock();
-
-                if (m_fBytesRecived != 0)
-                {
-                    lock_guard<mutex> lock(m_mxNotify);
-                    if (m_afReadCall == false)
-                    {
-                        atomic_exchange(&m_afReadCall, true);
-
-                        thread([&]() {
-                            uint64_t nCountIn;
-
-//                            if (bShutDownReceive == true && m_atInBytes == 0)  // If we start the thread, with no bytes in the Que, but the Shutdown is marked, we execute the callback below the loop
-//                                bShutDownReceive = false;
-
-                            do
-                            {
-                                nCountIn = nTotalReceived;
-                                if (m_atInBytes > 0)
-                                    m_fBytesRecived(this);
-                            } while (nTotalReceived > nCountIn || m_atInBytes > 0);
-
-                            m_mxNotify.lock();
-                            atomic_exchange(&m_afReadCall, false);
-                            m_mxNotify.unlock();
-                        }).detach();
-                    }
-
-                    //if (m_bShutDownReceive == true)
-                    //    break;
-                }
-                bDidSomeWork = true;
-            }
-            else if (m_atTmpBytes == 0 && m_atInBytes == 0 && m_afReadCall == false && m_fBytesRecived != nullptr)
-                m_fBytesRecived(this);
-        }
-        else if (bHandShakeOk == false && m_fBytesRecived != nullptr)
-            m_fBytesRecived(this);
-
-        // The next to blocks send data,
-        // 1. we read the Que with unencrypted data and write it into the SSL layer
-        // 2. we get the encrypted data from the SSL layer and write them to the base socket
-
-        // We send the SSL layer as much data until the bio has less the 65535 bytes in the out Que
-        if (m_pSslCon->GetShutDownFlag() == INT32_MAX && bHandShakeOk == true && m_atOutBytes > 0 && m_pSslCon->SslGetOutDataSize() < 0xffff)
-        {
-            m_mxOutDeque.lock();
-            DATA data = move(m_quOutData.front());
-            m_quOutData.pop_front();
-            m_atOutBytes -= BUFLEN(data);
-            strLastSendAddr = ADDRESS(data);
-            m_mxOutDeque.unlock();
-
-            uint32_t nWritten = m_pSslCon->SslWrite(BUFFER(data).get(), BUFLEN(data));
-            if (nWritten != BUFLEN(data))
-            {
-                uint32_t nRest = BUFLEN(data) - nWritten;
-
-                shared_ptr<uint8_t> tmp(new uint8_t[nRest]);
-                copy(BUFFER(data).get() + nWritten, BUFFER(data).get() + nWritten + nRest, tmp.get());
-                m_mxOutDeque.lock();
-                m_quOutData.emplace_front(tmp, nRest, strLastSendAddr);
-                m_atOutBytes += nRest;
-                m_mxOutDeque.unlock();
-            }
-            bDidSomeWork = true;
-        }
-
-        // Get the out Que of the openssl bio, the buffer is already encrypted
-        uint32_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
-        if (nOutDataSize > 0)
-        {
-            auto temp = shared_ptr<uint8_t>(new uint8_t[nOutDataSize]);
-            int32_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
-            // Schreibt Daten in die SOCKET
-            if (len > 0)
-                UdpSocket::Write(temp.get(), len, strLastReadAddr);
-
-            bDidSomeWork = true;
-        }
-
-        // we close the ssl connection
-        if (m_bCloseReq == true && m_pSslCon->SslGetOutDataSize() == 0 && (m_atOutBytes == 0 || m_pSslCon->GetShutDownFlag() != INT32_MAX))
-        {
-//            m_iShutDown = m_pSslCon->ShutDownConnection();
-//            if (m_iShutDown == 1 || m_iShutDown == -1 || (m_iShutDown == 0 && bHandShakeOk == false))
-                break;
-        }
-
-        if (bDidSomeWork == false)
-            this_thread::sleep_for(chrono::milliseconds(1));
-    }
-
-    while (m_afReadCall == true)
-        this_thread::sleep_for(chrono::milliseconds(1));
-
-    ERR_remove_thread_state(nullptr);
-
-    UdpSocket::Close();
-
-}
-*/
-void SslUdpSocket::PumpThread()
-{
-    atomic<bool> m_afReadCall;
-    atomic_init(&m_afReadCall, false);
-    uint64_t nTotalReceived = 0;
+    mutex mxNotify;
     bool bHandShakeOk = false;
     string strLastReadAddr(m_strDestAddr);
     string strLastSendAddr(m_strDestAddr);
@@ -874,32 +710,30 @@ void SslUdpSocket::PumpThread()
                 m_mxInDeque.lock();
                 m_quInData.emplace_back(tmp, len, strLastReadAddr);
                 m_atInBytes += len;
-                nTotalReceived += len;
                 m_mxInDeque.unlock();
 
                 if (m_fBytesRecived != 0)
                 {
-                    lock_guard<mutex> lock(m_mxNotify);
+                    lock_guard<mutex> lock(mxNotify);
                     if (m_afReadCall == false)
                     {
                         atomic_exchange(&m_afReadCall, true);
 
-                        thread([&]() {
-                            uint64_t nCountIn;
+                        thread([&]()
+                        {
+//                            if (bShutDownReceive == true && m_atInBytes == 0)  // If we start the thread, with no bytes in the Que, but the Shutdown is marked, we execute the callback below the loop
+//                                bShutDownReceive = false;
 
-                            //                            if (bShutDownReceive == true && m_atInBytes == 0)  // If we start the thread, with no bytes in the Que, but the Shutdown is marked, we execute the callback below the loop
-                            //                                bShutDownReceive = false;
-
-                            do
+                            mxNotify.lock();
+                            while (m_atInBytes > 0)
                             {
-                                nCountIn = nTotalReceived;
-                                if (m_atInBytes > 0)
-                                    m_fBytesRecived(this);
-                            } while (nTotalReceived > nCountIn || m_atInBytes > 0);
+                                mxNotify.unlock();
+                                m_fBytesRecived(this);
+                                mxNotify.lock();
+                            }
 
-                            m_mxNotify.lock();
                             atomic_exchange(&m_afReadCall, false);
-                            m_mxNotify.unlock();
+                            mxNotify.unlock();
                         }).detach();
                     }
 

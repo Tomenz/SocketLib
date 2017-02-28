@@ -208,7 +208,6 @@ TcpSocket::TcpSocket() : m_bCloseReq(false)
 TcpSocket::TcpSocket(const SOCKET fSock) : m_bCloseReq(false)
 {
     m_fSock = fSock;
-    GetConnectionInfo();
 
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
@@ -566,7 +565,7 @@ void TcpSocket::SelectThread()
 {
     atomic<bool> m_afReadCall;
     atomic_init(&m_afReadCall, false);
-    uint64_t nTotalReceived = 0;    // only for statistical use
+    mutex mxNotify;
 
     while (m_bStop == false)
     {
@@ -629,36 +628,39 @@ void TcpSocket::SelectThread()
                     lock_guard<mutex> lock(m_mxInDeque);
                     m_quInData.emplace_back(tmp, transferred);
                     m_atInBytes += transferred;
-                    nTotalReceived += transferred;
                     bNotify = true;
 
                 }
 
                 if (bNotify == true && m_fBytesRecived != 0)
                 {
-                    lock_guard<mutex> lock(m_mxNotify);
+                    lock_guard<mutex> lock(mxNotify);
                     if (m_afReadCall == false)
                     {
                         atomic_exchange(&m_afReadCall, true);
 
-                        thread([&](int iShutDownState) {
-
+                        thread([&](int iShutDownState)
+                        {
                             if ((iShutDownState & 1) == 1 && m_atInBytes == 0)  // If we start the thread, with no bytes in the Que, but the Shutdown is marked, we execute the callback below the loop
                                 iShutDownState = 0;
 
+                            mxNotify.lock();
                             while (m_atInBytes > 0)
+                            {
+                                mxNotify.unlock();
                                 m_fBytesRecived(this);
+                                mxNotify.lock();
+                            }
 
-                            m_mxNotify.lock();
                             if ((iShutDownState & 1) != (m_iShutDownState & 1) && m_bCloseReq == false)
                             {
-                                m_mxNotify.unlock();
+                                mxNotify.unlock();
                                 m_fBytesRecived(this);
-                                m_mxNotify.lock();
+                                mxNotify.lock();
                             }
 
                             atomic_exchange(&m_afReadCall, false);
-                            m_mxNotify.unlock();
+                            mxNotify.unlock();
 
                         }, m_iShutDownState).detach();
 
@@ -943,7 +945,7 @@ void TcpServer::SelectThread()
         int iRes = ::select(static_cast<int>(maxFd + 1), &readfd, nullptr, nullptr, &timeout);
         if (iRes > 0)
         {
-            vector<TcpSocket*> vNewConnections;
+            vector<SOCKET> vSockets;
 
             for (auto Sock : m_vSock)
             {
@@ -964,15 +966,34 @@ void TcpServer::SelectThread()
                             ::setsockopt(fdClient, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<char*>(&on), sizeof(on));
                         }
 
-                        TcpSocket* pClient = MakeClientConnection(fdClient);
-                        pClient->SetSocketOption(fdClient);
-                        vNewConnections.push_back(pClient);
+                        vSockets.push_back(fdClient);
                     }
                 }
             }
 
-            if (vNewConnections.size() > 0)
-                thread(m_fNewConnection, vNewConnections).detach();
+            if (vSockets.size() > 0)
+            {
+                thread([this](const vector<SOCKET> vNewSockets)
+                {
+                    vector<TcpSocket*> vNewConnections;
+                    for (SOCKET sock : vNewSockets)
+                    {
+                        TcpSocket* pClient = MakeClientConnection(sock);
+                        try
+                        {
+                            pClient->SetSocketOption(sock);
+                            pClient->GetConnectionInfo();
+                        }
+
+                        catch (int errno)
+                        {
+                            pClient->SetErrorNo(errno);
+                        }
+                        vNewConnections.push_back(pClient);
+                    }
+                    m_fNewConnection(vNewConnections);
+                }, vSockets).detach();
+            }
         }
     }
 
@@ -1341,7 +1362,7 @@ void UdpSocket::SelectThread()
 {
     atomic<bool> m_afReadCall;
     atomic_init(&m_afReadCall, false);
-    uint64_t nTotalReceived = 0;    // only for statistical use
+    mutex mxNotify;
 
     while (m_bStop == false)
     {
@@ -1420,10 +1441,10 @@ void UdpSocket::SelectThread()
 
                     shared_ptr<uint8_t> tmp(new uint8_t[transferred]);
                     copy(buf, buf + transferred, tmp.get());
-                    lock_guard<mutex> lock(m_mxInDeque);
+                    m_mxInDeque.lock();
                     m_quInData.emplace_back(tmp, transferred, strAbsender.str());
                     m_atInBytes += transferred;
-                    nTotalReceived += transferred;
+                    m_mxInDeque.unlock();
                     bNotify = true;
 
                     if (transferred == sizeof(buf))
@@ -1432,19 +1453,32 @@ void UdpSocket::SelectThread()
 
                 if (bNotify == true && m_fBytesRecived != nullptr)
                 {
-                    bool bTemp = false;
-                    if (atomic_compare_exchange_strong(&m_afReadCall, &bTemp, true) == true)
+                    lock_guard<mutex> lock(mxNotify);
+                    if (m_afReadCall == false)
                     {
-                        thread([&]() {
+                        atomic_exchange(&m_afReadCall, true);
+
+                        thread([&]()
+                        {
                             int iSaveShutDown = (m_iShutDownState & 1);
 
+                            mxNotify.lock();
                             while (m_atInBytes > 0)
+                            {
+                                mxNotify.unlock();
                                 m_fBytesRecived(this);
+                                mxNotify.lock();
+                            }
 
                             if (iSaveShutDown != (m_iShutDownState & 1))
+                            {
+                                mxNotify.unlock();
                                 m_fBytesRecived(this);
+                                mxNotify.lock();
+                            }
 
                             atomic_exchange(&m_afReadCall, false);
+                            mxNotify.unlock();
                         }).detach();
                     }
 

@@ -51,7 +51,7 @@ public:
     virtual void BindErrorFunction(function<void(BaseSocket*)> fError);
     virtual void BindCloseFunction(function<void(BaseSocket*)> fCloseing);
     virtual int GetErrorNo() { return m_iError; }
-
+    virtual void SetErrorNo(int iErrNo) { m_iError = iErrNo; }
     static int EnumIpAddresses(function<int(int,const string&,int,void*)> fnCallBack, void* vpUser);
 
 protected:
@@ -123,7 +123,6 @@ private:
     atomic<bool>     m_atDeleteThread;
 
     mutex            m_mxWriteThr;
-    mutex            m_mxNotify;
     bool             m_bCloseReq;
 
     string           m_strClientAddr;
