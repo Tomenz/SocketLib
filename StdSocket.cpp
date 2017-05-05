@@ -120,6 +120,23 @@ void BaseSocket::OnError()
     Close();
 }
 
+unsigned short BaseSocket::GetSocketPort()
+{
+    struct sockaddr_storage addrPe;
+    socklen_t addLen = sizeof(addrPe);
+    if (::getsockname(m_fSock, (struct sockaddr*)&addrPe, &addLen) == 0)  // Get our IP where the connection was established
+    {
+        char caAddrPeer[INET6_ADDRSTRLEN + 1] = { 0 };
+        char servInfoPeer[NI_MAXSERV] = { 0 };
+        if (::getnameinfo((struct sockaddr*)&addrPe, sizeof(struct sockaddr_storage), caAddrPeer, sizeof(caAddrPeer), servInfoPeer, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
+        {
+            return stoi(servInfoPeer);
+        }
+    }
+
+    return 0;
+}
+
 int BaseSocket::EnumIpAddresses(function<int(int, const string&, int, void*)> fnCallBack, void* vpUser)
 {
 #if defined(_WIN32) || defined(_WIN64)
