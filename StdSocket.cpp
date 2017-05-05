@@ -882,6 +882,23 @@ bool TcpServer::Start(const char* const szIpAddr, const short sPort)
     return bRet;
 }
 
+unsigned short TcpServer::GetServerPort()
+{
+    struct sockaddr_storage addrPe;
+    socklen_t addLen = sizeof(addrPe);
+    if (::getsockname(m_vSock[0], (struct sockaddr*)&addrPe, &addLen) == 0)  // Get our IP where the connection was established
+    {
+        char caAddrPeer[INET6_ADDRSTRLEN + 1] = { 0 };
+        char servInfoPeer[NI_MAXSERV] = { 0 };
+        if (::getnameinfo((struct sockaddr*)&addrPe, sizeof(struct sockaddr_storage), caAddrPeer, sizeof(caAddrPeer), servInfoPeer, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
+        {
+            return stoi(servInfoPeer);
+        }
+    }
+
+    return 0;
+}
+
 void TcpServer::Close()
 {
     m_bStop = true; // Stops the listening thread, deletes all Sockets at the end of the listening thread

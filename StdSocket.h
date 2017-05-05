@@ -139,6 +139,7 @@ class TcpServer : public BaseSocket
 public:
     virtual ~TcpServer();
     bool Start(const char* const szIpAddr, const short sPort);
+    unsigned short GetServerPort();
     void BindNewConnection(function<void(const vector<TcpSocket*>&)>);
     virtual void Close();
     virtual TcpSocket* const MakeClientConnection(const SOCKET&);
