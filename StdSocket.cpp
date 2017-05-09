@@ -78,7 +78,7 @@ InitSocket::InitSocket()
 
 atomic_uint BaseSocket::s_atRefCount(0);
 
-BaseSocket::BaseSocket() : m_fSock(INVALID_SOCKET), m_bStop(false), m_bAutoDelClass(false), m_iError(0), m_iShutDownState(0), m_fError(bind(&BaseSocket::OnError, this)), m_fCloseing(nullptr)
+BaseSocket::BaseSocket() : m_fSock(INVALID_SOCKET), m_bStop(false), m_iError(0), m_iShutDownState(0), m_fError(bind(&BaseSocket::OnError, this)), m_fCloseing(nullptr)
 {
     ++s_atRefCount;
 }
@@ -214,7 +214,7 @@ int BaseSocket::EnumIpAddresses(function<int(int, const string&, int, void*)> fn
 
 //************************************************************************************
 
-TcpSocket::TcpSocket() : m_bCloseReq(false)
+TcpSocket::TcpSocket() : m_bCloseReq(false), m_pRefServSocket(nullptr)
 {
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
@@ -222,7 +222,7 @@ TcpSocket::TcpSocket() : m_bCloseReq(false)
     atomic_init(&m_atDeleteThread, false);
 }
 
-TcpSocket::TcpSocket(const SOCKET fSock) : m_bCloseReq(false)
+TcpSocket::TcpSocket(const SOCKET fSock, const TcpServer* pRefServSocket) : m_bCloseReq(false), m_pRefServSocket(pRefServSocket)
 {
     m_fSock = fSock;
 
@@ -230,8 +230,6 @@ TcpSocket::TcpSocket(const SOCKET fSock) : m_bCloseReq(false)
     atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atWriteThread, false);
     atomic_init(&m_atDeleteThread, false);
-
-    m_bAutoDelClass = true;
 }
 
 TcpSocket::~TcpSocket()
@@ -487,7 +485,7 @@ size_t TcpSocket::Write(const void* buf, size_t len)
 
             // if the socket was closed, and the closing callback was not called, we call it now
             // if it is a auto-delete class we start the auto-delete thread now
-            if (m_bAutoDelClass == true)
+            if (m_pRefServSocket != nullptr)    // Auto-delete, socket created from server socket
             {
                 bool bTmp = false;
                 if (m_fSock == INVALID_SOCKET && atomic_compare_exchange_strong(&m_atDeleteThread, &bTmp, true) == true)
@@ -543,7 +541,7 @@ void TcpSocket::Close()
         m_fSock = INVALID_SOCKET;
     }
 
-    if (m_bAutoDelClass == true)
+    if (m_pRefServSocket != nullptr)    // Auto-delete, socket created from server socket
     {
         bool bTmp = false;
         if (m_fSock == INVALID_SOCKET && atomic_compare_exchange_strong(&m_atDeleteThread, &bTmp, true) == true)
@@ -707,7 +705,7 @@ void TcpSocket::SelectThread()
         this_thread::sleep_for(chrono::milliseconds(1));
 
     // if it is a auto-delete class we start the auto-delete thread now
-    if (m_bAutoDelClass == true)
+    if (m_pRefServSocket != nullptr)    // Auto-delete, socket created from server socket
     {
         bool bTmp = false;
         if (m_fSock == INVALID_SOCKET && atomic_compare_exchange_strong(&m_atDeleteThread, &bTmp, true) == true)
@@ -932,7 +930,7 @@ void TcpServer::SetSocketOption(const SOCKET& fd)
 
 TcpSocket* const TcpServer::MakeClientConnection(const SOCKET& fSock)
 {
-    return new TcpSocket(fSock);
+    return new TcpSocket(fSock, this);
 }
 
 void TcpServer::BindNewConnection(function<void(const vector<TcpSocket*>&)> fNewConnetion)

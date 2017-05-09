@@ -63,7 +63,6 @@ protected:
     SOCKET m_fSock;
     thread m_thListen;
     bool   m_bStop;
-    bool   m_bAutoDelClass;
     int    m_iError;
     int    m_iShutDownState;
     function<void(BaseSocket*)> m_fError;
@@ -100,9 +99,11 @@ public:
     const string& GetInterfaceAddr() const { return m_strClientAddr; }
     short GetInterfacePort() const { return m_sIFacePort; }
 
+    const TcpServer* GetServerSocketRef() const { return m_pRefServSocket; }
+
 protected:
     friend TcpServer;
-    explicit TcpSocket(const SOCKET);
+    explicit TcpSocket(const SOCKET, const TcpServer* pRefServSocket);
     virtual void SetSocketOption(const SOCKET& fd);
 
 private:
@@ -130,6 +131,8 @@ private:
     short            m_sClientPort;
     string           m_strIFaceAddr;
     short            m_sIFacePort;
+
+    const TcpServer* m_pRefServSocket;
 
     function<void(TcpSocket*)> m_fBytesRecived;
     function<void(TcpSocket*)> m_fClientConneted;

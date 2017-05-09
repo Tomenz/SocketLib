@@ -35,7 +35,7 @@ SslTcpSocket::SslTcpSocket(/*SslConnetion* pSslCon*/) : m_pSslCon(nullptr/*pSslC
     //m_thPumpSsl = thread(&SslTcpSocket::PumpThread, this);
 }
 
-SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock) : TcpSocket(fSock), m_pSslCon(pSslCon), m_bShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0), bHelper1(false), bHelper3(false)
+SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket) : TcpSocket(fSock, pRefServSocket), m_pSslCon(pSslCon), m_bShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0), bHelper1(false), bHelper3(false)
 {
     atomic_init(&m_atTmpBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
@@ -403,7 +403,7 @@ SslTcpServer::~SslTcpServer()
 
 SslTcpSocket* const SslTcpServer::MakeClientConnection(const SOCKET& fSock)
 {
-    return new SslTcpSocket(new SslConnetion(m_SslCtx.begin()->get()), fSock);
+    return new SslTcpSocket(new SslConnetion(m_SslCtx.begin()->get()), fSock, this);
 }
 
 bool SslTcpServer::AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey)

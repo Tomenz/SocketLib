@@ -44,7 +44,7 @@ public:
     static atomic<uint32_t> s_atAnzahlPumps;
 
 private:
-	SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock);
+	SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket);
     void ConEstablished(const TcpSocket* const pTcpSocket);
 	void DatenEmpfangen(const TcpSocket* const pTcpSocket);
     void Closeing(const BaseSocket* const pTcpSocket);
