@@ -120,7 +120,7 @@ void BaseSocket::OnError()
     Close();
 }
 
-unsigned short BaseSocket::GetSocketPort()
+uint16_t BaseSocket::GetSocketPort()
 {
     struct sockaddr_storage addrPe;
     socklen_t addLen = sizeof(addrPe);
@@ -218,8 +218,6 @@ TcpSocket::TcpSocket() : m_bCloseReq(false), m_pRefServSocket(nullptr)
 {
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
-    atomic_init(&m_atWriteThread, false);
-    atomic_init(&m_atDeleteThread, false);
 }
 
 TcpSocket::TcpSocket(const SOCKET fSock, const TcpServer* pRefServSocket) : m_bCloseReq(false), m_pRefServSocket(pRefServSocket)
@@ -228,17 +226,22 @@ TcpSocket::TcpSocket(const SOCKET fSock, const TcpServer* pRefServSocket) : m_bC
 
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
-    atomic_init(&m_atWriteThread, false);
-    atomic_init(&m_atDeleteThread, false);
+
+    m_thWrite = thread(&TcpSocket::WriteThread, this);
 }
 
 TcpSocket::~TcpSocket()
 {
     //OutputDebugString(L"TcpSocket::~TcpSocket\r\n");
     m_bStop = true; // Stops the listening thread
+    m_bCloseReq = true;
+    m_atOutBytes = 0;
+    m_cv.notify_all();
 
     if (m_thListen.joinable() == true)
         m_thListen.join();
+    if (m_thWrite.joinable() == true)
+        m_thWrite.join();
 
     if (m_fSock != INVALID_SOCKET)
     {
@@ -247,12 +250,9 @@ TcpSocket::~TcpSocket()
         if (m_fCloseing != nullptr)
             m_fCloseing(this);
     }
-
-    while (m_atWriteThread == true)
-        this_thread::sleep_for(chrono::milliseconds(1));
 }
 
-bool TcpSocket::Connect(const char* const szIpToWhere, const short sPort)
+bool TcpSocket::Connect(const char* const szIpToWhere, const uint16_t sPort)
 {
     if (m_fSock != INVALID_SOCKET)
     {
@@ -303,6 +303,7 @@ bool TcpSocket::Connect(const char* const szIpToWhere, const short sPort)
             GetConnectionInfo();
 
             m_thListen = thread(&TcpSocket::SelectThread, this);
+            m_thWrite = thread(&TcpSocket::WriteThread, this);
 
             if (m_fClientConneted != nullptr)
                 m_fClientConneted(this);
@@ -375,143 +376,120 @@ uint32_t TcpSocket::Read(void* buf, uint32_t len)
 
 size_t TcpSocket::Write(const void* buf, size_t len)
 {
-    if (m_bStop == true || m_bCloseReq == true || len == 0)
+    if (m_bStop == true || m_bCloseReq == true || buf == nullptr || len == 0)
         return 0;
 
     shared_ptr<uint8_t> tmp(new uint8_t[len]);
     copy(static_cast<const uint8_t*>(buf), static_cast<const uint8_t*>(buf) + len, tmp.get());
     m_mxOutDeque.lock();
-    m_quOutData.emplace_back(tmp, static_cast<uint32_t>(len));
     m_atOutBytes += static_cast<uint32_t>(len);
+    m_quOutData.emplace_back(tmp, static_cast<uint32_t>(len));
     m_mxOutDeque.unlock();
 
-    lock_guard<mutex> lock(m_mxWriteThr);
-    if (m_atWriteThread == false)
-    {
-        atomic_exchange(&m_atWriteThread, true);
-
-        thread([&]()
-        {
-            m_mxOutDeque.lock();
-            uint32_t nOutBytes = m_atOutBytes;
-            while (nOutBytes != 0 && m_iError == 0/* && m_bStop == false*/)
-            {
-                m_mxOutDeque.unlock();
-
-                fd_set writefd, errorfd;
-                struct timeval timeout;
-
-                timeout.tv_sec = 1;
-                timeout.tv_usec = 0;
-                FD_ZERO(&writefd);
-                FD_ZERO(&errorfd);
-
-                FD_SET(m_fSock, &writefd);
-                FD_SET(m_fSock, &errorfd);
-
-                if (::select(static_cast<int>(m_fSock + 1), nullptr, &writefd, &errorfd, &timeout) == 0)
-                {
-                    continue;
-                }
-
-                if (FD_ISSET(m_fSock, &errorfd))
-                {
-                    if (m_iError == 0)
-                    {
-                        socklen_t iLen = sizeof(m_iError);
-                        getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
-
-                        if (m_fError != nullptr && m_bStop == false)
-                            m_fError(this);
-                    }
-                    break;
-                }
-
-                m_mxOutDeque.lock();
-                DATA data = move(m_quOutData.front());
-                m_quOutData.pop_front();
-                m_mxOutDeque.unlock();
-                m_atOutBytes -= BUFLEN(data);
-
-                uint32_t transferred = ::send(m_fSock, reinterpret_cast<char*>(BUFFER(data).get()), BUFLEN(data), 0);
-                if (transferred <= 0)
-                {
-                    int iError = WSAGetLastError();
-                    if (iError != WSAEWOULDBLOCK)
-                    {
-                        m_iError = iError;
-                        if (m_fError != nullptr && m_bStop == false)
-                            m_fError(this);
-                        break;
-                    }
-                    // Put the not send bytes back into the que if it is not a SSL connection. A SSL connection has the bytes still available
-                    shared_ptr<uint8_t> tmp(new uint8_t[BUFLEN(data)]);
-                    copy(BUFFER(data).get(), BUFFER(data).get() + BUFLEN(data), tmp.get());
-                    m_mxOutDeque.lock();
-                    m_quOutData.emplace_front(tmp, BUFLEN(data));
-                    m_mxOutDeque.unlock();
-                    m_atOutBytes += BUFLEN(data);
-                }
-                else if (transferred < BUFLEN(data)) // Less bytes send as buffer size, we put the rast back in your que
-                {
-                    shared_ptr<uint8_t> tmp(new uint8_t[BUFLEN(data) - transferred]);
-                    copy(BUFFER(data).get() + transferred, BUFFER(data).get() + transferred + (BUFLEN(data) - transferred), tmp.get());
-                    m_mxOutDeque.lock();
-                    m_quOutData.emplace_front(tmp, (BUFLEN(data) - transferred));
-                    m_mxOutDeque.unlock();
-                    m_atOutBytes += (BUFLEN(data) - transferred);
-                }
-
-
-                m_mxOutDeque.lock();
-                nOutBytes = m_atOutBytes;
-            }
-
-            lock_guard<mutex> lock(m_mxWriteThr);
-            m_mxOutDeque.unlock();
-
-            if (m_bCloseReq == true && m_iError == 0)
-            {
-                if (::shutdown(m_fSock, SD_SEND) != 0)
-                    m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
-                m_iShutDownState |= 2;
-            }
-
-            if (((m_iShutDownState & 3) == 3 || m_iError != 0) && m_fSock != INVALID_SOCKET)
-            {
-                ::closesocket(m_fSock);
-                m_fSock = INVALID_SOCKET;
-            }
-
-            // if the socket was closed, and the closing callback was not called, we call it now
-            // if it is a auto-delete class we start the auto-delete thread now
-            if (m_pRefServSocket != nullptr)    // Auto-delete, socket created from server socket
-            {
-                bool bTmp = false;
-                if (m_fSock == INVALID_SOCKET && atomic_compare_exchange_strong(&m_atDeleteThread, &bTmp, true) == true)
-                {
-                    thread([&]() {
-                        if (m_fCloseing != nullptr)
-                            m_fCloseing(this);
-
-                        delete this;
-                    }).detach();
-                }
-            }
-            else if (m_fSock == INVALID_SOCKET)
-            {
-                // if the socket was closed, and the closing callback was not called, we call it now
-                thread([&]() {
-                    if (m_fCloseing != nullptr)
-                        m_fCloseing(this);
-                }).detach();
-            }
-
-            atomic_exchange(&m_atWriteThread, false);
-        }).detach();
-    }
+    m_cv.notify_all();
 
     return len;
+}
+
+void TcpSocket::WriteThread()
+{
+    mutex mut;
+    unique_lock<mutex> lock(mut);
+
+    while (m_bCloseReq == false || m_atOutBytes != 0)
+    {
+        m_cv.wait(lock, [&]() { return m_atOutBytes == 0 ? m_bCloseReq : true; });
+
+        while (m_atOutBytes != 0)
+        {
+            fd_set writefd, errorfd;
+            struct timeval timeout;
+
+            timeout.tv_sec = 1;
+            timeout.tv_usec = 0;
+            FD_ZERO(&writefd);
+            FD_ZERO(&errorfd);
+
+            FD_SET(m_fSock, &writefd);
+            FD_SET(m_fSock, &errorfd);
+
+            if (::select(static_cast<int>(m_fSock + 1), nullptr, &writefd, &errorfd, &timeout) == 0)
+                continue;
+
+            if (FD_ISSET(m_fSock, &errorfd))
+            {
+                if (m_iError == 0)
+                {
+                    socklen_t iLen = sizeof(m_iError);
+                    getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
+
+                    if (m_fError != nullptr && m_bStop == false)
+                        m_fError(this);
+                }
+                break;
+            }
+
+            m_mxOutDeque.lock();
+            DATA data = move(m_quOutData.front());
+            m_quOutData.pop_front();
+            m_atOutBytes -= BUFLEN(data);
+            m_mxOutDeque.unlock();
+
+            uint32_t transferred = ::send(m_fSock, reinterpret_cast<char*>(BUFFER(data).get()), BUFLEN(data), 0);
+            if (transferred <= 0)
+            {
+                int iError = WSAGetLastError();
+                if (iError != WSAEWOULDBLOCK)
+                {
+                    m_iError = iError;
+                    if (m_fError != nullptr && m_bStop == false)
+                        m_fError(this);
+                    break;
+                }
+                // Put the not send bytes back into the que if it is not a SSL connection. A SSL connection has the bytes still available
+                shared_ptr<uint8_t> tmp(new uint8_t[BUFLEN(data)]);
+                copy(BUFFER(data).get(), BUFFER(data).get() + BUFLEN(data), tmp.get());
+                m_mxOutDeque.lock();
+                m_quOutData.emplace_front(tmp, BUFLEN(data));
+                m_mxOutDeque.unlock();
+                m_atOutBytes += BUFLEN(data);
+            }
+            else if (transferred < BUFLEN(data)) // Less bytes send as buffer size, we put the rast back in your que
+            {
+                shared_ptr<uint8_t> tmp(new uint8_t[BUFLEN(data) - transferred]);
+                copy(BUFFER(data).get() + transferred, BUFFER(data).get() + transferred + (BUFLEN(data) - transferred), tmp.get());
+                m_mxOutDeque.lock();
+                m_quOutData.emplace_front(tmp, (BUFLEN(data) - transferred));
+                m_mxOutDeque.unlock();
+                m_atOutBytes += (BUFLEN(data) - transferred);
+            }
+        }
+
+        if (m_iError != 0)
+            break;
+    }
+
+    // if we get out of the while loop, the stop request was send or we have an error
+    if (m_iError == 0)
+    {
+        if (::shutdown(m_fSock, SD_SEND) != 0)
+            m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
+    }
+    m_iShutDownState |= 2;
+
+    unsigned char cExpected = 3;
+    if (m_iShutDownState.compare_exchange_strong(cExpected, 7) == true)
+    {
+        if (m_fSock != INVALID_SOCKET)
+            ::closesocket(m_fSock);
+        m_fSock = INVALID_SOCKET;
+
+        if (m_fCloseing != nullptr)
+            m_fCloseing(this);
+
+        if (m_pRefServSocket != nullptr)    // Auto-delete, socket created from server socket
+            thread([&]() { delete this; }).detach();
+    }
 }
 
 void TcpSocket::StartReceiving()
@@ -522,38 +500,9 @@ void TcpSocket::StartReceiving()
 void TcpSocket::Close()
 {
     //OutputDebugString(L"TcpSocket::Close\r\n");
-    m_bCloseReq = true;
-
-    m_mxWriteThr.lock();
-    if (m_atWriteThread == false && (m_iShutDownState & 2) != 2 && m_atOutBytes == 0 && m_iError == 0)
-    {
-        if (::shutdown(m_fSock, SD_SEND) != 0)
-            m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
-        m_iShutDownState |= 2;
-    }
-    m_mxWriteThr.unlock();
-
+    m_bCloseReq = true; // Stops the write thread after the last byte was send
+    m_cv.notify_all();
     m_bStop = true; // Stops the listening thread
-
-    if (((m_iShutDownState & 3) == 3 || m_iError != 0) && m_fSock != INVALID_SOCKET)
-    {
-        ::closesocket(m_fSock);
-        m_fSock = INVALID_SOCKET;
-    }
-
-    if (m_pRefServSocket != nullptr)    // Auto-delete, socket created from server socket
-    {
-        bool bTmp = false;
-        if (m_fSock == INVALID_SOCKET && atomic_compare_exchange_strong(&m_atDeleteThread, &bTmp, true) == true)
-        {
-            thread([&]() {
-                if (m_fCloseing != nullptr)
-                    m_fCloseing(this);
-
-                delete this;
-            }).detach();
-        }
-    }
 }
 
 uint32_t TcpSocket::GetBytesAvailible() const
@@ -578,8 +527,7 @@ void TcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConnete
 
 void TcpSocket::SelectThread()
 {
-    atomic<bool> m_afReadCall;
-    atomic_init(&m_afReadCall, false);
+    bool bReadCall = false;
     mutex mxNotify;
 
     while (m_bStop == false)
@@ -609,7 +557,6 @@ void TcpSocket::SelectThread()
             if (FD_ISSET(m_fSock, &readfd))
             {
                 char buf[0x0000ffff];
-                bool bNotify = false;
 
                 int32_t transferred = ::recv(m_fSock, buf, sizeof(buf), 0);
 
@@ -622,7 +569,14 @@ void TcpSocket::SelectThread()
                         if (::shutdown(m_fSock, SD_RECEIVE) != 0)
                             m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
                         m_iShutDownState |= 1;
-                        bNotify = true;
+
+                        if (m_fBytesRecived != 0)
+                        {
+                            while (bReadCall == true)
+                                this_thread::sleep_for(chrono::milliseconds(10));
+                            m_fBytesRecived(this);
+                        }
+                        break;
                     }
                     else
                     {
@@ -643,87 +597,58 @@ void TcpSocket::SelectThread()
                     lock_guard<mutex> lock(m_mxInDeque);
                     m_quInData.emplace_back(tmp, transferred);
                     m_atInBytes += transferred;
-                    bNotify = true;
 
-                }
-
-                if (bNotify == true && m_fBytesRecived != 0)
-                {
-                    lock_guard<mutex> lock(mxNotify);
-                    if (m_afReadCall == false)
+                    if (m_fBytesRecived != 0 && m_bStop == false)
                     {
-                        atomic_exchange(&m_afReadCall, true);
-
-                        thread([&](int iShutDownState)
+                        lock_guard<mutex> lock(mxNotify);
+                        if (bReadCall == false)
                         {
-                            if ((iShutDownState & 1) == 1 && m_atInBytes == 0)  // If we start the thread, with no bytes in the Que, but the Shutdown is marked, we execute the callback below the loop
-                                iShutDownState = 0;
-
-                            mxNotify.lock();
-                            while (m_atInBytes > 0)
+                            bReadCall = true;
+                            thread([&]()
                             {
-                                mxNotify.unlock();
-                                m_fBytesRecived(this);
                                 mxNotify.lock();
-                            }
-
-                            if ((iShutDownState & 1) != (m_iShutDownState & 1) && m_bCloseReq == false)
-                            {
+                                while (m_atInBytes > 0)
+                                {
+                                    mxNotify.unlock();
+                                    m_fBytesRecived(this);
+                                    mxNotify.lock();
+                                }
+                                bReadCall = false;
                                 mxNotify.unlock();
-                                m_fBytesRecived(this);
-                                mxNotify.lock();
-                            }
-
-                            atomic_exchange(&m_afReadCall, false);
-                            mxNotify.unlock();
-
-                        }, m_iShutDownState).detach();
-
+                            }).detach();
+                        }
                     }
-
-                    if ((m_iShutDownState & 1) == 1)
-                        break;
                 }
             }
-        }
-    }
+        }// if select
+    }//while
+
+    // if we are here, bStop is set,or m_iShutDownState has bit 1 set, or we have an error
 
     if ((m_iShutDownState & 1) == 0 && m_iError == 0)
     {
         if (::shutdown(m_fSock, SD_RECEIVE) != 0)
             m_iError = WSAGetLastError();// OutputDebugString(L"Error RECEIVE shutdown socket\r\n");
-        m_iShutDownState |= 1;
     }
 
-    if (((m_iShutDownState & 3) == 3 || m_iError != 0) && m_fSock != INVALID_SOCKET)
+    while (bReadCall == true)
+        this_thread::sleep_for(chrono::milliseconds(10));
+
+    m_iShutDownState |= 1;
+
+    unsigned char cExpected = 3;
+    if (m_iShutDownState.compare_exchange_strong(cExpected, 7) == true)
     {
-        ::closesocket(m_fSock);
+        if (m_fSock != INVALID_SOCKET)
+            ::closesocket(m_fSock);
         m_fSock = INVALID_SOCKET;
-    }
 
-    while (m_afReadCall == true)
-        this_thread::sleep_for(chrono::milliseconds(1));
+        if (m_fCloseing != nullptr)
+            m_fCloseing(this);
 
-    // if it is a auto-delete class we start the auto-delete thread now
-    if (m_pRefServSocket != nullptr)    // Auto-delete, socket created from server socket
-    {
-        bool bTmp = false;
-        if (m_fSock == INVALID_SOCKET && atomic_compare_exchange_strong(&m_atDeleteThread, &bTmp, true) == true)
-        {
-            // if the socket was closed, and the closing callback was not called, we call it now
-            if (m_fCloseing != nullptr)
-                m_fCloseing(this);
-
+        // if it is a auto-delete class we start the auto-delete thread now
+        if (m_pRefServSocket != nullptr)    // Auto-delete, socket created from server socket
             thread([&]() { delete this; }).detach();
-        }
-    }
-    else if (m_fSock == INVALID_SOCKET)
-    {
-        // if the socket was closed, and the closing callback was not called, we call it now
-        thread([&]() {
-            if (m_fCloseing != nullptr)
-                m_fCloseing(this);
-        }).detach();
     }
 }
 
@@ -759,6 +684,7 @@ void TcpSocket::ConnectThread()
                 GetConnectionInfo();
 
                 m_thListen = thread(&TcpSocket::SelectThread, this);
+                m_thWrite = thread(&TcpSocket::WriteThread, this);
 
                 if (m_fClientConneted != nullptr)
                     m_fClientConneted(this);
@@ -771,14 +697,9 @@ void TcpSocket::ConnectThread()
     {
         ::closesocket(m_fSock);
         m_fSock = INVALID_SOCKET;
-    }
 
-    if (m_fSock == INVALID_SOCKET)
-    {
-        thread([&]() {
-            if (m_fCloseing != nullptr)
-                m_fCloseing(this);
-        }).detach();
+        if (m_fCloseing != nullptr)
+            m_fCloseing(this);
     }
 }
 
@@ -1038,15 +959,19 @@ UdpSocket::UdpSocket()
 {
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
-    atomic_init(&m_atWriteThread, false);
 }
 
 UdpSocket::~UdpSocket()
 {
     m_bStop = true; // Stops the listening thread
+    m_bCloseReq = true;
+    m_atOutBytes = 0;
+    m_cv.notify_all();
 
     if (m_thListen.joinable() == true)
         m_thListen.join();
+    if (m_thWrite.joinable() == true)
+        m_thWrite.join();
 
     if (m_fSock != INVALID_SOCKET)
     {
@@ -1104,6 +1029,7 @@ bool UdpSocket::Create(const char* const szIpToWhere, const short sPort, const c
         }
 
         m_thListen = thread(&UdpSocket::SelectThread, this);
+        m_thWrite = thread(&UdpSocket::WriteThread, this);
     }
 
     catch (int iSocketErr)
@@ -1261,128 +1187,132 @@ size_t UdpSocket::Write(const void* buf, size_t len, const string& strTo)
     m_atOutBytes += static_cast<uint32_t>(len);
     m_mxOutDeque.unlock();
 
-    bool bTmp = false;
-    if (atomic_compare_exchange_strong(&m_atWriteThread, &bTmp, true) == true)
-    {
-        thread([&]()
-        {
-            while (m_atOutBytes != 0/* && m_bStop == false*/)
-            {
-                fd_set writefd, errorfd;
-                struct timeval timeout;
-
-                timeout.tv_sec = 1;
-                timeout.tv_usec = 0;
-                FD_ZERO(&writefd);
-                FD_ZERO(&errorfd);
-
-                FD_SET(m_fSock, &writefd);
-                FD_SET(m_fSock, &errorfd);
-
-                if (::select(static_cast<int>(m_fSock + 1), nullptr, &writefd, &errorfd, &timeout) == 0)
-                {
-                    continue;
-                }
-
-                if (FD_ISSET(m_fSock, &errorfd))
-                {
-                    socklen_t iLen = sizeof(m_iError);
-                    getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
-                    if (m_fError != nullptr && m_bStop == false)
-                        m_fError(this);
-                    break;
-                }
-
-                m_mxOutDeque.lock();
-                DATA data = move(m_quOutData.front());
-                m_quOutData.pop_front();
-                m_mxOutDeque.unlock();
-                m_atOutBytes -= BUFLEN(data);
-
-                struct addrinfo *lstAddr = nullptr;
-                size_t nPosS = ADDRESS(data).find('[');
-                size_t nPosE = ADDRESS(data).find(']');
-                if (nPosS != string::npos && nPosE != string::npos)
-                {
-                    if (::getaddrinfo(ADDRESS(data).substr(nPosS + 1, nPosE - 1).c_str(), ADDRESS(data).substr(nPosE + 2).c_str(), nullptr, &lstAddr) != 0)
-                        break;    // we return 0, because of a wrong address
-                }
-                else
-                {
-                    size_t nPos = ADDRESS(data).find(':');
-                    if (nPos != string::npos)
-                    {
-                        if (::getaddrinfo(ADDRESS(data).substr(0, nPos).c_str(), ADDRESS(data).substr(nPos + 1).c_str(), nullptr, &lstAddr) != 0)
-                            break;    // we return 0, because of a wrong address
-                    }
-                    else
-                        break;    // we return 0, because of a wrong address
-                }
-
-
-                uint32_t transferred = ::sendto(m_fSock, reinterpret_cast<const char*>(BUFFER(data).get()), BUFLEN(data), 0, lstAddr->ai_addr, static_cast<int>(lstAddr->ai_addrlen));
-                ::freeaddrinfo(lstAddr);
-                if (transferred <= 0)
-                {
-                    m_iError = WSAGetLastError();
-                    if (m_iError != WSAEWOULDBLOCK)
-                    {
-                        if (m_fError != nullptr && m_bStop == false)
-                            m_fError(this);
-                        break;
-                    }
-                    // Put the not send bytes back into the que if it is not a SSL connection. A SSL connection has the bytes still available
-                    shared_ptr<uint8_t> tmp(new uint8_t[BUFLEN(data)]);
-                    copy(BUFFER(data).get(), BUFFER(data).get() + BUFLEN(data), tmp.get());
-                    m_mxOutDeque.lock();
-                    m_quOutData.emplace_front(tmp, BUFLEN(data), ADDRESS(data));
-                    m_mxOutDeque.unlock();
-                    m_atOutBytes += BUFLEN(data);
-                }
-                else if (transferred < BUFLEN(data)) // Less bytes send as buffer size, we put the rast back in your que
-                {
-                    shared_ptr<uint8_t> tmp(new uint8_t[BUFLEN(data) - transferred]);
-                    copy(BUFFER(data).get() + transferred, BUFFER(data).get() + transferred + (BUFLEN(data) - transferred), tmp.get());
-                    m_mxOutDeque.lock();
-                    m_quOutData.emplace_front(tmp, (BUFLEN(data) - transferred), ADDRESS(data));
-                    m_mxOutDeque.unlock();
-                    m_atOutBytes += (BUFLEN(data) - transferred);
-                }
-            }
-
-            atomic_exchange(&m_atWriteThread, false);
-        }).detach();
-    }
+    m_cv.notify_all();
 
     return len;
 }
 
+void UdpSocket::WriteThread()
+{
+    mutex mut;
+    unique_lock<mutex> lock(mut);
+
+    while (m_bCloseReq == false || m_atOutBytes != 0)
+    {
+        m_cv.wait(lock, [&]() { return m_atOutBytes == 0 ? m_bCloseReq : true; });
+
+        while (m_atOutBytes != 0)
+        {
+            fd_set writefd, errorfd;
+            struct timeval timeout;
+
+            timeout.tv_sec = 1;
+            timeout.tv_usec = 0;
+            FD_ZERO(&writefd);
+            FD_ZERO(&errorfd);
+
+            FD_SET(m_fSock, &writefd);
+            FD_SET(m_fSock, &errorfd);
+
+            if (::select(static_cast<int>(m_fSock + 1), nullptr, &writefd, &errorfd, &timeout) == 0)
+                continue;
+
+            if (FD_ISSET(m_fSock, &errorfd))
+            {
+                if (m_iError == 0)
+                {
+                    socklen_t iLen = sizeof(m_iError);
+                    getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
+
+                    if (m_fError != nullptr && m_bStop == false)
+                        m_fError(this);
+                }
+                break;
+            }
+
+            m_mxOutDeque.lock();
+            DATA data = move(m_quOutData.front());
+            m_quOutData.pop_front();
+            m_mxOutDeque.unlock();
+            m_atOutBytes -= BUFLEN(data);
+
+            struct addrinfo *lstAddr = nullptr;
+            size_t nPosS = ADDRESS(data).find('[');
+            size_t nPosE = ADDRESS(data).find(']');
+            if (nPosS != string::npos && nPosE != string::npos)
+            {
+                if (::getaddrinfo(ADDRESS(data).substr(nPosS + 1, nPosE - 1).c_str(), ADDRESS(data).substr(nPosE + 2).c_str(), nullptr, &lstAddr) != 0)
+                    break;    // we return 0, because of a wrong address
+            }
+            else
+            {
+                size_t nPos = ADDRESS(data).find(':');
+                if (nPos != string::npos)
+                {
+                    if (::getaddrinfo(ADDRESS(data).substr(0, nPos).c_str(), ADDRESS(data).substr(nPos + 1).c_str(), nullptr, &lstAddr) != 0)
+                        break;    // we return 0, because of a wrong address
+                }
+                else
+                    break;    // we return 0, because of a wrong address
+            }
+
+            uint32_t transferred = ::sendto(m_fSock, reinterpret_cast<const char*>(BUFFER(data).get()), BUFLEN(data), 0, lstAddr->ai_addr, static_cast<int>(lstAddr->ai_addrlen));
+            ::freeaddrinfo(lstAddr);
+            if (transferred <= 0)
+            {
+                m_iError = WSAGetLastError();
+                if (m_iError != WSAEWOULDBLOCK)
+                {
+                    if (m_fError != nullptr && m_bStop == false)
+                        m_fError(this);
+                    break;
+                }
+                // Put the not send bytes back into the que if it is not a SSL connection. A SSL connection has the bytes still available
+                shared_ptr<uint8_t> tmp(new uint8_t[BUFLEN(data)]);
+                copy(BUFFER(data).get(), BUFFER(data).get() + BUFLEN(data), tmp.get());
+                m_mxOutDeque.lock();
+                m_quOutData.emplace_front(tmp, BUFLEN(data), ADDRESS(data));
+                m_mxOutDeque.unlock();
+                m_atOutBytes += BUFLEN(data);
+            }
+            else if (transferred < BUFLEN(data)) // Less bytes send as buffer size, we put the rast back in your que
+            {
+                shared_ptr<uint8_t> tmp(new uint8_t[BUFLEN(data) - transferred]);
+                copy(BUFFER(data).get() + transferred, BUFFER(data).get() + transferred + (BUFLEN(data) - transferred), tmp.get());
+                m_mxOutDeque.lock();
+                m_quOutData.emplace_front(tmp, (BUFLEN(data) - transferred), ADDRESS(data));
+                m_mxOutDeque.unlock();
+                m_atOutBytes += (BUFLEN(data) - transferred);
+            }
+
+
+        }
+    }
+
+    // if we get out of the while loop, the stop request was send or we have an error
+    if (m_iError == 0)
+    {
+        if (::shutdown(m_fSock, SD_SEND) != 0)
+            m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
+    }
+    m_iShutDownState |= 2;
+}
+
 void UdpSocket::Close()
 {
+    m_bCloseReq = true; // Stops the write thread after the last byte was send
+    m_cv.notify_all();
     m_bStop = true; // Stops the listening thread
-
-    m_mxOutDeque.lock();
-    atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
-    m_quOutData.clear();
-
-    if (::shutdown(m_fSock, SD_BOTH) != 0)
-        m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
-    m_iShutDownState |= 3;
-    m_mxOutDeque.unlock();
-
-    if (m_fSock != INVALID_SOCKET)
-    {
-        ::closesocket(m_fSock);
-        m_fSock = INVALID_SOCKET;
-
-        if (m_fCloseing != nullptr)
-            m_fCloseing(this);
-    }
 }
 
 uint32_t UdpSocket::GetBytesAvailible() const
 {
     return m_atInBytes;
+}
+
+uint32_t UdpSocket::GetOutBytesInQue() const
+{
+    return m_atOutBytes;
 }
 
 void UdpSocket::BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived)
@@ -1392,8 +1322,7 @@ void UdpSocket::BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived)
 
 void UdpSocket::SelectThread()
 {
-    atomic<bool> m_afReadCall;
-    atomic_init(&m_afReadCall, false);
+    bool bReadCall = false;
     mutex mxNotify;
 
     while (m_bStop == false)
@@ -1423,15 +1352,13 @@ void UdpSocket::SelectThread()
             if (FD_ISSET(m_fSock, &readfd))
             {
                 char buf[0x0000ffff];
-                bool bNotify = false;
 
-                repeat:
                 union
                 {
                     sockaddr_in sin;
                     sockaddr_in6 sin6;
                 }SenderAddr;
-                socklen_t   sinLen = sizeof(SenderAddr);
+                socklen_t sinLen = sizeof(SenderAddr);
 
                 int32_t transferred = ::recvfrom(m_fSock, buf, sizeof(buf), 0, (sockaddr*)&SenderAddr, &sinLen);
 
@@ -1440,10 +1367,17 @@ void UdpSocket::SelectThread()
                     if (transferred == 0)
                     {   // The connection was shutdown from the other side, there will be no more bytes to read on that connection
                         // We set the flag, so we don't read on the connection any more
-                        if ((m_iShutDownState & 1) == 0 && ::shutdown(m_fSock, SD_RECEIVE) != 0)
+                        if (::shutdown(m_fSock, SD_RECEIVE) != 0)
                             m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
                         m_iShutDownState |= 1;
-                        bNotify = true;
+
+                        if (m_fBytesRecived != 0)
+                        {
+                            while (bReadCall == true)
+                                this_thread::sleep_for(chrono::milliseconds(10));
+                            m_fBytesRecived(this);
+                        }
+                        break;
                     }
                     else
                     {
@@ -1477,57 +1411,40 @@ void UdpSocket::SelectThread()
                     m_quInData.emplace_back(tmp, transferred, strAbsender.str());
                     m_atInBytes += transferred;
                     m_mxInDeque.unlock();
-                    bNotify = true;
 
-                    if (transferred == sizeof(buf))
-                        goto repeat;
-                }
-
-                if (bNotify == true && m_fBytesRecived != nullptr)
-                {
-                    lock_guard<mutex> lock(mxNotify);
-                    if (m_afReadCall == false)
+                    if (m_fBytesRecived != 0 && m_bStop == false)
                     {
-                        atomic_exchange(&m_afReadCall, true);
-
-                        thread([&]()
+                        lock_guard<mutex> lock(mxNotify);
+                        if (bReadCall == false)
                         {
-                            int iSaveShutDown = (m_iShutDownState & 1);
-
-                            mxNotify.lock();
-                            while (m_atInBytes > 0)
+                            bReadCall = true;
+                            thread([&]()
                             {
-                                mxNotify.unlock();
-                                m_fBytesRecived(this);
                                 mxNotify.lock();
-                            }
-
-                            if (iSaveShutDown != (m_iShutDownState & 1))
-                            {
+                                while (m_atInBytes > 0)
+                                {
+                                    mxNotify.unlock();
+                                    m_fBytesRecived(this);
+                                    mxNotify.lock();
+                                }
+                                bReadCall = false;
                                 mxNotify.unlock();
-                                m_fBytesRecived(this);
-                                mxNotify.lock();
-                            }
-
-                            atomic_exchange(&m_afReadCall, false);
-                            mxNotify.unlock();
-                        }).detach();
+                            }).detach();
+                        }
                     }
-
-                    if ((m_iShutDownState & 1) == 1)
-                        break;
                 }
             }
         }
     }
 
-    if ((m_iShutDownState & 1) == 0)
+    if ((m_iShutDownState & 1) == 0 && m_iError == 0)
     {
         if (::shutdown(m_fSock, SD_RECEIVE) != 0)
             m_iError = WSAGetLastError();// OutputDebugString(L"Error RECEIVE shutdown socket\r\n");
-        m_iShutDownState |= 1;
     }
 
-    while (m_afReadCall == true)
-        this_thread::sleep_for(chrono::milliseconds(1));
+    while (bReadCall == true)
+        this_thread::sleep_for(chrono::milliseconds(10));
+
+    m_iShutDownState |= 1;
 }

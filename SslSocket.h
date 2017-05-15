@@ -21,7 +21,6 @@ class SslTcpServer;
 
 class SslTcpSocket : public TcpSocket
 {
-    friend SslTcpServer;
 public:
 	SslTcpSocket(/*SslConnetion* pSslCon*/);
     virtual ~SslTcpSocket();
@@ -44,16 +43,14 @@ public:
     static atomic<uint32_t> s_atAnzahlPumps;
 
 private:
-	SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket);
+    friend SslTcpServer;
+    SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket);
     void ConEstablished(const TcpSocket* const pTcpSocket);
 	void DatenEmpfangen(const TcpSocket* const pTcpSocket);
     void Closeing(const BaseSocket* const pTcpSocket);
     void PumpThread();
 
 private:
-#pragma message("TODO!!! Folge Zeile wieder entfernen.")
-    friend void sigusr1_handler(int);
-    friend int main(int, const char*[]);
     shared_ptr<SslClientContext>  m_pClientCtx;
     SslConnetion*    m_pSslCon;
     function<void(SslTcpSocket*)> m_fBytesRecived;
@@ -80,6 +77,10 @@ private:
 
     vector<string>   m_vProtoList;
     string           m_strTrustRootCert;
+
+#pragma message("TODO!!! Folge Zeile wieder entfernen.")
+    friend void sigusr1_handler(int);
+    friend int main(int, const char*[]);
 
     bool bHelper1;
     bool bHelper3;

@@ -52,7 +52,7 @@ public:
     virtual void BindCloseFunction(function<void(BaseSocket*)> fCloseing);
     virtual int GetErrorNo() { return m_iError; }
     virtual void SetErrorNo(int iErrNo) { m_iError = iErrNo; }
-    virtual unsigned short GetSocketPort();
+    virtual uint16_t GetSocketPort();
     static int EnumIpAddresses(function<int(int,const string&,int,void*)> fnCallBack, void* vpUser);
 
 protected:
@@ -62,9 +62,10 @@ protected:
 protected:
     SOCKET m_fSock;
     thread m_thListen;
+    thread m_thWrite;
     bool   m_bStop;
     int    m_iError;
-    int    m_iShutDownState;
+    atomic_uchar                m_iShutDownState;
     function<void(BaseSocket*)> m_fError;
     function<void(BaseSocket*)> m_fCloseing;
 
@@ -83,7 +84,7 @@ protected:
 public:
     TcpSocket();
     virtual ~TcpSocket();
-    virtual bool Connect(const char* const szIpToWhere, const short sPort);
+    virtual bool Connect(const char* const szIpToWhere, const uint16_t sPort);
     virtual uint32_t Read(void* buf, uint32_t len);
     virtual size_t Write(const void* buf, size_t len);
     void StartReceiving();
@@ -95,9 +96,9 @@ public:
     virtual bool IsSslConnection() const { return false; }
 
     const string& GetClientAddr() const { return m_strClientAddr; }
-    short GetClientPort() const { return m_sClientPort; }
+    uint16_t GetClientPort() const { return m_sClientPort; }
     const string& GetInterfaceAddr() const { return m_strClientAddr; }
-    short GetInterfacePort() const { return m_sIFacePort; }
+    uint16_t GetInterfacePort() const { return m_sIFacePort; }
 
     const TcpServer* GetServerSocketRef() const { return m_pRefServSocket; }
 
@@ -107,35 +108,35 @@ protected:
     virtual void SetSocketOption(const SOCKET& fd);
 
 private:
+    void WriteThread();
     void SelectThread();
     void ConnectThread();
     bool GetConnectionInfo();
 
 private:
-#pragma message("TODO!!! Folge Zeile wieder entfernen.")
-    friend void sigusr1_handler(int);
-    friend int main(int, const char*[]);
     mutex            m_mxInDeque;
     deque<DATA>      m_quInData;
     atomic<uint32_t> m_atInBytes;
     mutex            m_mxOutDeque;
     deque<DATA>      m_quOutData;
     atomic<uint32_t> m_atOutBytes;
-    atomic<bool>     m_atWriteThread;
-    atomic<bool>     m_atDeleteThread;
 
-    mutex            m_mxWriteThr;
     bool             m_bCloseReq;
+    condition_variable m_cv;
 
     string           m_strClientAddr;
-    short            m_sClientPort;
+    uint16_t         m_sClientPort;
     string           m_strIFaceAddr;
-    short            m_sIFacePort;
+    uint16_t         m_sIFacePort;
 
     const TcpServer* m_pRefServSocket;
 
     function<void(TcpSocket*)> m_fBytesRecived;
     function<void(TcpSocket*)> m_fClientConneted;
+
+#pragma message("TODO!!! Folge Zeile wieder entfernen.")
+    friend void sigusr1_handler(int);
+    friend int main(int, const char*[]);
 };
 
 class TcpServer : public BaseSocket
@@ -179,9 +180,11 @@ public:
     virtual size_t Write(const void* buf, size_t len, const string& strTo);
     virtual void Close();
     virtual uint32_t GetBytesAvailible() const;
+    virtual uint32_t GetOutBytesInQue() const;
     virtual void BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived);
 
 private:
+    void WriteThread();
     void SelectThread();
 
 private:
@@ -191,7 +194,9 @@ private:
     mutex            m_mxOutDeque;
     deque<DATA>      m_quOutData;
     atomic<uint32_t> m_atOutBytes;
-    atomic<bool>     m_atWriteThread;
+
+    bool             m_bCloseReq;
+    condition_variable m_cv;
 
     function<void(UdpSocket*)> m_fBytesRecived;
 };
