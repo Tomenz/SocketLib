@@ -700,7 +700,7 @@ void TcpSocket::ConnectThread()
         }
     }
 
-    if (m_iError != 0 && m_fSock != INVALID_SOCKET)
+    if ((m_iError != 0 && m_fSock != INVALID_SOCKET) || m_bStop == true)
     {
         ::closesocket(m_fSock);
         m_fSock = INVALID_SOCKET;
@@ -1334,6 +1334,7 @@ void UdpSocket::SelectThread()
 {
     bool bReadCall = false;
     mutex mxNotify;
+    bool bSocketShutDown = false;
 
     while (m_bStop == false)
     {
@@ -1379,7 +1380,7 @@ void UdpSocket::SelectThread()
                         // We set the flag, so we don't read on the connection any more
                         if (::shutdown(m_fSock, SD_RECEIVE) != 0)
                             m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
-                        m_iShutDownState |= 1;
+                        bSocketShutDown = true;
 
                         if (m_fBytesRecived != 0)
                         {
@@ -1447,7 +1448,7 @@ void UdpSocket::SelectThread()
         }
     }
 
-    if ((m_iShutDownState & 1) == 0 && m_iError == 0)
+    if (bSocketShutDown == false && m_iError == 0)
     {
         if (::shutdown(m_fSock, SD_RECEIVE) != 0)
             m_iError = WSAGetLastError();// OutputDebugString(L"Error RECEIVE shutdown socket\r\n");
