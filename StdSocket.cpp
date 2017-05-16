@@ -484,8 +484,11 @@ void TcpSocket::WriteThread()
             ::closesocket(m_fSock);
         m_fSock = INVALID_SOCKET;
 
-        if (m_fCloseing != nullptr)
-            m_fCloseing(this);
+        thread([](TcpSocket* pThis, function<void(BaseSocket*)> fCloseing)
+        {
+            if (fCloseing != nullptr)
+                fCloseing(pThis);
+        }, this, m_fCloseing).detach();
 
         if (m_pRefServSocket != nullptr)    // Auto-delete, socket created from server socket
             thread([&]() { delete this; }).detach();
@@ -529,6 +532,7 @@ void TcpSocket::SelectThread()
 {
     bool bReadCall = false;
     mutex mxNotify;
+    bool bSocketShutDown = false;
 
     while (m_bStop == false)
     {
@@ -568,7 +572,7 @@ void TcpSocket::SelectThread()
 
                         if (::shutdown(m_fSock, SD_RECEIVE) != 0)
                             m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
-                        m_iShutDownState |= 1;
+                        bSocketShutDown = true;
 
                         if (m_fBytesRecived != 0)
                         {
@@ -625,7 +629,7 @@ void TcpSocket::SelectThread()
 
     // if we are here, bStop is set,or m_iShutDownState has bit 1 set, or we have an error
 
-    if ((m_iShutDownState & 1) == 0 && m_iError == 0)
+    if (bSocketShutDown == false && m_iError == 0)
     {
         if (::shutdown(m_fSock, SD_RECEIVE) != 0)
             m_iError = WSAGetLastError();// OutputDebugString(L"Error RECEIVE shutdown socket\r\n");
@@ -643,8 +647,11 @@ void TcpSocket::SelectThread()
             ::closesocket(m_fSock);
         m_fSock = INVALID_SOCKET;
 
-        if (m_fCloseing != nullptr)
-            m_fCloseing(this);
+        thread([](TcpSocket* pThis, function<void(BaseSocket*)> fCloseing)
+        {
+            if (fCloseing != nullptr)
+                fCloseing(pThis);
+        }, this, m_fCloseing).detach();
 
         // if it is a auto-delete class we start the auto-delete thread now
         if (m_pRefServSocket != nullptr)    // Auto-delete, socket created from server socket
@@ -698,8 +705,11 @@ void TcpSocket::ConnectThread()
         ::closesocket(m_fSock);
         m_fSock = INVALID_SOCKET;
 
-        if (m_fCloseing != nullptr)
-            m_fCloseing(this);
+        thread([](TcpSocket* pThis, function<void(BaseSocket*)> fCloseing)
+        {
+            if (fCloseing != nullptr)
+                fCloseing(pThis);
+        }, this, m_fCloseing).detach();
     }
 }
 
