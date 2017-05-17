@@ -246,6 +246,7 @@ TcpSocket::~TcpSocket()
     if (m_fSock != INVALID_SOCKET)
     {
         ::closesocket(m_fSock);
+        m_fSock = INVALID_SOCKET;
 
         if (m_fCloseing != nullptr)
             m_fCloseing(this);
