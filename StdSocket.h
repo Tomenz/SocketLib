@@ -50,7 +50,7 @@ public:
     virtual void Close() = 0;
     virtual void BindErrorFunction(function<void(BaseSocket*)> fError);
     virtual void BindCloseFunction(function<void(BaseSocket*)> fCloseing);
-    virtual int GetErrorNo() { return m_iError; }
+    virtual int GetErrorNo() const { return m_iError; }
     virtual void SetErrorNo(int iErrNo) { m_iError = iErrNo; }
     virtual uint16_t GetSocketPort();
     static int EnumIpAddresses(function<int(int,const string&,int,void*)> fnCallBack, void* vpUser);
