@@ -113,7 +113,7 @@ namespace OpenSSLWrapper
 //      size_t SslGetInwDataSize();
         uint32_t SslGetOutData(uint8_t* szBuffer, uint32_t nBufLen);
         uint32_t SslPutInData(uint8_t* szBuffer, uint32_t nWriteLen);
-        bool HandShakeComplet();
+//        bool HandShakeComplet();
         int GetShutDownFlag();
         uint32_t SslRead(uint8_t* szBuffer, uint32_t nBufLen);
         uint32_t SslWrite(uint8_t* szBuffer, uint32_t nWriteLen);

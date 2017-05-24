@@ -86,8 +86,8 @@ namespace OpenSSLWrapper
     SslContext::SslContext(const SSL_METHOD* sslMethod) : m_ctx(SSL_CTX_new(sslMethod))
     {
 #ifdef _DEBUG
-        //            SSL_CTX_set_info_callback(m_ctx, SSLInfo);
-        //            SSL_CTX_set_msg_callback(m_ctx, SSLMsgCB);
+        //SSL_CTX_set_info_callback(m_ctx, SSLInfo);
+        //SSL_CTX_set_msg_callback(m_ctx, SSLMsgCB);
 #endif
     }
 
@@ -468,7 +468,7 @@ namespace OpenSSLWrapper
         m_iWantState = 0;
         return BIO_write(m_wbio, szBuffer, nWriteLen);
     }
-
+/*
     bool SslConnetion::HandShakeComplet()
     {
         if (nullptr == m_ssl)
@@ -514,7 +514,7 @@ namespace OpenSSLWrapper
 
         return true;
     }
-
+*/
     int SslConnetion::GetShutDownFlag()
     {
         return m_iShutDownFlag;

@@ -57,7 +57,6 @@ private:
     function<void(SslTcpSocket*)> m_fCloseing;
     function<void(SslTcpSocket*)> m_fClientConneted;
     thread           m_thPumpSsl;
-    mutex            m_mxSsl;
 
     mutex            m_mxTmpDeque;
     deque<DATA>      m_quTmpData;
@@ -70,7 +69,7 @@ private:
     deque<DATA>      m_quOutData;
     atomic<uint32_t> m_atOutBytes;
 
-    bool             m_bShutDownReceive;
+    int              m_iShutDownReceive;
     bool             m_bStopThread;
     bool             m_bCloseReq;
     int              m_iShutDown;
@@ -81,21 +80,14 @@ private:
 #pragma message("TODO!!! Folge Zeile wieder entfernen.")
     friend void sigusr1_handler(int);
     friend int main(int, const char*[]);
-
-    bool bHelper1;
-    bool bHelper3;
 };
 
 class SslTcpServer : public TcpServer
 {
 public:
-    SslTcpServer();
-    virtual ~SslTcpServer();
     SslTcpSocket* const MakeClientConnection(const SOCKET&);
     bool AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey);
     bool SetDHParameter(const char* const szDhParamFileName);
-
-private:
 
 private:
     vector<shared_ptr<SslServerContext>> m_SslCtx;
@@ -121,8 +113,8 @@ private:
     void Closeing(const BaseSocket* const pTcpSocket);
     void PumpThread();
 
-    static void ssl_info_callbackServer(const SSL* ssl, int where, int ret);
-    static void ssl_info_callbackClient(const SSL* ssl, int where, int ret);
+//    static void ssl_info_callbackServer(const SSL* ssl, int where, int ret);
+//    static void ssl_info_callbackClient(const SSL* ssl, int where, int ret);
 
 private:
     shared_ptr<SslUdpContext>  m_pUdpCtx;
@@ -147,5 +139,5 @@ private:
     bool             m_bCloseReq;
     string           m_strDestAddr;
 
-    static mutex     s_mxSslInfo;
+//    static mutex     s_mxSslInfo;
 };

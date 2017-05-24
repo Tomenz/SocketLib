@@ -19,7 +19,7 @@ using namespace std::placeholders;
 #pragma message("TODO!!! Folge Zeile wieder entfernen.")
 atomic<uint32_t> SslTcpSocket::s_atAnzahlPumps(0);
 
-SslTcpSocket::SslTcpSocket(/*SslConnetion* pSslCon*/) : m_pSslCon(nullptr/*pSslCon*/), m_bShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0), bHelper1(false), bHelper3(false)
+SslTcpSocket::SslTcpSocket(/*SslConnetion* pSslCon*/) : m_pSslCon(nullptr/*pSslCon*/), m_iShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0)
 {
     atomic_init(&m_atTmpBytes, static_cast<uint32_t>(0));
 	atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
@@ -35,7 +35,7 @@ SslTcpSocket::SslTcpSocket(/*SslConnetion* pSslCon*/) : m_pSslCon(nullptr/*pSslC
     //m_thPumpSsl = thread(&SslTcpSocket::PumpThread, this);
 }
 
-SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket) : TcpSocket(fSock, pRefServSocket), m_pSslCon(pSslCon), m_bShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0), bHelper1(false), bHelper3(false)
+SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket) : TcpSocket(fSock, pRefServSocket), m_pSslCon(pSslCon), m_iShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0)
 {
     atomic_init(&m_atTmpBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
@@ -59,9 +59,6 @@ SslTcpSocket::~SslTcpSocket()
 
     if (m_pSslCon != nullptr)
         delete m_pSslCon;
-
-    //if (m_fCloseing != nullptr)
-    //    m_fCloseing(this);
 }
 
 bool SslTcpSocket::Connect(const char* const szIpToWhere, const short sPort)
@@ -171,7 +168,7 @@ void SslTcpSocket::DatenEmpfangen(const TcpSocket* const pTcpSocket)
 
     if (nAvalible == 0)
     {
-        m_bShutDownReceive = true;
+        m_iShutDownReceive |= 1;
         return;
     }
 
@@ -189,12 +186,12 @@ void SslTcpSocket::DatenEmpfangen(const TcpSocket* const pTcpSocket)
 
 void SslTcpSocket::Closeing(const BaseSocket* const pTcpSocket)
 {
+    // The TcpSocket class calls closing, the socket is already closed
+    m_bStopThread = true;
+
     //OutputDebugString(L"SslTcpSocket::Closeing\r\n");
     if (m_fCloseing != nullptr)
         m_fCloseing(this);
-
-//    if (m_pSslCon != nullptr)
-//        delete m_pSslCon;
 }
 
 void SslTcpSocket::SetAlpnProtokollNames(vector<string> vProtoList)
@@ -223,52 +220,79 @@ long SslTcpSocket::CheckServerCertificate(const char* const szHostName)
 
 void SslTcpSocket::PumpThread()
 {
-    atomic<bool> m_afReadCall;
-    atomic_init(&m_afReadCall, false);
-    mutex mxNotify;
-    bool bHandShakeOk = false;
 #pragma message("TODO!!! Folge Zeile wieder entfernen.")
     s_atAnzahlPumps++;
 
-    while (m_bStopThread == false)
+    bool bReadCall = false;
+    mutex mxNotify;
+    bool bHandShakeOk = false;
+    int bShutDownState = 0;
+    bool bErrFnCalled = false;
+
+    try
     {
-        bool bDidSomeWork = false;
-
-        if (bHandShakeOk == false && m_pSslCon->HandShakeComplet() == true)
+        while (m_bStopThread == false)
         {
-            bHandShakeOk = true;
-            if (m_fClientConneted != nullptr)
-                m_fClientConneted(this);
-        }
+            bool bDidSomeWork = false;
 
-        if (m_pSslCon->GetShutDownFlag() != 1 && m_atTmpBytes > 0)
-        {
-            m_mxTmpDeque.lock();
-            DATA data = move(m_quTmpData.front());
-            m_quTmpData.pop_front();
-            m_atTmpBytes -= BUFLEN(data);
-            m_mxTmpDeque.unlock();
-
-            uint32_t nPut = m_pSslCon->SslPutInData(BUFFER(data).get(), BUFLEN(data));
-            if (nPut != BUFLEN(data))
+            if (bHandShakeOk == false)
             {
-                uint32_t nRest = BUFLEN(data) - nPut;
-                shared_ptr<uint8_t> tmp(new uint8_t[nRest]);
-                copy(BUFFER(data).get() + nPut, BUFFER(data).get() + nPut + nRest, tmp.get());
-                lock_guard<mutex> lock(m_mxTmpDeque);
-                m_quTmpData.emplace_front(tmp, nRest);
-                m_atTmpBytes += nRest;
+                if (SSL_is_init_finished((*m_pSslCon)()))
+                {
+                    bHandShakeOk = true;
+                    if (m_fClientConneted != nullptr)
+                        m_fClientConneted(this);
+                }
+                else
+                {
+                    int iRet = SSL_do_handshake((*m_pSslCon)());
+                    if (iRet <= 0)
+                    {
+                        int iRet2 = SSL_get_error((*m_pSslCon)(), iRet);
+                        if (iRet2 <= 0)
+                        {
+                            break;  //  OutputDebugString(L"SSL Error\r\n");
+                        }
+                    }
+                }
             }
 
-            bDidSomeWork = true;
-        }
+            // Get the out Que of the openssl bio, the buffer is already encrypted
+            uint32_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
+            if (nOutDataSize > 0)
+            {
+                auto temp = shared_ptr<uint8_t>(new uint8_t[nOutDataSize]);
+                int32_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
+                // Schreibt Daten in die SOCKET
+                if (len > 0)
+                    TcpSocket::Write(temp.get(), len);
 
-        // The encrypted data the socket received are written to the SSL layer in the DatenEmpfangen function
-        // 1. we read from the SSL layer the unencrypted bytes we received and put them into the Que, the application can get them
-        // we notify the application that we have data to get
+                if (bShutDownState > 0) ++bShutDownState;   // The SSL Shutdown was initiated, and we send it to the socket
+                bDidSomeWork = true;
+            }
 
-        if (bHandShakeOk == true && m_pSslCon->GetShutDownFlag() == INT32_MAX)
-        {
+            if (m_atTmpBytes > 0)
+            {
+                m_mxTmpDeque.lock();
+                DATA data = move(m_quTmpData.front());
+                m_quTmpData.pop_front();
+                m_atTmpBytes -= BUFLEN(data);
+                m_mxTmpDeque.unlock();
+
+                uint32_t nPut = m_pSslCon->SslPutInData(BUFFER(data).get(), BUFLEN(data));
+                if (nPut != BUFLEN(data))
+                {
+                    uint32_t nRest = BUFLEN(data) - nPut;
+                    shared_ptr<uint8_t> tmp(new uint8_t[nRest]);
+                    copy(BUFFER(data).get() + nPut, BUFFER(data).get() + nPut + nRest, tmp.get());
+                    lock_guard<mutex> lock(m_mxTmpDeque);
+                    m_quTmpData.emplace_front(tmp, nRest);
+                    m_atTmpBytes += nRest;
+                }
+
+                bDidSomeWork = true;
+            }
+
             uint8_t Buffer[0x0000ffff];
             int32_t len = m_pSslCon->SslRead(Buffer, sizeof(Buffer)); // get receive data from the SSL layer, and put it into the unencrypted receive Que
             if (len > 0)
@@ -283,15 +307,11 @@ void SslTcpSocket::PumpThread()
                 if (m_fBytesRecived != 0)
                 {
                     lock_guard<mutex> lock(mxNotify);
-                    if (m_afReadCall == false)
+                    if (bReadCall == false)
                     {
-                        atomic_exchange(&m_afReadCall, true);
-
-                        thread([&](bool bShutDownReceive)
+                        bReadCall = true;
+                        thread([&]()
                         {
-                            if (bShutDownReceive == true && m_atInBytes == 0)  // If we start the thread, with no bytes in the Que, but the Shutdown is marked, we execute the callback below the loop
-                                bShutDownReceive = false;
-
                             mxNotify.lock();
                             while (m_atInBytes > 0)
                             {
@@ -299,107 +319,91 @@ void SslTcpSocket::PumpThread()
                                 m_fBytesRecived(this);
                                 mxNotify.lock();
                             }
-
-                            if (bShutDownReceive != m_bShutDownReceive)
-                            {
-                                mxNotify.unlock();
-                                m_fBytesRecived(this), bHelper1 = true;
-                                mxNotify.lock();
-                            }
-
-                            atomic_exchange(&m_afReadCall, false);
+                            bReadCall = false;
                             mxNotify.unlock();
-                        }, m_bShutDownReceive).detach();
+                        }).detach();
                     }
+                }
 
-                    //if (m_bShutDownReceive == true)
-                    //    break;
+                bDidSomeWork = true;
+            }
+            else if (m_atTmpBytes == 0 && m_iShutDownReceive == 1 && bReadCall == false && m_atInBytes == 0 && m_fBytesRecived != 0)
+            {
+                m_iShutDownReceive |= 2;
+                m_fBytesRecived(this);  // Signal the application the tcp connection was closed
+            }
+
+            if (bHandShakeOk == true && m_atOutBytes > 0)
+            {
+                m_mxOutDeque.lock();
+                DATA data = move(m_quOutData.front());
+                m_quOutData.pop_front();
+                m_atOutBytes -= BUFLEN(data);
+                m_mxOutDeque.unlock();
+
+                uint32_t nWritten = m_pSslCon->SslWrite(BUFFER(data).get(), BUFLEN(data));
+                if (nWritten != BUFLEN(data))
+                {
+                    uint32_t nRest = BUFLEN(data) - nWritten;
+
+                    shared_ptr<uint8_t> tmp(new uint8_t[nRest]);
+                    copy(BUFFER(data).get() + nWritten, BUFFER(data).get() + nWritten + nRest, tmp.get());
+                    m_mxOutDeque.lock();
+                    m_quOutData.emplace_front(tmp, nRest);
+                    m_atOutBytes += nRest;
+                    m_mxOutDeque.unlock();
                 }
                 bDidSomeWork = true;
             }
-            else if (m_bShutDownReceive == true && m_atTmpBytes == 0 && m_atInBytes == 0 && m_afReadCall == false && m_fBytesRecived != nullptr)
-                m_fBytesRecived(this);
-        }
-        else if (bHandShakeOk == false && m_bShutDownReceive == true && m_fBytesRecived != nullptr)
-            m_fBytesRecived(this);
+            else if (m_atOutBytes == 0 && m_atTmpBytes == 0 && m_iShutDownReceive == 3) // No Data, and the tcp connection was closed
+                m_bCloseReq = true;
 
-        // The next to blocks send data,
-        // 1. we read the Que with unencrypted data and write it into the SSL layer
-        // 2. we get the encrypted data from the SSL layer and write them to the base socket
-
-        // We send the SSL layer as much data until the bio has less the 65535 bytes in the out Que
-        if (m_pSslCon->GetShutDownFlag() == INT32_MAX && bHandShakeOk == true/*m_pSslCon->HandShakeComplet() == true*/ && m_atOutBytes > 0 && m_pSslCon->SslGetOutDataSize() < 0xffff)
-        {
-            m_mxOutDeque.lock();
-            DATA data = move(m_quOutData.front());
-            m_quOutData.pop_front();
-            m_atOutBytes -= BUFLEN(data);
-            m_mxOutDeque.unlock();
-
-            uint32_t nWritten = m_pSslCon->SslWrite(BUFFER(data).get(), BUFLEN(data));
-            if (nWritten != BUFLEN(data))
+            // we close the ssl connection
+            if (m_bCloseReq == true)
             {
-                uint32_t nRest = BUFLEN(data) - nWritten;
-
-                shared_ptr<uint8_t> tmp(new uint8_t[nRest]);
-                copy(BUFFER(data).get() + nWritten, BUFFER(data).get() + nWritten + nRest, tmp.get());
-                m_mxOutDeque.lock();
-                m_quOutData.emplace_front(tmp, nRest);
-                m_atOutBytes += nRest;
-                m_mxOutDeque.unlock();
+                m_atOutBytes = 0;
+                m_iShutDown = m_pSslCon->ShutDownConnection();
+                if (m_iShutDown == 0 && bShutDownState == 0) ++bShutDownState;  // The first call to shutdown, we must send the byts to the socket
+                if (m_iShutDown == 1 /*|| m_iShutDown == -1*/ || bShutDownState == 2 || (m_iShutDown == -1 && bHandShakeOk == false))
+                {
+                    break;
+                }
             }
-            bDidSomeWork = true;
+
+            if (bDidSomeWork == false)
+                this_thread::sleep_for(chrono::milliseconds(1));
         }
-
-        // Get the out Que of the openssl bio, the buffer is already encrypted
-        uint32_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
-        if (nOutDataSize > 0)
-        {
-            auto temp = shared_ptr<uint8_t>(new uint8_t[nOutDataSize]);
-            int32_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
-            // Schreibt Daten in die SOCKET
-            if (len > 0)
-                TcpSocket::Write(temp.get(), len);
-
-            bDidSomeWork = true;
-        }
-
-        // we close the ssl connection
-        if (m_bCloseReq == true && m_iShutDown == 0 && m_pSslCon->SslGetOutDataSize() == 0 && (m_atOutBytes == 0 || m_pSslCon->GetShutDownFlag() != INT32_MAX))
-        {
-            m_iShutDown = m_pSslCon->ShutDownConnection();
-            if (m_iShutDown == 1 || m_iShutDown == -1 || (m_iShutDown == 0 && bHandShakeOk == false))
-            {
-                bHelper3 = true;
-                break;
-            }
-        }
-
-        if (bDidSomeWork == false)
-            this_thread::sleep_for(chrono::milliseconds(1));
     }
 
-    while (m_afReadCall == true)
+    catch (runtime_error& ex)
+    {
+        ex.what();
+
+        while (bReadCall == true)
+            this_thread::sleep_for(chrono::milliseconds(1));
+
+        if (m_fError != nullptr)
+        {
+            m_fError(this);
+            bErrFnCalled = true;
+        }
+    }
+
+    while (bReadCall == true)
         this_thread::sleep_for(chrono::milliseconds(1));
+
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     /* thread-local cleanup */
     ERR_remove_thread_state(nullptr);
 #endif
-    TcpSocket::Close();
+    if (bErrFnCalled == false)  // If the error function was called, the socket close function should be called in that function
+        TcpSocket::Close();
 
 #pragma message("TODO!!! Folge Zeile wieder entfernen.")
     s_atAnzahlPumps--;
 }
 
 //************************************************************************************
-
-SslTcpServer::SslTcpServer()
-{
-}
-
-SslTcpServer::~SslTcpServer()
-{
-}
 
 SslTcpSocket* const SslTcpServer::MakeClientConnection(const SOCKET& fSock)
 {
