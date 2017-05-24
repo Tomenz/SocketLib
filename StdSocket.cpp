@@ -227,6 +227,7 @@ TcpSocket::TcpSocket(const SOCKET fSock, const TcpServer* pRefServSocket) : m_bC
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
 
+    m_iShutDownState = 3;
     m_thWrite = thread(&TcpSocket::WriteThread, this);
 }
 
@@ -332,7 +333,7 @@ void TcpSocket::SetSocketOption(const SOCKET& fd)
 
     SOCKOPT rc = 1;
     if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &rc, sizeof(rc)) == -1)
-        throw errno;
+        throw WSAGetLastError();
 }
 
 uint32_t TcpSocket::Read(void* buf, uint32_t len)
@@ -394,6 +395,8 @@ size_t TcpSocket::Write(const void* buf, size_t len)
 
 void TcpSocket::WriteThread()
 {
+    m_iShutDownState &= ~2;
+
     mutex mut;
     unique_lock<mutex> lock(mut);
 
@@ -531,6 +534,8 @@ void TcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConnete
 
 void TcpSocket::SelectThread()
 {
+    m_iShutDownState &= ~1;
+
     bool bReadCall = false;
     mutex mxNotify;
     bool bSocketShutDown = false;
@@ -857,7 +862,7 @@ void TcpServer::SetSocketOption(const SOCKET& fd)
 
     SOCKOPT rc = 1;
     if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &rc, sizeof(rc)) == -1)
-        throw errno;
+        throw WSAGetLastError();
 }
 
 TcpSocket* const TcpServer::MakeClientConnection(const SOCKET& fSock)
@@ -949,9 +954,14 @@ void TcpServer::SelectThread()
                             pClient->GetConnectionInfo();
                         }
 
-                        catch (int errno)
+                        catch (int iErrNo)
                         {
-                            pClient->SetErrorNo(errno);
+                            pClient->SetErrorNo(iErrNo);
+                            if (m_fError != nullptr)
+                                m_fError(pClient);  // Must call Close() in the error callback
+                            else
+                                pClient->Close();
+                            continue;
                         }
                         vNewConnections.push_back(pClient);
                     }
