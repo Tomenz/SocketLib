@@ -976,7 +976,7 @@ void TcpServer::SelectThread()
 
 //********************************************************************************
 
-UdpSocket::UdpSocket()
+UdpSocket::UdpSocket() : m_bCloseReq(false)
 {
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
@@ -1198,7 +1198,7 @@ uint32_t UdpSocket::Read(void* buf, uint32_t len, string& strFrom)
 
 size_t UdpSocket::Write(const void* buf, size_t len, const string& strTo)
 {
-    if (m_bStop == true || len == 0 || strTo.empty() == true)
+    if (m_bStop == true || m_bCloseReq == true || buf == nullptr || len == 0 || strTo.empty() == true)
         return 0;
 
     shared_ptr<uint8_t> tmp(new uint8_t[len]);
