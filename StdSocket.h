@@ -58,6 +58,7 @@ public:
 protected:
     virtual void SetSocketOption(const SOCKET& fd);
     virtual void OnError();
+    virtual void StartCloseingCB();
 
 protected:
     SOCKET m_fSock;

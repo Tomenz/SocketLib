@@ -120,6 +120,20 @@ void BaseSocket::OnError()
     Close();
 }
 
+void BaseSocket::StartCloseingCB()
+{
+    if (m_fCloseing != nullptr)
+    {
+        function<void(BaseSocket*)> tmpfun = nullptr;
+        swap(m_fCloseing, tmpfun);
+
+        thread([](BaseSocket* pThis, function<void(BaseSocket*)> fCloseing)
+        {
+            fCloseing(pThis);
+        }, this, tmpfun).detach();
+    }
+}
+
 uint16_t BaseSocket::GetSocketPort()
 {
     struct sockaddr_storage addrPe;
@@ -488,11 +502,7 @@ void TcpSocket::WriteThread()
             ::closesocket(m_fSock);
         m_fSock = INVALID_SOCKET;
 
-        thread([](TcpSocket* pThis, function<void(BaseSocket*)> fCloseing)
-        {
-            if (fCloseing != nullptr)
-                fCloseing(pThis);
-        }, this, m_fCloseing).detach();
+        StartCloseingCB();
 
         if (m_pRefServSocket != nullptr)    // Auto-delete, socket created from server socket
             thread([&]() { delete this; }).detach();
@@ -653,11 +663,7 @@ void TcpSocket::SelectThread()
             ::closesocket(m_fSock);
         m_fSock = INVALID_SOCKET;
 
-        thread([](TcpSocket* pThis, function<void(BaseSocket*)> fCloseing)
-        {
-            if (fCloseing != nullptr)
-                fCloseing(pThis);
-        }, this, m_fCloseing).detach();
+        StartCloseingCB();
 
         // if it is a auto-delete class we start the auto-delete thread now
         if (m_pRefServSocket != nullptr)    // Auto-delete, socket created from server socket
@@ -711,11 +717,7 @@ void TcpSocket::ConnectThread()
         ::closesocket(m_fSock);
         m_fSock = INVALID_SOCKET;
 
-        thread([](TcpSocket* pThis, function<void(BaseSocket*)> fCloseing)
-        {
-            if (fCloseing != nullptr)
-                fCloseing(pThis);
-        }, this, m_fCloseing).detach();
+        StartCloseingCB();
     }
 }
 
