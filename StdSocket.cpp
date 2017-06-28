@@ -129,7 +129,8 @@ void BaseSocket::StartCloseingCB()
 
         thread([](BaseSocket* pThis, function<void(BaseSocket*)> fCloseing)
         {
-            fCloseing(pThis);
+            if (fCloseing != nullptr)
+                fCloseing(pThis);
         }, this, tmpfun).detach();
     }
 }
