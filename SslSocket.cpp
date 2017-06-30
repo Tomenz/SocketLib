@@ -61,7 +61,7 @@ SslTcpSocket::~SslTcpSocket()
         delete m_pSslCon;
 }
 
-bool SslTcpSocket::Connect(const char* const szIpToWhere, const short sPort)
+bool SslTcpSocket::Connect(const char* const szIpToWhere, const uint16_t sPort)
 {
     m_pClientCtx = make_shared<SslClientContext>();
     m_pSslCon = new SslConnetion(m_pClientCtx.get());

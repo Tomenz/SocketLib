@@ -24,7 +24,7 @@ class SslTcpSocket : public TcpSocket
 public:
 	SslTcpSocket(/*SslConnetion* pSslCon*/);
     virtual ~SslTcpSocket();
-    bool Connect(const char* const szIpToWhere, const short sPort);
+    bool Connect(const char* const szIpToWhere, const uint16_t sPort) override;
     uint32_t Read(void* buf, uint32_t len) override;
     size_t Write(const void* buf, size_t len) override;
     void Close() override;
@@ -101,12 +101,12 @@ public:
     bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
     bool CreateServerSide(const char* const szIpToWhere, const short sPort, const char* const szIpToBind = nullptr);
     bool CreateClientSide(const char* const szIpToWhere, const short sPort, const char* const szDestAddr, const char* const szIpToBind = nullptr);
-    virtual uint32_t Read(void* buf, uint32_t len, string& strFrom);
-    virtual size_t Write(const void* buf, size_t len, const string& strTo);
-    virtual void Close();
-    virtual uint32_t GetBytesAvailible() const;
-    virtual void BindCloseFunction(function<void(BaseSocket*)> fCloseing);
-    virtual void BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived);
+    virtual uint32_t Read(void* buf, uint32_t len, string& strFrom) override;
+    virtual size_t Write(const void* buf, size_t len, const string& strTo) override;
+    virtual void Close() override;
+    virtual uint32_t GetBytesAvailible() const override;
+    virtual void BindCloseFunction(function<void(BaseSocket*)> fCloseing) override;
+    virtual void BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) override;
 
 private:
     void DatenEmpfangen(const UdpSocket* const pUdpSocket);
