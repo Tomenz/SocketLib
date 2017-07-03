@@ -27,12 +27,12 @@ public:
     bool Connect(const char* const szIpToWhere, const uint16_t sPort) override;
     uint32_t Read(void* buf, uint32_t len) override;
     size_t Write(const void* buf, size_t len) override;
-    void Close() override;
-    uint32_t GetBytesAvailible() const override;
-    void BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) override;
-    void BindCloseFunction(function<void(BaseSocket*)> fCloseing) override;
-    void BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) override;
-    bool IsSslConnection() const override { return true; }
+    void Close() noexcept override;
+    uint32_t GetBytesAvailible() const noexcept override;
+    void BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept override;
+    void BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept override;
+    void BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept override;
+    bool IsSslConnection() const noexcept override { return true; }
 
     void SetAlpnProtokollNames(vector<string> vProtoList);
     const string GetSelAlpnProtocol() const;
@@ -103,10 +103,10 @@ public:
     bool CreateClientSide(const char* const szIpToWhere, const short sPort, const char* const szDestAddr, const char* const szIpToBind = nullptr);
     virtual uint32_t Read(void* buf, uint32_t len, string& strFrom) override;
     virtual size_t Write(const void* buf, size_t len, const string& strTo) override;
-    virtual void Close() override;
-    virtual uint32_t GetBytesAvailible() const override;
-    virtual void BindCloseFunction(function<void(BaseSocket*)> fCloseing) override;
-    virtual void BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) override;
+    virtual void Close() noexcept override;
+    virtual uint32_t GetBytesAvailible() const noexcept override;
+    virtual void BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept override;
+    virtual void BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept override;
 
 private:
     void DatenEmpfangen(const UdpSocket* const pUdpSocket);

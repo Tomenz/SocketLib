@@ -183,7 +183,7 @@ namespace OpenSSLWrapper
         SSL_CTX_set_tlsext_servername_callback(m_ctx, SNI_CB);
     }
 
-    string& SslServerContext::GetCertCommonName()
+    string& SslServerContext::GetCertCommonName() noexcept
     {
         return m_strCertComName;
     }
@@ -413,7 +413,7 @@ namespace OpenSSLWrapper
         return m_ssl;
     }
 
-    void SslConnetion::SetErrorCb(function<void()> fError)
+    void SslConnetion::SetErrorCb(function<void()> fError) noexcept
     {
         m_fError = fError;
     }
@@ -515,7 +515,7 @@ namespace OpenSSLWrapper
         return true;
     }
 */
-    int SslConnetion::GetShutDownFlag()
+    int SslConnetion::GetShutDownFlag() noexcept
     {
         return m_iShutDownFlag;
     }

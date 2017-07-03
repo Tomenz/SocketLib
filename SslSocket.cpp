@@ -131,28 +131,28 @@ size_t SslTcpSocket::Write(const void* buf, size_t len)
     return len;
 }
 
-void SslTcpSocket::Close()
+void SslTcpSocket::Close() noexcept
 {
     //OutputDebugString(L"SslTcpSocket::Close\r\n");
     m_bCloseReq = true;
 }
 
-uint32_t SslTcpSocket::GetBytesAvailible() const
+uint32_t SslTcpSocket::GetBytesAvailible() const noexcept
 {
     return m_atInBytes;
 }
 
-void SslTcpSocket::BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived)
+void SslTcpSocket::BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept
 {
     m_fBytesRecived = fBytesRecived;
 }
 
-void SslTcpSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing)
+void SslTcpSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept
 {
     m_fCloseing = fCloseing;
 }
 
-void SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted)
+void SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
 {
     m_fClientConneted = fClientConneted;
 }
@@ -580,23 +580,23 @@ size_t SslUdpSocket::Write(const void* buf, size_t len, const string& strTo)
     return len;
 }
 
-void SslUdpSocket::Close()
+void SslUdpSocket::Close() noexcept
 {
     //OutputDebugString(L"SslTcpSocket::Close\r\n");
     m_bCloseReq = true;
 }
 
-uint32_t SslUdpSocket::GetBytesAvailible() const
+uint32_t SslUdpSocket::GetBytesAvailible() const noexcept
 {
     return m_atInBytes;
 }
 
-void SslUdpSocket::BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived)
+void SslUdpSocket::BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept
 {
     m_fBytesRecived = fBytesRecived;
 }
 
-void SslUdpSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing)
+void SslUdpSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept
 {
     m_fCloseing = fCloseing;
 }

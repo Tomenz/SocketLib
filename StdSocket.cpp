@@ -83,17 +83,17 @@ BaseSocket::BaseSocket() : m_fSock(INVALID_SOCKET), m_bStop(false), m_iError(0),
     ++s_atRefCount;
 }
 
-BaseSocket::~BaseSocket()
+BaseSocket::~BaseSocket() noexcept
 {
     --s_atRefCount;
 }
 
-void BaseSocket::BindErrorFunction(function<void(BaseSocket*)> fError)
+void BaseSocket::BindErrorFunction(function<void(BaseSocket*)> fError) noexcept
 {
     m_fError = fError;
 }
 
-void BaseSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing)
+void BaseSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept
 {
     m_fCloseing = fCloseing;
 }
@@ -515,7 +515,7 @@ void TcpSocket::StartReceiving()
     m_thListen = thread(&TcpSocket::SelectThread, this);
 }
 
-void TcpSocket::Close()
+void TcpSocket::Close() noexcept
 {
     //OutputDebugString(L"TcpSocket::Close\r\n");
     m_bCloseReq = true; // Stops the write thread after the last byte was send
@@ -523,22 +523,22 @@ void TcpSocket::Close()
     m_bStop = true; // Stops the listening thread
 }
 
-uint32_t TcpSocket::GetBytesAvailible() const
+uint32_t TcpSocket::GetBytesAvailible() const noexcept
 {
     return m_atInBytes;
 }
 
-uint32_t TcpSocket::GetOutBytesInQue() const
+uint32_t TcpSocket::GetOutBytesInQue() const noexcept
 {
     return m_atOutBytes;
 }
 
-void TcpSocket::BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived)
+void TcpSocket::BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept
 {
     m_fBytesRecived = fBytesRecived;
 }
 
-void TcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted)
+void TcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
 {
     m_fClientConneted = fClientConneted;
 }
@@ -854,7 +854,7 @@ unsigned short TcpServer::GetServerPort()
     return 0;
 }
 
-void TcpServer::Close()
+void TcpServer::Close() noexcept
 {
     m_bStop = true; // Stops the listening thread, deletes all Sockets at the end of the listening thread
 }
@@ -873,7 +873,7 @@ TcpSocket* const TcpServer::MakeClientConnection(const SOCKET& fSock)
     return new TcpSocket(fSock, this);
 }
 
-void TcpServer::BindNewConnection(function<void(const vector<TcpSocket*>&)> fNewConnetion)
+void TcpServer::BindNewConnection(function<void(const vector<TcpSocket*>&)> fNewConnetion) noexcept
 {
     m_fNewConnection = fNewConnetion;
 }
@@ -1322,24 +1322,24 @@ void UdpSocket::WriteThread()
     m_iShutDownState |= 2;
 }
 
-void UdpSocket::Close()
+void UdpSocket::Close() noexcept
 {
     m_bCloseReq = true; // Stops the write thread after the last byte was send
     m_cv.notify_all();
     m_bStop = true; // Stops the listening thread
 }
 
-uint32_t UdpSocket::GetBytesAvailible() const
+uint32_t UdpSocket::GetBytesAvailible() const noexcept
 {
     return m_atInBytes;
 }
 
-uint32_t UdpSocket::GetOutBytesInQue() const
+uint32_t UdpSocket::GetOutBytesInQue() const noexcept
 {
     return m_atOutBytes;
 }
 
-void UdpSocket::BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived)
+void UdpSocket::BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept
 {
     m_fBytesRecived = fBytesRecived;
 }

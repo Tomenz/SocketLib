@@ -74,7 +74,7 @@ namespace OpenSSLWrapper
     {
     public:
         SslServerContext();
-        string& GetCertCommonName();
+        string& GetCertCommonName() noexcept;
         int SetCertificates(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey);
         void AddVirtualHost(vector<shared_ptr<SslServerContext>>* pSslCtx);
         bool SetDhParamFile(const char* const szDhParamFile);
@@ -106,7 +106,7 @@ namespace OpenSSLWrapper
         ~SslConnetion();
 //      static long CbBioInfo(struct bio_st* pBioInfo, int iInt1, const char* cpBuf, int iInt2, long l1, long lRet);
         SSL* operator() ();
-        void SetErrorCb(function<void()> fError);
+        void SetErrorCb(function<void()> fError) noexcept;
         uint32_t SslGetOutDataSize();
 //      size_t SslGetOutwDataSize();
 //      size_t SslGetInrDataSize();
@@ -114,7 +114,7 @@ namespace OpenSSLWrapper
         uint32_t SslGetOutData(uint8_t* szBuffer, uint32_t nBufLen);
         uint32_t SslPutInData(uint8_t* szBuffer, uint32_t nWriteLen);
 //        bool HandShakeComplet();
-        int GetShutDownFlag();
+        int GetShutDownFlag() noexcept;
         uint32_t SslRead(uint8_t* szBuffer, uint32_t nBufLen);
         uint32_t SslWrite(uint8_t* szBuffer, uint32_t nWriteLen);
         int ShutDownConnection();

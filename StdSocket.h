@@ -46,12 +46,12 @@ class BaseSocket
 {
 public:
     BaseSocket();
-    virtual ~BaseSocket();
+    virtual ~BaseSocket() noexcept;
     virtual void Close() = 0;
-    virtual void BindErrorFunction(function<void(BaseSocket*)> fError);
-    virtual void BindCloseFunction(function<void(BaseSocket*)> fCloseing);
-    virtual int GetErrorNo() const { return m_iError; }
-    virtual void SetErrorNo(int iErrNo) { m_iError = iErrNo; }
+    virtual void BindErrorFunction(function<void(BaseSocket*)> fError) noexcept;
+    virtual void BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept;
+    virtual int GetErrorNo() const  noexcept { return m_iError; }
+    virtual void SetErrorNo(int iErrNo) noexcept { m_iError = iErrNo; }
     virtual uint16_t GetSocketPort();
     static int EnumIpAddresses(function<int(int,const string&,int,void*)> fnCallBack, void* vpUser);
 
@@ -89,19 +89,19 @@ public:
     virtual uint32_t Read(void* buf, uint32_t len);
     virtual size_t Write(const void* buf, size_t len);
     void StartReceiving();
-    virtual void Close();
-    virtual uint32_t GetBytesAvailible() const;
-    virtual uint32_t GetOutBytesInQue() const;
-    virtual void BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived);
-    virtual void BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted);
-    virtual bool IsSslConnection() const { return false; }
+    virtual void Close() noexcept;
+    virtual uint32_t GetBytesAvailible() const noexcept;
+    virtual uint32_t GetOutBytesInQue() const noexcept;
+    virtual void BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept;
+    virtual void BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept;
+    virtual bool IsSslConnection() const noexcept { return false; }
 
-    const string& GetClientAddr() const { return m_strClientAddr; }
-    uint16_t GetClientPort() const { return m_sClientPort; }
-    const string& GetInterfaceAddr() const { return m_strClientAddr; }
-    uint16_t GetInterfacePort() const { return m_sIFacePort; }
+    const string& GetClientAddr() const noexcept { return m_strClientAddr; }
+    uint16_t GetClientPort() const noexcept { return m_sClientPort; }
+    const string& GetInterfaceAddr() const noexcept { return m_strClientAddr; }
+    uint16_t GetInterfacePort() const noexcept { return m_sIFacePort; }
 
-    const TcpServer* GetServerSocketRef() const { return m_pRefServSocket; }
+    const TcpServer* GetServerSocketRef() const noexcept { return m_pRefServSocket; }
 
 protected:
     friend TcpServer;
@@ -146,8 +146,8 @@ public:
     virtual ~TcpServer();
     bool Start(const char* const szIpAddr, const short sPort);
     unsigned short GetServerPort();
-    void BindNewConnection(function<void(const vector<TcpSocket*>&)>);
-    virtual void Close();
+    void BindNewConnection(function<void(const vector<TcpSocket*>&)>) noexcept;
+    virtual void Close() noexcept;
     virtual TcpSocket* const MakeClientConnection(const SOCKET&);
 
 protected:
@@ -179,10 +179,10 @@ public:
     virtual bool RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
     virtual uint32_t Read(void* buf, uint32_t len, string& strFrom);
     virtual size_t Write(const void* buf, size_t len, const string& strTo);
-    virtual void Close();
-    virtual uint32_t GetBytesAvailible() const;
-    virtual uint32_t GetOutBytesInQue() const;
-    virtual void BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived);
+    virtual void Close() noexcept;
+    virtual uint32_t GetBytesAvailible() const noexcept;
+    virtual uint32_t GetOutBytesInQue() const noexcept;
+    virtual void BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept;
 
 private:
     void WriteThread();
