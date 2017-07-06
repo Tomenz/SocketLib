@@ -545,7 +545,7 @@ namespace OpenSSLWrapper
                 break;
             default:
                 m_iShutDownFlag = 1;
-                if (m_fError != nullptr)
+                if (m_fError)
                     m_fError();
 #ifdef _DEBUG
                 //if (m_szName)
@@ -584,7 +584,7 @@ namespace OpenSSLWrapper
                 break;
             default:
                 m_iShutDownFlag = 1;
-                if (m_fError != nullptr)
+                if (m_fError)
                     m_fError();
 #ifdef _DEBUG
                 //if (m_szName)

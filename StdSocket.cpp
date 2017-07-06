@@ -78,7 +78,7 @@ InitSocket::InitSocket()
 
 atomic_uint BaseSocket::s_atRefCount(0);
 
-BaseSocket::BaseSocket() : m_fSock(INVALID_SOCKET), m_bStop(false), m_iError(0), m_iShutDownState(0), m_fError(bind(&BaseSocket::OnError, this)), m_fCloseing(nullptr)
+BaseSocket::BaseSocket() : m_fSock(INVALID_SOCKET), m_bStop(false), m_iError(0), m_iShutDownState(0), m_fError(bind(&BaseSocket::OnError, this))
 {
     ++s_atRefCount;
 }
@@ -122,14 +122,14 @@ void BaseSocket::OnError()
 
 void BaseSocket::StartCloseingCB()
 {
-    if (m_fCloseing != nullptr)
+    if (m_fCloseing)
     {
-        function<void(BaseSocket*)> tmpfun = nullptr;
-        swap(m_fCloseing, tmpfun);
+        function<void(BaseSocket*)> tmpfun;
+        m_fCloseing.swap(tmpfun);
 
         thread([](BaseSocket* pThis, function<void(BaseSocket*)> fCloseing)
         {
-            if (fCloseing != nullptr)
+            if (fCloseing)
                 fCloseing(pThis);
         }, this, tmpfun).detach();
     }
@@ -258,13 +258,15 @@ TcpSocket::~TcpSocket()
         m_thListen.join();
     if (m_thWrite.joinable() == true)
         m_thWrite.join();
+    if (m_thConnect.joinable() == true)
+        m_thConnect.join();
 
     if (m_fSock != INVALID_SOCKET)
     {
         ::closesocket(m_fSock);
         m_fSock = INVALID_SOCKET;
 
-        if (m_fCloseing != nullptr)
+        if (m_fCloseing)
             m_fCloseing(this);
     }
 }
@@ -313,7 +315,7 @@ bool TcpSocket::Connect(const char* const szIpToWhere, const uint16_t sPort)
                 throw m_iError;
 
             m_iError = 0;
-            thread(&TcpSocket::ConnectThread, this).detach();
+            m_thConnect = thread(&TcpSocket::ConnectThread, this);
         }
         else
         {
@@ -322,7 +324,7 @@ bool TcpSocket::Connect(const char* const szIpToWhere, const uint16_t sPort)
             m_thListen = thread(&TcpSocket::SelectThread, this);
             m_thWrite = thread(&TcpSocket::WriteThread, this);
 
-            if (m_fClientConneted != nullptr)
+            if (m_fClientConneted)
                 m_fClientConneted(this);
         }
     }
@@ -442,7 +444,7 @@ void TcpSocket::WriteThread()
                     socklen_t iLen = sizeof(m_iError);
                     getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
 
-                    if (m_fError != nullptr && m_bStop == false)
+                    if (m_fError && m_bStop == false)
                         m_fError(this);
                 }
                 break;
@@ -461,7 +463,7 @@ void TcpSocket::WriteThread()
                 if (iError != WSAEWOULDBLOCK)
                 {
                     m_iError = iError;
-                    if (m_fError != nullptr && m_bStop == false)
+                    if (m_fError && m_bStop == false)
                         m_fError(this);
                     break;
                 }
@@ -570,7 +572,7 @@ void TcpSocket::SelectThread()
             {
                 socklen_t iLen = sizeof(m_iError);
                 getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
-                if (m_fError != nullptr && m_bStop == false)
+                if (m_fError && m_bStop == false)
                     m_fError(this);
                 break;
             }
@@ -591,7 +593,7 @@ void TcpSocket::SelectThread()
                             m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
                         bSocketShutDown = true;
 
-                        if (m_fBytesRecived != 0)
+                        if (m_fBytesRecived)
                         {
                             while (bReadCall == true)
                                 this_thread::sleep_for(chrono::milliseconds(10));
@@ -605,7 +607,7 @@ void TcpSocket::SelectThread()
                         if (iError != WSAEWOULDBLOCK)
                         {
                             m_iError = iError;
-                            if (m_fError != nullptr && m_bStop == false)
+                            if (m_fError && m_bStop == false)
                                 m_fError(this);
                             break;
                         }
@@ -619,7 +621,7 @@ void TcpSocket::SelectThread()
                     m_quInData.emplace_back(tmp, transferred);
                     m_atInBytes += transferred;
 
-                    if (m_fBytesRecived != 0 && m_bStop == false)
+                    if (m_fBytesRecived && m_bStop == false)
                     {
                         lock_guard<mutex> lock(mxNotify);
                         if (bReadCall == false)
@@ -694,7 +696,7 @@ void TcpSocket::ConnectThread()
                 socklen_t iLen = sizeof(m_iError);
                 getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
 
-                if (m_fError != nullptr && m_bStop == false)
+                if (m_fError && m_bStop == false)
                     m_fError(this);
                 break;
             }
@@ -706,7 +708,7 @@ void TcpSocket::ConnectThread()
                 m_thListen = thread(&TcpSocket::SelectThread, this);
                 m_thWrite = thread(&TcpSocket::WriteThread, this);
 
-                if (m_fClientConneted != nullptr)
+                if (m_fClientConneted)
                     m_fClientConneted(this);
                 break;
             }
@@ -960,7 +962,7 @@ void TcpServer::SelectThread()
                         catch (int iErrNo)
                         {
                             pClient->SetErrorNo(iErrNo);
-                            if (m_fError != nullptr)
+                            if (m_fError)
                                 m_fError(pClient);  // Must call Close() in the error callback
                             else
                                 pClient->Close();
@@ -1001,7 +1003,7 @@ UdpSocket::~UdpSocket()
     {
         ::closesocket(m_fSock);
 
-        if (m_fCloseing != nullptr)
+        if (m_fCloseing)
             m_fCloseing(this);
     }
 }
@@ -1248,7 +1250,7 @@ void UdpSocket::WriteThread()
                     socklen_t iLen = sizeof(m_iError);
                     getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
 
-                    if (m_fError != nullptr && m_bStop == false)
+                    if (m_fError && m_bStop == false)
                         m_fError(this);
                 }
                 break;
@@ -1287,7 +1289,7 @@ void UdpSocket::WriteThread()
                 m_iError = WSAGetLastError();
                 if (m_iError != WSAEWOULDBLOCK)
                 {
-                    if (m_fError != nullptr && m_bStop == false)
+                    if (m_fError && m_bStop == false)
                         m_fError(this);
                     break;
                 }
@@ -1369,7 +1371,7 @@ void UdpSocket::SelectThread()
             {
                 socklen_t iLen = sizeof(m_iError);
                 getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
-                if (m_fError != nullptr && m_bStop == false)
+                if (m_fError && m_bStop == false)
                     m_fError(this);
                 break;
             }
@@ -1396,7 +1398,7 @@ void UdpSocket::SelectThread()
                             m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
                         bSocketShutDown = true;
 
-                        if (m_fBytesRecived != 0)
+                        if (m_fBytesRecived)
                         {
                             while (bReadCall == true)
                                 this_thread::sleep_for(chrono::milliseconds(10));
@@ -1409,7 +1411,7 @@ void UdpSocket::SelectThread()
                         m_iError = WSAGetLastError();
                         if (m_iError != WSAEWOULDBLOCK)
                         {
-                            if (m_fError != nullptr && m_bStop == false)
+                            if (m_fError && m_bStop == false)
                                 m_fError(this);
                             break;
                         }
@@ -1437,7 +1439,7 @@ void UdpSocket::SelectThread()
                     m_atInBytes += transferred;
                     m_mxInDeque.unlock();
 
-                    if (m_fBytesRecived != 0 && m_bStop == false)
+                    if (m_fBytesRecived && m_bStop == false)
                     {
                         lock_guard<mutex> lock(mxNotify);
                         if (bReadCall == false)

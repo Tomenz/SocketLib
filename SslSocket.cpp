@@ -190,7 +190,7 @@ void SslTcpSocket::Closeing(const BaseSocket* const pTcpSocket)
     m_bStopThread = true;
 
     //OutputDebugString(L"SslTcpSocket::Closeing\r\n");
-    if (m_fCloseing != nullptr)
+    if (m_fCloseing)
         m_fCloseing(this);
 }
 
@@ -240,7 +240,7 @@ void SslTcpSocket::PumpThread()
                 if (SSL_is_init_finished((*m_pSslCon)()))
                 {
                     bHandShakeOk = true;
-                    if (m_fClientConneted != nullptr)
+                    if (m_fClientConneted)
                         m_fClientConneted(this);
                 }
                 else
@@ -304,7 +304,7 @@ void SslTcpSocket::PumpThread()
                 m_atInBytes += len;
                 m_mxInDeque.unlock();
 
-                if (m_fBytesRecived != 0)
+                if (m_fBytesRecived)
                 {
                     lock_guard<mutex> lock(mxNotify);
                     if (bReadCall == false)
@@ -327,7 +327,7 @@ void SslTcpSocket::PumpThread()
 
                 bDidSomeWork = true;
             }
-            else if (m_atTmpBytes == 0 && m_iShutDownReceive == 1 && bReadCall == false && m_atInBytes == 0 && m_fBytesRecived != 0)
+            else if (m_atTmpBytes == 0 && m_iShutDownReceive == 1 && bReadCall == false && m_atInBytes == 0 && m_fBytesRecived)
             {
                 m_iShutDownReceive |= 2;
                 m_fBytesRecived(this);  // Signal the application the tcp connection was closed
@@ -382,7 +382,7 @@ void SslTcpSocket::PumpThread()
         while (bReadCall == true)
             this_thread::sleep_for(chrono::milliseconds(1));
 
-        if (m_fError != nullptr)
+        if (m_fError)
         {
             m_fError(this);
             bErrFnCalled = true;
@@ -624,7 +624,7 @@ void SslUdpSocket::DatenEmpfangen(const UdpSocket* const pUdpSocket)
 void SslUdpSocket::Closeing(const BaseSocket* const pUdpSocket)
 {
     //OutputDebugString(L"SslTcpSocket::Closeing\r\n");
-    if (m_fCloseing != nullptr)
+    if (m_fCloseing)
         m_fCloseing(this);
 }
 
@@ -716,7 +716,7 @@ void SslUdpSocket::PumpThread()
                 m_atInBytes += len;
                 m_mxInDeque.unlock();
 
-                if (m_fBytesRecived != 0)
+                if (m_fBytesRecived)
                 {
                     lock_guard<mutex> lock(mxNotify);
                     if (m_afReadCall == false)
@@ -746,10 +746,10 @@ void SslUdpSocket::PumpThread()
                 }
                 bDidSomeWork = true;
             }
-            else if (m_atTmpBytes == 0 && m_atInBytes == 0 && m_afReadCall == false && m_fBytesRecived != nullptr)
+            else if (m_atTmpBytes == 0 && m_atInBytes == 0 && m_afReadCall == false && m_fBytesRecived)
                 m_fBytesRecived(this);
         }
-        else if (bHandShakeOk == false && m_fBytesRecived != nullptr)
+        else if (bHandShakeOk == false && m_fBytesRecived)
             m_fBytesRecived(this);
 
         // The next to blocks send data,

@@ -115,6 +115,7 @@ private:
     bool GetConnectionInfo();
 
 private:
+    thread           m_thConnect;
     mutex            m_mxInDeque;
     deque<DATA>      m_quInData;
     atomic<uint32_t> m_atInBytes;
