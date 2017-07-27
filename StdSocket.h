@@ -46,8 +46,8 @@ class BaseSocket
 {
 public:
     BaseSocket();
-    virtual ~BaseSocket() noexcept;
     virtual void Close() = 0;
+    virtual void SelfDestroy() = 0;
     virtual void BindErrorFunction(function<void(BaseSocket*)> fError) noexcept;
     virtual void BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept;
     virtual int GetErrorNo() const  noexcept { return m_iError; }
@@ -56,6 +56,7 @@ public:
     static int EnumIpAddresses(function<int(int,const string&,int,void*)> fnCallBack, void* vpUser);
 
 protected:
+    virtual ~BaseSocket();
     virtual void SetSocketOption(const SOCKET& fd);
     virtual void OnError();
     virtual void StartCloseingCB();
@@ -69,11 +70,9 @@ protected:
     atomic_uchar                m_iShutDownState;
     function<void(BaseSocket*)> m_fError;
     function<void(BaseSocket*)> m_fCloseing;
+    mutex  m_mxFnClosing;
 
 private:
-#pragma message("TODO!!! Folge Zeile wieder entfernen.")
-    friend int main(int, const char*[]);
-    friend void sigusr1_handler(int);
     static atomic_uint s_atRefCount;
 };
 
@@ -84,12 +83,12 @@ protected:
 
 public:
     TcpSocket();
-    virtual ~TcpSocket();
     virtual bool Connect(const char* const szIpToWhere, const uint16_t sPort);
     virtual uint32_t Read(void* buf, uint32_t len);
     virtual size_t Write(const void* buf, size_t len);
     void StartReceiving();
     virtual void Close() noexcept;
+    virtual void SelfDestroy() noexcept;
     virtual uint32_t GetBytesAvailible() const noexcept;
     virtual uint32_t GetOutBytesInQue() const noexcept;
     virtual void BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept;
@@ -106,6 +105,7 @@ public:
 protected:
     friend TcpServer;
     explicit TcpSocket(const SOCKET, const TcpServer* pRefServSocket);
+    virtual ~TcpSocket();
     virtual void SetSocketOption(const SOCKET& fd);
 
 private:
@@ -132,13 +132,10 @@ private:
     uint16_t         m_sIFacePort;
 
     const TcpServer* m_pRefServSocket;
+    bool             m_bSelfDelete;
 
     function<void(TcpSocket*)> m_fBytesRecived;
     function<void(TcpSocket*)> m_fClientConneted;
-
-#pragma message("TODO!!! Folge Zeile wieder entfernen.")
-    friend void sigusr1_handler(int);
-    friend int main(int, const char*[]);
 };
 
 class TcpServer : public BaseSocket
@@ -149,6 +146,7 @@ public:
     unsigned short GetServerPort();
     void BindNewConnection(function<void(const vector<TcpSocket*>&)>) noexcept;
     virtual void Close() noexcept;
+    virtual void SelfDestroy() noexcept override { static_assert(true, "class has no selfdestroy function"); }
     virtual TcpSocket* const MakeClientConnection(const SOCKET&);
 
 protected:
@@ -181,6 +179,7 @@ public:
     virtual uint32_t Read(void* buf, uint32_t len, string& strFrom);
     virtual size_t Write(const void* buf, size_t len, const string& strTo);
     virtual void Close() noexcept;
+    virtual void SelfDestroy() noexcept override { static_assert(true, "class has no selfdestroy function"); }
     virtual uint32_t GetBytesAvailible() const noexcept;
     virtual uint32_t GetOutBytesInQue() const noexcept;
     virtual void BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept;

@@ -83,8 +83,13 @@ BaseSocket::BaseSocket() : m_fSock(INVALID_SOCKET), m_bStop(false), m_iError(0),
     ++s_atRefCount;
 }
 
-BaseSocket::~BaseSocket() noexcept
+BaseSocket::~BaseSocket()
 {
+    if (m_thListen.joinable() == true)
+        m_thListen.join();
+    if (m_thWrite.joinable() == true)
+        m_thWrite.join();
+
     --s_atRefCount;
 }
 
@@ -122,17 +127,16 @@ void BaseSocket::OnError()
 
 void BaseSocket::StartCloseingCB()
 {
+    m_mxFnClosing.lock();
     if (m_fCloseing)
     {
         function<void(BaseSocket*)> tmpfun;
         m_fCloseing.swap(tmpfun);
-
-        thread([](BaseSocket* pThis, function<void(BaseSocket*)> fCloseing)
-        {
-            if (fCloseing)
-                fCloseing(pThis);
-        }, this, tmpfun).detach();
+        m_mxFnClosing.unlock();
+        tmpfun(this);
     }
+    else
+        m_mxFnClosing.unlock();
 }
 
 uint16_t BaseSocket::GetSocketPort()
@@ -229,13 +233,13 @@ int BaseSocket::EnumIpAddresses(function<int(int, const string&, int, void*)> fn
 
 //************************************************************************************
 
-TcpSocket::TcpSocket() : m_bCloseReq(false), m_pRefServSocket(nullptr)
+TcpSocket::TcpSocket() : m_bCloseReq(false), m_pRefServSocket(nullptr), m_bSelfDelete(false)
 {
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
 }
 
-TcpSocket::TcpSocket(const SOCKET fSock, const TcpServer* pRefServSocket) : m_bCloseReq(false), m_pRefServSocket(pRefServSocket)
+TcpSocket::TcpSocket(const SOCKET fSock, const TcpServer* pRefServSocket) : m_bCloseReq(false), m_pRefServSocket(pRefServSocket), m_bSelfDelete(false)
 {
     m_fSock = fSock;
 
@@ -254,10 +258,6 @@ TcpSocket::~TcpSocket()
     m_atOutBytes = 0;
     m_cv.notify_all();
 
-    if (m_thListen.joinable() == true)
-        m_thListen.join();
-    if (m_thWrite.joinable() == true)
-        m_thWrite.join();
     if (m_thConnect.joinable() == true)
         m_thConnect.join();
 
@@ -266,6 +266,7 @@ TcpSocket::~TcpSocket()
         ::closesocket(m_fSock);
         m_fSock = INVALID_SOCKET;
 
+        lock_guard<mutex> lock(m_mxFnClosing);
         if (m_fCloseing)
             m_fCloseing(this);
     }
@@ -507,7 +508,7 @@ void TcpSocket::WriteThread()
 
         StartCloseingCB();
 
-        if (m_pRefServSocket != nullptr)    // Auto-delete, socket created from server socket
+        if (m_pRefServSocket != nullptr || m_bSelfDelete == true)    // Auto-delete, socket created from server socket
             thread([&]() { delete this; }).detach();
     }
 }
@@ -523,6 +524,12 @@ void TcpSocket::Close() noexcept
     m_bCloseReq = true; // Stops the write thread after the last byte was send
     m_cv.notify_all();
     m_bStop = true; // Stops the listening thread
+}
+
+void TcpSocket::SelfDestroy() noexcept
+{
+    m_bSelfDelete = true;
+    Close();
 }
 
 uint32_t TcpSocket::GetBytesAvailible() const noexcept
@@ -593,12 +600,11 @@ void TcpSocket::SelectThread()
                             m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
                         bSocketShutDown = true;
 
+                        while (bReadCall == true)
+                            this_thread::sleep_for(chrono::milliseconds(10));
+
                         if (m_fBytesRecived)
-                        {
-                            while (bReadCall == true)
-                                this_thread::sleep_for(chrono::milliseconds(10));
                             m_fBytesRecived(this);
-                        }
                         break;
                     }
                     else
@@ -669,7 +675,7 @@ void TcpSocket::SelectThread()
         StartCloseingCB();
 
         // if it is a auto-delete class we start the auto-delete thread now
-        if (m_pRefServSocket != nullptr)    // Auto-delete, socket created from server socket
+        if (m_pRefServSocket != nullptr || m_bSelfDelete == true)    // Auto-delete, socket created from server socket
             thread([&]() { delete this; }).detach();
     }
 }
@@ -721,6 +727,9 @@ void TcpSocket::ConnectThread()
         m_fSock = INVALID_SOCKET;
 
         StartCloseingCB();
+
+        if (m_bSelfDelete == true)    // Auto-delete, socket created from server socket
+            thread([&]() { delete this; }).detach();
     }
 }
 
