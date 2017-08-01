@@ -142,19 +142,22 @@ uint32_t SslTcpSocket::GetBytesAvailible() const noexcept
     return m_atInBytes;
 }
 
-void SslTcpSocket::BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept
+function<void(TcpSocket*)> SslTcpSocket::BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept
 {
-    m_fBytesRecived = fBytesRecived;
+    m_fBytesRecived.swap(static_cast< function<void(SslTcpSocket*)>>(fBytesRecived));
+    return fBytesRecived;
 }
 
-void SslTcpSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept
+function<void(BaseSocket*)> SslTcpSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept
 {
-    m_fCloseing = fCloseing;
+    m_fCloseing.swap(static_cast< function<void(SslTcpSocket*)>>(fCloseing));
+    return fCloseing;
 }
 
-void SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
+function<void(TcpSocket*)> SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
 {
-    m_fClientConneted = fClientConneted;
+    m_fClientConneted.swap(static_cast< function<void(SslTcpSocket*)>>(fClientConneted));
+    return fClientConneted;
 }
 
 void SslTcpSocket::ConEstablished(const TcpSocket* const pTcpSocket)
@@ -591,14 +594,16 @@ uint32_t SslUdpSocket::GetBytesAvailible() const noexcept
     return m_atInBytes;
 }
 
-void SslUdpSocket::BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept
+function<void(UdpSocket*)> SslUdpSocket::BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept
 {
-    m_fBytesRecived = fBytesRecived;
+    m_fBytesRecived.swap(static_cast< function<void(SslUdpSocket*)>>(fBytesRecived));
+    return fBytesRecived;
 }
 
-void SslUdpSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept
+function<void(BaseSocket*)> SslUdpSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept
 {
-    m_fCloseing = fCloseing;
+    m_fCloseing.swap(static_cast< function<void(SslUdpSocket*)>>(fCloseing));
+    return fCloseing;
 }
 
 void SslUdpSocket::DatenEmpfangen(const UdpSocket* const pUdpSocket)

@@ -93,14 +93,16 @@ BaseSocket::~BaseSocket()
     --s_atRefCount;
 }
 
-void BaseSocket::BindErrorFunction(function<void(BaseSocket*)> fError) noexcept
+function<void(BaseSocket*)> BaseSocket::BindErrorFunction(function<void(BaseSocket*)> fError) noexcept
 {
-    m_fError = fError;
+    m_fError.swap(fError);
+    return fError;
 }
 
-void BaseSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept
+function<void(BaseSocket*)> BaseSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept
 {
-    m_fCloseing = fCloseing;
+    m_fCloseing.swap(fCloseing);
+    return fCloseing;
 }
 
 void BaseSocket::SetSocketOption(const SOCKET& fd)
@@ -542,14 +544,16 @@ uint32_t TcpSocket::GetOutBytesInQue() const noexcept
     return m_atOutBytes;
 }
 
-void TcpSocket::BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept
+function<void(TcpSocket*)> TcpSocket::BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept
 {
-    m_fBytesRecived = fBytesRecived;
+    m_fBytesRecived.swap(fBytesRecived);
+    return fBytesRecived;
 }
 
-void TcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
+function<void(TcpSocket*)> TcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
 {
-    m_fClientConneted = fClientConneted;
+    m_fClientConneted.swap(fClientConneted);
+    return fClientConneted;
 }
 
 void TcpSocket::SelectThread()
@@ -1350,9 +1354,10 @@ uint32_t UdpSocket::GetOutBytesInQue() const noexcept
     return m_atOutBytes;
 }
 
-void UdpSocket::BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept
+function<void(UdpSocket*)> UdpSocket::BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept
 {
-    m_fBytesRecived = fBytesRecived;
+    m_fBytesRecived.swap(fBytesRecived);
+    return fBytesRecived;
 }
 
 void UdpSocket::SelectThread()

@@ -48,8 +48,8 @@ public:
     BaseSocket();
     virtual void Close() = 0;
     virtual void SelfDestroy() = 0;
-    virtual void BindErrorFunction(function<void(BaseSocket*)> fError) noexcept;
-    virtual void BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept;
+    virtual function<void(BaseSocket*)> BindErrorFunction(function<void(BaseSocket*)> fError) noexcept;
+    virtual function<void(BaseSocket*)> BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept;
     virtual int GetErrorNo() const  noexcept { return m_iError; }
     virtual void SetErrorNo(int iErrNo) noexcept { m_iError = iErrNo; }
     virtual uint16_t GetSocketPort();
@@ -91,8 +91,8 @@ public:
     virtual void SelfDestroy() noexcept;
     virtual uint32_t GetBytesAvailible() const noexcept;
     virtual uint32_t GetOutBytesInQue() const noexcept;
-    virtual void BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept;
-    virtual void BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept;
+    virtual function<void(TcpSocket*)> BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept;
+    virtual function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept;
     virtual bool IsSslConnection() const noexcept { return false; }
 
     const string& GetClientAddr() const noexcept { return m_strClientAddr; }
@@ -182,7 +182,7 @@ public:
     virtual void SelfDestroy() noexcept override { static_assert(true, "class has no selfdestroy function"); }
     virtual uint32_t GetBytesAvailible() const noexcept;
     virtual uint32_t GetOutBytesInQue() const noexcept;
-    virtual void BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept;
+    virtual function<void(UdpSocket*)> BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept;
 
 private:
     void WriteThread();

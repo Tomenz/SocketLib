@@ -29,9 +29,9 @@ public:
     size_t Write(const void* buf, size_t len) override;
     void Close() noexcept override;
     uint32_t GetBytesAvailible() const noexcept override;
-    void BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept override;
-    void BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept override;
-    void BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept override;
+    function<void(TcpSocket*)> BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept override;
+    function<void(BaseSocket*)> BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept override;
+    function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept override;
     bool IsSslConnection() const noexcept override { return true; }
 
     void SetAlpnProtokollNames(vector<string> vProtoList);
@@ -101,12 +101,12 @@ public:
     bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
     bool CreateServerSide(const char* const szIpToWhere, const short sPort, const char* const szIpToBind = nullptr);
     bool CreateClientSide(const char* const szIpToWhere, const short sPort, const char* const szDestAddr, const char* const szIpToBind = nullptr);
-    virtual uint32_t Read(void* buf, uint32_t len, string& strFrom) override;
-    virtual size_t Write(const void* buf, size_t len, const string& strTo) override;
-    virtual void Close() noexcept override;
-    virtual uint32_t GetBytesAvailible() const noexcept override;
-    virtual void BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept override;
-    virtual void BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept override;
+    uint32_t Read(void* buf, uint32_t len, string& strFrom) override;
+    size_t Write(const void* buf, size_t len, const string& strTo) override;
+    void Close() noexcept override;
+    uint32_t GetBytesAvailible() const noexcept override;
+    function<void(BaseSocket*)> BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept override;
+    function<void(UdpSocket*)> BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept override;
 
 private:
     void DatenEmpfangen(const UdpSocket* const pUdpSocket);
