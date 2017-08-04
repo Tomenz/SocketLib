@@ -144,19 +144,19 @@ uint32_t SslTcpSocket::GetBytesAvailible() const noexcept
 
 function<void(TcpSocket*)> SslTcpSocket::BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept
 {
-    m_fBytesRecived.swap(static_cast< function<void(SslTcpSocket*)>>(fBytesRecived));
+    m_fBytesRecived.swap(fBytesRecived);
     return fBytesRecived;
 }
 
 function<void(BaseSocket*)> SslTcpSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept
 {
-    m_fCloseing.swap(static_cast< function<void(SslTcpSocket*)>>(fCloseing));
+    m_fCloseing.swap(fCloseing);
     return fCloseing;
 }
 
 function<void(TcpSocket*)> SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
 {
-    m_fClientConneted.swap(static_cast< function<void(SslTcpSocket*)>>(fClientConneted));
+    m_fClientConneted.swap(fClientConneted);
     return fClientConneted;
 }
 
@@ -596,13 +596,13 @@ uint32_t SslUdpSocket::GetBytesAvailible() const noexcept
 
 function<void(UdpSocket*)> SslUdpSocket::BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept
 {
-    m_fBytesRecived.swap(static_cast< function<void(SslUdpSocket*)>>(fBytesRecived));
+    m_fBytesRecived.swap(fBytesRecived);
     return fBytesRecived;
 }
 
 function<void(BaseSocket*)> SslUdpSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept
 {
-    m_fCloseing.swap(static_cast< function<void(SslUdpSocket*)>>(fCloseing));
+    m_fCloseing.swap(fCloseing);
     return fCloseing;
 }
 

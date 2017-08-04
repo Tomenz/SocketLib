@@ -53,9 +53,9 @@ private:
 private:
     shared_ptr<SslClientContext>  m_pClientCtx;
     SslConnetion*    m_pSslCon;
-    function<void(SslTcpSocket*)> m_fBytesRecived;
-    function<void(SslTcpSocket*)> m_fCloseing;
-    function<void(SslTcpSocket*)> m_fClientConneted;
+    function<void(TcpSocket*)> m_fBytesRecived;
+    function<void(BaseSocket*)> m_fCloseing;
+    function<void(TcpSocket*)> m_fClientConneted;
     thread           m_thPumpSsl;
 
     mutex            m_mxTmpDeque;
@@ -76,10 +76,6 @@ private:
 
     vector<string>   m_vProtoList;
     string           m_strTrustRootCert;
-
-#pragma message("TODO!!! Folge Zeile wieder entfernen.")
-    friend void sigusr1_handler(int);
-    friend int main(int, const char*[]);
 };
 
 class SslTcpServer : public TcpServer
@@ -120,8 +116,8 @@ private:
     shared_ptr<SslUdpContext>  m_pUdpCtx;
     SslConnetion*    m_pSslCon;
 
-    function<void(SslUdpSocket*)> m_fBytesRecived;
-    function<void(SslUdpSocket*)> m_fCloseing;
+    function<void(UdpSocket*)> m_fBytesRecived;
+    function<void(BaseSocket*)> m_fCloseing;
     thread           m_thPumpSsl;
 
     mutex            m_mxTmpDeque;
