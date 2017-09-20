@@ -174,6 +174,7 @@ public:
     UdpSocket();
     virtual ~UdpSocket();
     virtual bool Create(const char* const szIpToWhere, const short sPort, const char* const szIpToBind = nullptr);
+    virtual bool EnableBroadCast(bool bEnable = true);
     virtual bool AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
     virtual bool RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
     virtual uint32_t Read(void* buf, uint32_t len, string& strFrom);

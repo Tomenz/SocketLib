@@ -1086,6 +1086,14 @@ bool UdpSocket::Create(const char* const szIpToWhere, const short sPort, const c
     return bRet;
 }
 
+bool UdpSocket::EnableBroadCast(bool bEnable/* = true*/)
+{
+    int iBroadcast = bEnable == true ? 1 : 0;
+    if (::setsockopt(m_fSock, SOL_SOCKET, SO_BROADCAST, (char *)&iBroadcast, sizeof(int)) == SOCKET_ERROR)
+        return false;
+    return true;
+}
+
 bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex)
 {
     struct addrinfo *lstAddr;
