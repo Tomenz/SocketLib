@@ -20,6 +20,7 @@
 // https://support.microsoft.com/de-de/kb/257460
 //#include <winsock2.h>
 #include <Ws2tcpip.h>
+#include <Netioapi.h>
 #else
 #define SOCKET int32_t
 #endif
@@ -37,9 +38,19 @@ class InitSocket
 public:
     static InitSocket* GetInstance();
     ~InitSocket();
+    void SetAddrNotifyCallback(function<void(bool, const string&, int, int)> fnCbAddrNotify);
 
 private:
     InitSocket();
+#if defined (_WIN32) || defined (_WIN64)
+    static VOID __stdcall IpIfaceChanged(PVOID CallerContext, PMIB_IPINTERFACE_ROW Row, MIB_NOTIFICATION_TYPE NotificationType);
+    HANDLE m_hIFaceNotify;
+#endif
+    int CbEnumIpAdressen(int iFamiely, const string& strIp, int nInterFaceId, void* vpUserParam);
+    void NotifyOnAddressChanges(vector<tuple<string, int, int>>& vNewListing);
+
+    vector<tuple<string, int, int>> m_vCurIPAddr;
+    function<void(bool, const string&, int, int)> m_fnCbAddrNotify;
 };
 
 class BaseSocket

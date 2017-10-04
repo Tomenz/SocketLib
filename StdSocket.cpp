@@ -58,8 +58,19 @@ InitSocket* InitSocket::GetInstance()
 InitSocket::~InitSocket()
 {
 #if defined(_WIN32) || defined(_WIN64)
+    CancelMibChangeNotify2(m_hIFaceNotify);
     ::WSACleanup();
 #endif
+}
+
+void InitSocket::SetAddrNotifyCallback(function<void(bool, const string&, int, int)> fnCbAddrNotify)
+{
+    m_fnCbAddrNotify = fnCbAddrNotify;
+    if (m_fnCbAddrNotify)
+    {   // notify on current ip addresses
+        for (auto iter : m_vCurIPAddr)
+            m_fnCbAddrNotify(true, get<0>(iter), get<1>(iter), get<2>(iter));
+    }
 }
 
 InitSocket::InitSocket()
@@ -67,6 +78,7 @@ InitSocket::InitSocket()
 #if defined(_WIN32) || defined(_WIN64)
     WSADATA wsaData;
     ::WSAStartup(MAKEWORD(2, 2), &wsaData);
+    NotifyIpInterfaceChange(AF_UNSPEC, IpIfaceChanged, this, TRUE, &m_hIFaceNotify);
 #else
     //signal(SIGPIPE, SIG_IGN);
     sigset_t sigset;
@@ -74,6 +86,77 @@ InitSocket::InitSocket()
     sigaddset(&sigset, SIGPIPE);
     sigprocmask(SIG_BLOCK, &sigset, NULL);
 #endif
+}
+
+#if defined (_WIN32) || defined (_WIN64)
+VOID __stdcall InitSocket::IpIfaceChanged(PVOID CallerContext, PMIB_IPINTERFACE_ROW pRow, MIB_NOTIFICATION_TYPE NotificationType)
+{
+    InitSocket* pThis = static_cast<InitSocket*>(CallerContext);
+
+    function<int(int, const string&, int, void*)> fnCb = bind(&InitSocket::CbEnumIpAdressen, pThis, placeholders::_1, placeholders::_2, placeholders::_3, placeholders::_4);
+    vector<tuple<string, int, int>> vNewIPAddr;
+    BaseSocket::EnumIpAddresses(fnCb, &vNewIPAddr);
+    pThis->NotifyOnAddressChanges(vNewIPAddr);
+
+    switch (NotificationType)
+    {
+    case MibParameterNotification:  // 0
+        OutputDebugString(L"IP Parameter changed\r\n");
+        break;
+    case MibAddInstance:            // 1
+        OutputDebugString(L"IP Interface added\r\n");
+        break;
+    case MibDeleteInstance:         // 2
+        OutputDebugString(L"IP Interface removed\r\n");
+        break;
+    case MibInitialNotification:    // 3
+        OutputDebugString(L"IP Notification initialized\r\n");
+        break;
+    }
+
+}
+#endif
+
+int InitSocket::CbEnumIpAdressen(int iFamiely, const string& strIp, int nInterFaceId, void* vpUserParam)
+{
+    if (vpUserParam == nullptr)
+        return 1;   // Stop enumeration, doesn't make sense
+
+    vector<tuple<const string, int, int>>* pmaStrIps = reinterpret_cast<vector<tuple<const string, int, int>>*>(vpUserParam);
+    pmaStrIps->push_back(make_tuple(strIp, iFamiely, nInterFaceId));
+    return 0;
+}
+
+void InitSocket::NotifyOnAddressChanges(vector<tuple<string, int, int>>& vNewListing)
+{
+    vector<tuple<string, int, int>> vDelIPAddr;
+    // remove all IP addr. in the vector that where befor avalible
+    for (auto iter = begin(m_vCurIPAddr); iter != end(m_vCurIPAddr);)
+    {
+        auto itFound = find_if(begin(vNewListing), end(vNewListing), [iter](auto& item) { return get<0>(*iter) == get<0>(item) ? true : false; });
+        if (itFound != end(vNewListing))
+            vNewListing.erase(itFound);  // address existited befor, so remove it from the list with our new addresses
+        else
+        {   // the IP does not exist any more
+            vDelIPAddr.push_back(*iter);    // remember witch one was removed
+            iter = m_vCurIPAddr.erase(iter);
+            continue;
+        }
+        ++iter;
+    }
+
+    for (auto iter : vNewListing)
+        m_vCurIPAddr.push_back(iter);    // remember witch one was removed
+
+    if (m_fnCbAddrNotify)
+    {
+        // Notify on all deletet IP addresses
+        for (auto iter : vDelIPAddr)
+            m_fnCbAddrNotify(false, get<0>(iter), get<1>(iter), get<2>(iter));
+        // Notify on all new IP addresses
+        for (auto iter : vNewListing)
+            m_fnCbAddrNotify(true, get<0>(iter), get<1>(iter), get<2>(iter));
+    }
 }
 
 atomic_uint BaseSocket::s_atRefCount(0);
