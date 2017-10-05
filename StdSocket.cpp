@@ -35,6 +35,10 @@ typedef char SOCKOPT;
 #include <signal.h>
 #include <ifaddrs.h>
 #include <net/if.h>
+#include <asm/types.h>
+#include <sys/socket.h>
+#include <linux/netlink.h>
+#include <linux/rtnetlink.h>
 #define INVALID_SOCKET (-1)
 #define SOCKET_ERROR   (-1)
 #define closesocket(x) close(x)
@@ -60,6 +64,10 @@ InitSocket::~InitSocket()
 #if defined(_WIN32) || defined(_WIN64)
     CancelMibChangeNotify2(m_hIFaceNotify);
     ::WSACleanup();
+#else
+    m_bStopThread = true;
+    if (m_thIpChange.joinable() == true)
+        m_thIpChange.join();
 #endif
 }
 
@@ -85,6 +93,8 @@ InitSocket::InitSocket()
     sigemptyset(&sigset);
     sigaddset(&sigset, SIGPIPE);
     sigprocmask(SIG_BLOCK, &sigset, NULL);
+    m_bStopThread(false);
+    m_thIpChange = thread(&InitSocket::IpChangeThread, this);
 #endif
 }
 
@@ -114,6 +124,86 @@ VOID __stdcall InitSocket::IpIfaceChanged(PVOID CallerContext, PMIB_IPINTERFACE_
         break;
     }
 
+}
+#else
+void InitSocket::IpChangeThread()
+{
+    SOCKET fSock;
+    if ((fSock = socket(PF_NETLINK, SOCK_RAW, NETLINK_ROUTE)) == -1)
+    {
+        return;
+    }
+
+    struct sockaddr_nl addr = { 0 };
+    addr.nl_family = AF_NETLINK;
+    addr.nl_groups = RTMGRP_LINK | RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR;
+
+    if (bind(fSock, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+    {
+        ::closesocket(fSock);
+        return;
+    }
+
+    if (fcntl(fSock, F_SETFD, FD_CLOEXEC) == -1 || fcntl(fSock, F_SETFL, fcntl(fSock, F_GETFL) | O_NONBLOCK) == -1)
+    {
+        ::closesocket(fSock);
+        return;
+    }
+
+    while (m_bStopThread == false)
+    {
+        fd_set readfd, errorfd;
+        struct timeval timeout;
+
+        timeout.tv_sec = 2;
+        timeout.tv_usec = 0;
+        FD_ZERO(&readfd);
+        FD_ZERO(&errorfd);
+
+        FD_SET(fSock, &readfd);
+        FD_SET(fSock, &errorfd);
+
+        if (::select(static_cast<int>(fSock + 1), &readfd, nullptr, &errorfd, &timeout) > 0)
+        {
+            if (FD_ISSET(fSock, &errorfd))
+            {
+                int iError;
+                socklen_t iLen = sizeof(iError);
+                getsockopt(fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&iError), &iLen);
+                break;
+            }
+
+            if (FD_ISSET(fSock, &readfd))
+            {
+                char buf[4096];
+                int32_t transferred = ::recv(fSock, buf, sizeof(buf), 0);
+
+                if (transferred > 0)
+                {
+                    struct nlmsghdr* nlh = reinterpret_cast<struct nlmsghdr*>(buf);
+                    while ((NLMSG_OK(nlh, transferred)) && (nlh->nlmsg_type != NLMSG_DONE))
+                    {
+                        if (nlh->nlmsg_type == RTM_NEWADDR || nlh->nlmsg_type == RTM_DELADDR || nlh->nlmsg_type == RTM_GETADDR)
+                        {
+                            struct ifaddrmsg *ifa = (struct ifaddrmsg *) NLMSG_DATA(nlh);
+                            struct rtattr *rth = IFA_RTA(ifa);
+                            int rtl = IFA_PAYLOAD(nlh);
+
+                            char name[IFNAMSIZ];
+                            if_indextoname(ifa->ifa_index, name);
+
+                            vector<tuple<string, int, int>> vNewIPAddr;
+                            BaseSocket::EnumIpAddresses(bind(&InitSocket::CbEnumIpAdressen, this, placeholders::_1, placeholders::_2, placeholders::_3, placeholders::_4), &vNewIPAddr);
+                            NotifyOnAddressChanges(vNewIPAddr);
+                        }
+                        nlh = NLMSG_NEXT(nlh, transferred);
+                    }
+                }
+            }
+        }
+    }
+
+    ::closesocket(fSock);
 }
 #endif
 

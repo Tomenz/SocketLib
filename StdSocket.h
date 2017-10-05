@@ -45,6 +45,10 @@ private:
 #if defined (_WIN32) || defined (_WIN64)
     static VOID __stdcall IpIfaceChanged(PVOID CallerContext, PMIB_IPINTERFACE_ROW Row, MIB_NOTIFICATION_TYPE NotificationType);
     HANDLE m_hIFaceNotify;
+#else
+    void IpChangeThread();
+    thread m_thIpChange;
+    bool   m_bStopThread;
 #endif
     int CbEnumIpAdressen(int iFamiely, const string& strIp, int nInterFaceId, void* vpUserParam);
     void NotifyOnAddressChanges(vector<tuple<string, int, int>>& vNewListing);
