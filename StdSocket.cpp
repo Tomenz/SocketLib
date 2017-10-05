@@ -35,8 +35,6 @@ typedef char SOCKOPT;
 #include <signal.h>
 #include <ifaddrs.h>
 #include <net/if.h>
-#include <asm/types.h>
-#include <sys/socket.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #define INVALID_SOCKET (-1)
@@ -93,7 +91,8 @@ InitSocket::InitSocket()
     sigemptyset(&sigset);
     sigaddset(&sigset, SIGPIPE);
     sigprocmask(SIG_BLOCK, &sigset, NULL);
-    m_bStopThread(false);
+    BaseSocket::EnumIpAddresses(bind(&InitSocket::CbEnumIpAdressen, this, placeholders::_1, placeholders::_2, placeholders::_3, placeholders::_4), &m_vCurIPAddr);
+    m_bStopThread = false;
     m_thIpChange = thread(&InitSocket::IpChangeThread, this);
 #endif
 }
@@ -185,13 +184,13 @@ void InitSocket::IpChangeThread()
                     {
                         if (nlh->nlmsg_type == RTM_NEWADDR || nlh->nlmsg_type == RTM_DELADDR || nlh->nlmsg_type == RTM_GETADDR)
                         {
-                            struct ifaddrmsg *ifa = (struct ifaddrmsg *) NLMSG_DATA(nlh);
+                            /*struct ifaddrmsg *ifa = (struct ifaddrmsg *) NLMSG_DATA(nlh);
                             struct rtattr *rth = IFA_RTA(ifa);
                             int rtl = IFA_PAYLOAD(nlh);
 
                             char name[IFNAMSIZ];
                             if_indextoname(ifa->ifa_index, name);
-
+                            */
                             vector<tuple<string, int, int>> vNewIPAddr;
                             BaseSocket::EnumIpAddresses(bind(&InitSocket::CbEnumIpAdressen, this, placeholders::_1, placeholders::_2, placeholders::_3, placeholders::_4), &vNewIPAddr);
                             NotifyOnAddressChanges(vNewIPAddr);
