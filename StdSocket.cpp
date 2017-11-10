@@ -219,12 +219,14 @@ int InitSocket::CbEnumIpAdressen(int iFamiely, const string& strIp, int nInterFa
 void InitSocket::NotifyOnAddressChanges(vector<tuple<string, int, int>>& vNewListing)
 {
     vector<tuple<string, int, int>> vDelIPAddr;
-    // remove all IP addr. in the vector that where befor avalible
+
+    m_mxCurIpAddr.lock();
+    // remove all IP addr. in the vector that where before available
     for (auto iter = begin(m_vCurIPAddr); iter != end(m_vCurIPAddr);)
     {
         auto itFound = find_if(begin(vNewListing), end(vNewListing), [iter](auto& item) { return get<0>(*iter) == get<0>(item) ? true : false; });
         if (itFound != end(vNewListing))
-            vNewListing.erase(itFound);  // address existited befor, so remove it from the list with our new addresses
+            vNewListing.erase(itFound);  // address existed before, so remove it from the list with our new addresses
         else
         {   // the IP does not exist any more
             vDelIPAddr.push_back(*iter);    // remember witch one was removed
@@ -237,9 +239,11 @@ void InitSocket::NotifyOnAddressChanges(vector<tuple<string, int, int>>& vNewLis
     for (auto iter : vNewListing)
         m_vCurIPAddr.push_back(iter);    // remember witch one was removed
 
+    m_mxCurIpAddr.unlock();
+
     if (m_fnCbAddrNotify)
     {
-        // Notify on all deletet IP addresses
+        // Notify on all deleted IP addresses
         for (auto iter : vDelIPAddr)
             m_fnCbAddrNotify(false, get<0>(iter), get<1>(iter), get<2>(iter));
         // Notify on all new IP addresses

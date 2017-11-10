@@ -54,6 +54,7 @@ private:
     void NotifyOnAddressChanges(vector<tuple<string, int, int>>& vNewListing);
 
     vector<tuple<string, int, int>> m_vCurIPAddr;
+    mutex m_mxCurIpAddr;
     function<void(bool, const string&, int, int)> m_fnCbAddrNotify;
 };
 
