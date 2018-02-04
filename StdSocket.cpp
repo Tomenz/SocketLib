@@ -687,7 +687,7 @@ void TcpSocket::WriteThread()
         StartCloseingCB();
 
         if (m_pRefServSocket != nullptr || m_bSelfDelete == true)    // Auto-delete, socket created from server socket
-            thread([&]() { delete this; }).detach();
+            Delete();// thread([&]() { delete this; }).detach();
     }
 }
 
@@ -710,6 +710,10 @@ void TcpSocket::SelfDestroy() noexcept
     Close();
 }
 
+void TcpSocket::Delete() noexcept
+{
+    thread([&]() { delete this; }).detach();
+}
 uint32_t TcpSocket::GetBytesAvailible() const noexcept
 {
     return m_atInBytes;
@@ -856,7 +860,7 @@ void TcpSocket::SelectThread()
 
         // if it is a auto-delete class we start the auto-delete thread now
         if (m_pRefServSocket != nullptr || m_bSelfDelete == true)    // Auto-delete, socket created from server socket
-            thread([&]() { delete this; }).detach();
+            Delete();// thread([&]() { delete this; }).detach();
     }
 }
 
@@ -909,7 +913,7 @@ void TcpSocket::ConnectThread()
         StartCloseingCB();
 
         if (m_bSelfDelete == true)    // Auto-delete, socket created from server socket
-            thread([&]() { delete this; }).detach();
+            Delete();// thread([&]() { delete this; }).detach();
     }
 }
 

@@ -105,6 +105,7 @@ public:
     void StartReceiving();
     virtual void Close() noexcept;
     virtual void SelfDestroy() noexcept;
+    virtual void Delete() noexcept;
     virtual uint32_t GetBytesAvailible() const noexcept;
     virtual uint32_t GetOutBytesInQue() const noexcept;
     virtual function<void(TcpSocket*)> BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept;
