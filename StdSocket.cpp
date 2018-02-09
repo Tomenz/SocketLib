@@ -702,6 +702,9 @@ void TcpSocket::Close() noexcept
     m_bCloseReq = true; // Stops the write thread after the last byte was send
     m_cv.notify_all();
     m_bStop = true; // Stops the listening thread
+
+    if (m_pRefServSocket == nullptr && m_iShutDownState == 7)
+        thread([&]() { StartCloseingCB(); }).detach();
 }
 
 void TcpSocket::SelfDestroy() noexcept
@@ -714,6 +717,7 @@ void TcpSocket::Delete() noexcept
 {
     thread([&]() { delete this; }).detach();
 }
+
 uint32_t TcpSocket::GetBytesAvailible() const noexcept
 {
     return m_atInBytes;
@@ -879,13 +883,14 @@ void TcpSocket::ConnectThread()
         FD_SET(m_fSock, &writefd);
         FD_SET(m_fSock, &errorfd);
 
-        if (::select(static_cast<int>(m_fSock + 1), nullptr, &writefd, &errorfd, &timeout) > 0)
+        if (::select(static_cast<int>(m_fSock + 1), nullptr, &writefd, &errorfd, &timeout) > 0 && m_bStop == false)
         {
             if (FD_ISSET(m_fSock, &errorfd))
             {
                 socklen_t iLen = sizeof(m_iError);
                 getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
 
+                m_iShutDownState = 7;
                 if (m_fError && m_bStop == false)
                     m_fError(this);
                 break;
