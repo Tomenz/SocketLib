@@ -560,7 +560,6 @@ uint32_t TcpSocket::Read(void* buf, uint32_t len)
         m_mxInDeque.lock();
         m_quInData.emplace_front(tmp, nRest);
         m_mxInDeque.unlock();
-        m_atInBytes += nRest;
     }
     else if (m_quInData.size() > 0 && len > nToCopy)
     {
@@ -1401,7 +1400,6 @@ uint32_t UdpSocket::Read(void* buf, uint32_t len, string& strFrom)
         m_mxInDeque.lock();
         m_quInData.emplace_front(tmp, nRest, ADDRESS(data));
         m_mxInDeque.unlock();
-        m_atInBytes += nRest;
     }
 
     return nRet;
