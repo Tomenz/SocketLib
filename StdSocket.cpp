@@ -749,6 +749,12 @@ void TcpSocket::SelectThread()
 
     while (m_bStop == false)
     {
+        if (m_atInBytes > 0x40000)  // More than 256 KB in the receive buffer
+        {
+            this_thread::sleep_for(chrono::milliseconds(1));
+            continue;
+        }
+
         fd_set readfd, errorfd;
         struct timeval timeout;
 
@@ -823,7 +829,7 @@ void TcpSocket::SelectThread()
                             thread([&]()
                             {
                                 mxNotify.lock();
-                                while (m_atInBytes > 0)
+                                while (m_atInBytes > 0 && m_bStop == false)
                                 {
                                     mxNotify.unlock();
                                     m_fBytesRecived(this);
@@ -1559,6 +1565,12 @@ void UdpSocket::SelectThread()
 
     while (m_bStop == false)
     {
+        if (m_atInBytes > 0x40000)  // More than 256 KB in the receive buffer
+        {
+            this_thread::sleep_for(chrono::milliseconds(1));
+            continue;
+        }
+
         fd_set readfd, errorfd;
         struct timeval timeout;
 
@@ -1653,7 +1665,7 @@ void UdpSocket::SelectThread()
                             thread([&]()
                             {
                                 mxNotify.lock();
-                                while (m_atInBytes > 0)
+                                while (m_atInBytes > 0 && m_bStop == false)
                                 {
                                     mxNotify.unlock();
                                     m_fBytesRecived(this);
