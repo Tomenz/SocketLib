@@ -35,6 +35,16 @@ SslTcpSocket::SslTcpSocket(/*SslConnetion* pSslCon*/) : m_pSslCon(nullptr/*pSslC
     //m_thPumpSsl = thread(&SslTcpSocket::PumpThread, this);
 }
 
+SslTcpSocket::SslTcpSocket(TcpSocket* pTcpSocket) : TcpSocket(pTcpSocket)
+{
+    atomic_init(&m_atTmpBytes, static_cast<uint32_t>(0));
+    atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
+    atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
+
+    m_fBytesRecived = TcpSocket::BindFuncBytesRecived(bind(&SslTcpSocket::DatenEmpfangen, this, _1));
+    m_fCloseing = TcpSocket::BindCloseFunction(bind(&SslTcpSocket::Closeing, this, _1));
+}
+
 SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket) : TcpSocket(fSock, pRefServSocket), m_pSslCon(pSslCon), m_iShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0)
 {
     atomic_init(&m_atTmpBytes, static_cast<uint32_t>(0));
@@ -59,6 +69,28 @@ SslTcpSocket::~SslTcpSocket()
 
     if (m_pSslCon != nullptr)
         delete m_pSslCon;
+}
+
+bool SslTcpSocket::AddServerCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName)
+{
+    m_pServerCtx.emplace_back(make_shared<SslServerContext>());
+    m_pServerCtx.back().get()->SetCertificates(szCAcertificate, szHostCertificate, szHostKey);
+    m_pServerCtx.back().get()->SetDhParamFile(szDhParamFileName);
+
+    m_pServerCtx.begin()->get()->AddVirtualHost(&m_pServerCtx);
+
+    return true;
+}
+
+bool SslTcpSocket::SetAcceptState()
+{
+    m_pSslCon = new SslConnetion(m_pServerCtx.begin()->get());
+
+    SSL_set_accept_state((*m_pSslCon)());
+
+    m_thPumpSsl = thread(&SslTcpSocket::PumpThread, this);
+
+    return true;
 }
 
 bool SslTcpSocket::Connect(const char* const szIpToWhere, const uint16_t sPort)

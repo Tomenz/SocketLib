@@ -22,8 +22,11 @@ class SslTcpServer;
 class SslTcpSocket : public TcpSocket
 {
 public:
-	SslTcpSocket(/*SslConnetion* pSslCon*/);
+    explicit SslTcpSocket(/*SslConnetion* pSslCon*/);
+    explicit SslTcpSocket(TcpSocket* pTcpSocket);
     virtual ~SslTcpSocket();
+    bool AddServerCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName);
+    bool SetAcceptState();
     bool Connect(const char* const szIpToWhere, const uint16_t sPort) override;
     uint32_t Read(void* buf, uint32_t len) override;
     size_t Write(const void* buf, size_t len) override;
@@ -44,7 +47,7 @@ public:
 
 private:
     friend SslTcpServer;
-    SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket);
+    explicit SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket);
     void ConEstablished(const TcpSocket* const pTcpSocket);
 	void DatenEmpfangen(const TcpSocket* const pTcpSocket);
     void Closeing(const BaseSocket* const pTcpSocket);
@@ -52,6 +55,7 @@ private:
 
 private:
     shared_ptr<SslClientContext>  m_pClientCtx;
+    vector<shared_ptr<SslServerContext>>  m_pServerCtx;
     SslConnetion*    m_pSslCon;
     function<void(TcpSocket*)> m_fBytesRecived;
     function<void(BaseSocket*)> m_fCloseing;
@@ -92,7 +96,7 @@ private:
 class SslUdpSocket : public UdpSocket
 {
 public:
-    SslUdpSocket();
+    explicit SslUdpSocket();
     virtual ~SslUdpSocket();
     bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
     bool CreateServerSide(const char* const szIpToWhere, const short sPort, const char* const szIpToBind = nullptr);

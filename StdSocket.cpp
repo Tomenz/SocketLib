@@ -259,6 +259,15 @@ BaseSocket::BaseSocket() : m_fSock(INVALID_SOCKET), m_bStop(false), m_iError(0),
     ++s_atRefCount;
 }
 
+BaseSocket::BaseSocket(BaseSocket* pBaseSocket) : m_fSock(INVALID_SOCKET), m_bStop(pBaseSocket->m_bStop), m_iError(pBaseSocket->m_iError), m_iShutDownState(0), m_fError(bind(&BaseSocket::OnError, this))
+{
+    ++s_atRefCount;
+
+    swap(m_fSock, pBaseSocket->m_fSock);
+    swap(m_fCloseing, pBaseSocket->m_fCloseing);
+    atomic_init(&m_iShutDownState, pBaseSocket->m_iShutDownState);
+}
+
 BaseSocket::~BaseSocket()
 {
     if (m_thListen.joinable() == true)
@@ -428,6 +437,29 @@ TcpSocket::TcpSocket(const SOCKET fSock, const TcpServer* pRefServSocket) : m_bC
     m_thWrite = thread(&TcpSocket::WriteThread, this);
 }
 
+TcpSocket::TcpSocket(TcpSocket* pTcpSocket) : BaseSocket(pTcpSocket), m_bCloseReq(pTcpSocket->m_bCloseReq), m_pRefServSocket(pTcpSocket->m_pRefServSocket), m_bSelfDelete(pTcpSocket->m_bSelfDelete)
+{
+    pTcpSocket->m_pRefServSocket = 0;
+
+    swap(m_quInData, pTcpSocket->m_quInData);
+    atomic_init(&m_atInBytes, pTcpSocket->m_atInBytes);
+    atomic_init(&pTcpSocket->m_atInBytes, static_cast<uint32_t>(0));
+    swap(m_quOutData, pTcpSocket->m_quOutData);
+    atomic_init(&m_atOutBytes, pTcpSocket->m_atOutBytes);
+    atomic_init(&pTcpSocket->m_atOutBytes, static_cast<uint32_t>(0));
+
+    swap(m_strClientAddr, pTcpSocket->m_strClientAddr);
+    swap(m_sClientPort, pTcpSocket->m_sClientPort);
+    swap(m_strIFaceAddr, pTcpSocket->m_strIFaceAddr);
+    swap(m_sIFacePort, pTcpSocket->m_sIFacePort);
+
+    swap(m_fBytesRecived, pTcpSocket->m_fBytesRecived);
+    swap(m_fClientConneted, pTcpSocket->m_fClientConneted);
+
+    m_iShutDownState = 3;
+    m_thWrite = thread(&TcpSocket::WriteThread, this);
+}
+
 TcpSocket::~TcpSocket()
 {
     //OutputDebugString(L"TcpSocket::~TcpSocket\r\n");
@@ -569,6 +601,18 @@ uint32_t TcpSocket::Read(void* buf, uint32_t len)
     }
 
     return nRet;
+}
+
+uint32_t TcpSocket::PutBackRead(void* buf, uint32_t len)
+{
+    shared_ptr<uint8_t> tmp(new uint8_t[len]);
+    copy(static_cast<const uint8_t*>(buf), static_cast<const uint8_t*>(buf) + len, tmp.get());
+    m_mxInDeque.lock();
+    m_quInData.emplace_front(tmp, len);
+    m_atInBytes += len;
+    m_mxInDeque.unlock();
+
+    return len;
 }
 
 size_t TcpSocket::Write(const void* buf, size_t len)

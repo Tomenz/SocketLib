@@ -61,7 +61,7 @@ private:
 class BaseSocket
 {
 public:
-    BaseSocket();
+    explicit BaseSocket();
     virtual void Close() = 0;
     virtual void SelfDestroy() = 0;
     virtual function<void(BaseSocket*)> BindErrorFunction(function<void(BaseSocket*)> fError) noexcept;
@@ -72,6 +72,7 @@ public:
     static int EnumIpAddresses(function<int(int,const string&,int,void*)> fnCallBack, void* vpUser);
 
 protected:
+    explicit BaseSocket(BaseSocket* pBaseSocket);
     virtual ~BaseSocket();
     virtual void SetSocketOption(const SOCKET& fd);
     virtual void OnError();
@@ -101,6 +102,7 @@ public:
     TcpSocket();
     virtual bool Connect(const char* const szIpToWhere, const uint16_t sPort);
     virtual uint32_t Read(void* buf, uint32_t len);
+    virtual uint32_t PutBackRead(void* buf, uint32_t len);
     virtual size_t Write(const void* buf, size_t len);
     void StartReceiving();
     virtual void Close() noexcept;
@@ -122,6 +124,7 @@ public:
 protected:
     friend TcpServer;
     explicit TcpSocket(const SOCKET, const TcpServer* pRefServSocket);
+    explicit TcpSocket(TcpSocket* pTcpSocket);
     virtual ~TcpSocket();
     virtual void SetSocketOption(const SOCKET& fd);
 
@@ -188,7 +191,7 @@ protected:
     typedef tuple<shared_ptr<uint8_t>, uint32_t, string> DATA;
 
 public:
-    UdpSocket();
+    explicit UdpSocket();
     virtual ~UdpSocket();
     virtual bool Create(const char* const szIpToWhere, const short sPort, const char* const szIpToBind = nullptr);
     virtual bool EnableBroadCast(bool bEnable = true);
