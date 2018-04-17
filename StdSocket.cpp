@@ -265,7 +265,7 @@ BaseSocket::BaseSocket(BaseSocket* pBaseSocket) : m_fSock(INVALID_SOCKET), m_bSt
 
     swap(m_fSock, pBaseSocket->m_fSock);
     swap(m_fCloseing, pBaseSocket->m_fCloseing);
-    atomic_init(&m_iShutDownState, pBaseSocket->m_iShutDownState);
+    m_iShutDownState.exchange(pBaseSocket->m_iShutDownState);
 }
 
 BaseSocket::~BaseSocket()
@@ -442,10 +442,10 @@ TcpSocket::TcpSocket(TcpSocket* pTcpSocket) : BaseSocket(pTcpSocket), m_bCloseRe
     pTcpSocket->m_pRefServSocket = 0;
 
     swap(m_quInData, pTcpSocket->m_quInData);
-    atomic_init(&m_atInBytes, pTcpSocket->m_atInBytes);
+    m_atInBytes.exchange(pTcpSocket->m_atInBytes);
     atomic_init(&pTcpSocket->m_atInBytes, static_cast<uint32_t>(0));
     swap(m_quOutData, pTcpSocket->m_quOutData);
-    atomic_init(&m_atOutBytes, pTcpSocket->m_atOutBytes);
+    m_atOutBytes.exchange(pTcpSocket->m_atOutBytes);
     atomic_init(&pTcpSocket->m_atOutBytes, static_cast<uint32_t>(0));
 
     swap(m_strClientAddr, pTcpSocket->m_strClientAddr);
