@@ -37,7 +37,7 @@ public:
     function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept override;
     bool IsSslConnection() const noexcept override { return true; }
 
-    void SetAlpnProtokollNames(vector<string> vProtoList);
+    void SetAlpnProtokollNames(vector<string>& vProtoList);
     const string GetSelAlpnProtocol() const;
     void SetTrustedRootCertificates(const char* const szTrustRootCert);
     long CheckServerCertificate(const char* const szHostName);

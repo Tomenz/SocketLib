@@ -51,7 +51,7 @@ SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock, const TcpS
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
 
-    m_pSslCon->SetErrorCb(bind(&BaseSocket::Close, this));
+    m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocket::Close, this)));
     TcpSocket::BindFuncBytesRecived(bind(&SslTcpSocket::DatenEmpfangen, this, _1));
     TcpSocket::BindCloseFunction(bind(&SslTcpSocket::Closeing, this, _1));
 
@@ -100,7 +100,7 @@ bool SslTcpSocket::Connect(const char* const szIpToWhere, const uint16_t sPort)
 {
     m_pClientCtx = make_shared<SslClientContext>();
     m_pSslCon = new SslConnetion(m_pClientCtx.get());
-    m_pSslCon->SetErrorCb(bind(&BaseSocket::Close, this));
+    m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocket::Close, this)));
     if (m_vProtoList.size() > 0)
         m_pSslCon->SetAlpnProtokollNames(m_vProtoList);
     if (m_strTrustRootCert.size() > 0)
@@ -232,7 +232,7 @@ void SslTcpSocket::Closeing(const BaseSocket* const pTcpSocket)
         m_fCloseing(this);
 }
 
-void SslTcpSocket::SetAlpnProtokollNames(vector<string> vProtoList)
+void SslTcpSocket::SetAlpnProtokollNames(vector<string>& vProtoList)
 {
     m_vProtoList = vProtoList;
 }
@@ -498,7 +498,7 @@ bool SslUdpSocket::CreateServerSide(const char* const szIpToWhere, const short s
     if (bRet == true)
     {
         m_pSslCon = new SslConnetion(m_pUdpCtx.get());
-        m_pSslCon->SetErrorCb(bind(&BaseSocket::Close, this));
+        m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocket::Close, this)));
 
         //SSL_set_info_callback((*m_pSslCon)(), ssl_info_callbackServer);
 
@@ -515,7 +515,7 @@ bool SslUdpSocket::CreateClientSide(const char* const szIpToWhere, const short s
     if (bRet == true)
     {
         m_pSslCon = new SslConnetion(m_pUdpCtx.get());
-        m_pSslCon->SetErrorCb(bind(&BaseSocket::Close, this));
+        m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocket::Close, this)));
 
         //SSL_set_info_callback((*m_pSslCon)(), ssl_info_callbackClient);
 

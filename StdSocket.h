@@ -38,7 +38,7 @@ class InitSocket
 public:
     static InitSocket* GetInstance();
     ~InitSocket();
-    void SetAddrNotifyCallback(function<void(bool, const string&, int, int)> fnCbAddrNotify);
+    void SetAddrNotifyCallback(function<void(bool, const string&, int, int)>& fnCbAddrNotify);
 
 private:
     InitSocket();
@@ -164,7 +164,7 @@ public:
     virtual ~TcpServer();
     bool Start(const char* const szIpAddr, const short sPort);
     unsigned short GetServerPort();
-    void BindNewConnection(function<void(const vector<TcpSocket*>&)>) noexcept;
+    void BindNewConnection(function<void(const vector<TcpSocket*>&)>&) noexcept;
     virtual void Close() noexcept;
     virtual void SelfDestroy() noexcept override { static_assert(true, "class has no selfdestroy function"); }
     virtual TcpSocket* const MakeClientConnection(const SOCKET&);

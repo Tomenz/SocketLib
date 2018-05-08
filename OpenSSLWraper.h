@@ -66,7 +66,7 @@ namespace OpenSSLWrapper
     {
     public:
         SslClientContext();
-        void SetAlpnProtokollNames(vector<string> vProtoList);
+        void SetAlpnProtokollNames(vector<string>& vProtoList);
         void SetTrustedRootCertificates(const char* szTrustRootCert);
     };
 
@@ -106,7 +106,7 @@ namespace OpenSSLWrapper
         ~SslConnetion();
 //      static long CbBioInfo(struct bio_st* pBioInfo, int iInt1, const char* cpBuf, int iInt2, long l1, long lRet);
         SSL* operator() ();
-        void SetErrorCb(function<void()> fError) noexcept;
+        void SetErrorCb(function<void()>& fError) noexcept;
         uint32_t SslGetOutDataSize();
 //      size_t SslGetOutwDataSize();
 //      size_t SslGetInrDataSize();
@@ -118,7 +118,7 @@ namespace OpenSSLWrapper
         uint32_t SslRead(uint8_t* szBuffer, uint32_t nBufLen);
         uint32_t SslWrite(uint8_t* szBuffer, uint32_t nWriteLen);
         int ShutDownConnection();
-        void SetAlpnProtokollNames(vector<string> vProtoList);
+        void SetAlpnProtokollNames(vector<string>& vProtoList);
         string GetSelAlpnProtocol();
         void SetTrustedRootCertificates(const char* szFileName);
         long CheckServerCertificate(const char* szHostName);

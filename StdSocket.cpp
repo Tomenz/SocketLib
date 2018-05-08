@@ -69,7 +69,7 @@ InitSocket::~InitSocket()
 #endif
 }
 
-void InitSocket::SetAddrNotifyCallback(function<void(bool, const string&, int, int)> fnCbAddrNotify)
+void InitSocket::SetAddrNotifyCallback(function<void(bool, const string&, int, int)>& fnCbAddrNotify)
 {
     m_fnCbAddrNotify = fnCbAddrNotify;
     if (m_fnCbAddrNotify)
@@ -679,7 +679,7 @@ void TcpSocket::WriteThread()
             m_mxOutDeque.unlock();
 
             uint32_t transferred = ::send(m_fSock, reinterpret_cast<char*>(BUFFER(data).get()), BUFLEN(data), 0);
-            if (transferred <= 0)
+            if (static_cast<int32_t>(transferred) <= 0)
             {
                 int iError = WSAGetLastError();
                 if (iError != WSAEWOULDBLOCK)
@@ -1122,7 +1122,7 @@ TcpSocket* const TcpServer::MakeClientConnection(const SOCKET& fSock)
     return new TcpSocket(fSock, this);
 }
 
-void TcpServer::BindNewConnection(function<void(const vector<TcpSocket*>&)> fNewConnetion) noexcept
+void TcpServer::BindNewConnection(function<void(const vector<TcpSocket*>&)>& fNewConnetion) noexcept
 {
     m_fNewConnection = fNewConnetion;
 }
@@ -1538,7 +1538,7 @@ void UdpSocket::WriteThread()
 
             uint32_t transferred = ::sendto(m_fSock, reinterpret_cast<const char*>(BUFFER(data).get()), BUFLEN(data), 0, lstAddr->ai_addr, static_cast<int>(lstAddr->ai_addrlen));
             ::freeaddrinfo(lstAddr);
-            if (transferred <= 0)
+            if (static_cast<int32_t>(transferred) <= 0)
             {
                 m_iError = WSAGetLastError();
                 if (m_iError != WSAEWOULDBLOCK)
