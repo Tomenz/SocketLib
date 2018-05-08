@@ -84,6 +84,9 @@ bool SslTcpSocket::AddServerCertificat(const char* szCAcertificate, const char* 
 
 bool SslTcpSocket::SetAcceptState()
 {
+    if (m_pSslCon != nullptr)
+        delete m_pSslCon;
+
     m_pSslCon = new SslConnetion(m_pServerCtx.begin()->get());
 
     SSL_set_accept_state((*m_pSslCon)());

@@ -102,7 +102,7 @@ namespace OpenSSLWrapper
     class SslConnetion
     {
     public:
-        SslConnetion(SslContext* ctx);
+        explicit SslConnetion(SslContext* ctx);
         ~SslConnetion();
 //      static long CbBioInfo(struct bio_st* pBioInfo, int iInt1, const char* cpBuf, int iInt2, long l1, long lRet);
         SSL* operator() ();
