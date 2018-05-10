@@ -413,7 +413,7 @@ namespace OpenSSLWrapper
         return m_ssl;
     }
 
-    void SslConnetion::SetErrorCb(function<void()>& fError) noexcept
+    void SslConnetion::SetErrorCb(const function<void()>& fError) noexcept
     {
         m_fError = fError;
     }

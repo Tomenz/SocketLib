@@ -164,7 +164,7 @@ public:
     virtual ~TcpServer();
     bool Start(const char* const szIpAddr, const short sPort);
     unsigned short GetServerPort();
-    void BindNewConnection(function<void(const vector<TcpSocket*>&)>&) noexcept;
+    void BindNewConnection(const function<void(const vector<TcpSocket*>&)>&) noexcept;
     virtual void Close() noexcept;
     virtual void SelfDestroy() noexcept override { static_assert(true, "class has no selfdestroy function"); }
     virtual TcpSocket* const MakeClientConnection(const SOCKET&);

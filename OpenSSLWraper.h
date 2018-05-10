@@ -106,7 +106,7 @@ namespace OpenSSLWrapper
         ~SslConnetion();
 //      static long CbBioInfo(struct bio_st* pBioInfo, int iInt1, const char* cpBuf, int iInt2, long l1, long lRet);
         SSL* operator() ();
-        void SetErrorCb(function<void()>& fError) noexcept;
+        void SetErrorCb(const function<void()>& fError) noexcept;
         uint32_t SslGetOutDataSize();
 //      size_t SslGetOutwDataSize();
 //      size_t SslGetInrDataSize();
