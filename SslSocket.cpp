@@ -11,6 +11,7 @@
 
 #ifndef SSLSOCKET
 #define SSLSOCKET
+#include <functional>
 
 #include "SslSocket.h"
 
