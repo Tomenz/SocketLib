@@ -53,6 +53,8 @@ private:
     void Closeing(const BaseSocket* const pTcpSocket);
     void PumpThread();
 
+    static const string& fnFoarwarder(void* obj) { return static_cast<SslTcpSocket*>(obj)->GetInterfaceAddr(); }
+
 private:
     shared_ptr<SslClientContext>  m_pClientCtx;
     vector<shared_ptr<SslServerContext>>  m_pServerCtx;

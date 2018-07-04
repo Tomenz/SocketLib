@@ -86,6 +86,7 @@ namespace OpenSSLWrapper
 
     private:
         string m_strCertComName;
+        vector<string> m_vstrAltNames;
     };
 
     class SslUdpContext : public SslContext
@@ -107,6 +108,7 @@ namespace OpenSSLWrapper
 //      static long CbBioInfo(struct bio_st* pBioInfo, int iInt1, const char* cpBuf, int iInt2, long l1, long lRet);
         SSL* operator() ();
         void SetErrorCb(const function<void()>& fError) noexcept;
+        void SetUserData(int iIndex, void* pVoid) noexcept;
         uint32_t SslGetOutDataSize();
 //      size_t SslGetOutwDataSize();
 //      size_t SslGetInrDataSize();

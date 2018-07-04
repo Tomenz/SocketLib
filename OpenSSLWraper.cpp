@@ -16,9 +16,13 @@
 #include <algorithm>
 #include <functional>
 #include <fstream>
+#include <regex>
+#include <Ws2tcpip.h>
 #include "OpenSSLWraper.h"
 
 #include <openssl/conf.h>
+#include "openssl/x509v3.h"
+
 #ifdef _WIN64
 #pragma comment(lib, "openssl-x64/libcrypto.lib")
 #pragma comment(lib, "openssl-x64/libssl.lib")
@@ -218,7 +222,66 @@ namespace OpenSSLWrapper
                 if (nPos != string::npos)
                     m_strCertComName.erase(nPos, string::npos);
                 transform(begin(m_strCertComName), end(m_strCertComName), begin(m_strCertComName), ::tolower);
+
+                if (m_strCertComName[0] == '*' && m_strCertComName[1] == '.')
+                    m_strCertComName = "^(.+\\.)?" + m_strCertComName.substr(2) + "$";
             }
+
+            STACK_OF(GENERAL_NAME)* pSubAltNames = static_cast<STACK_OF(GENERAL_NAME)*>(X509_get_ext_d2i(cert, NID_subject_alt_name, nullptr, nullptr));
+            if (pSubAltNames != nullptr)
+            {
+                int iCountNames = sk_GENERAL_NAME_num(pSubAltNames);
+                for (int i = 0; i < iCountNames; ++i)
+                {
+                    GENERAL_NAME* entry = sk_GENERAL_NAME_value(pSubAltNames, i);
+                    if (!entry) continue;
+
+                    if (entry->type == GEN_DNS)
+                    {
+                        unsigned char* utf8 = NULL;
+                        ASN1_STRING_to_UTF8(&utf8, entry->d.dNSName);
+
+                        string strTmp(reinterpret_cast<char*>(utf8));
+                        transform(begin(strTmp), end(strTmp), begin(strTmp), ::tolower);
+                        if (m_strCertComName.compare(strTmp) != 0)
+                        {
+                            if (strTmp[0] == '*' && strTmp[1] == '.')
+                                strTmp = "^(.+\\.)?" + strTmp.substr(2) + "$";
+                            m_vstrAltNames.push_back(strTmp);
+                        }
+                        if (utf8)
+                            OPENSSL_free(utf8);
+                    }
+                    else if (entry->type == GEN_IPADD)
+                    {
+                        const uint8_t* szIp = ASN1_STRING_get0_data(entry->d.iPAddress);
+                        int iStrLen = ASN1_STRING_length(entry->d.iPAddress);
+                        if (szIp != nullptr)
+                        {
+                            struct sockaddr_storage addr = { 0 };
+                            addr.ss_family = iStrLen > 4 ? AF_INET6 : AF_INET;
+                            if (iStrLen > 4)
+                                copy(szIp, szIp + iStrLen, reinterpret_cast<char*>(&addr.__ss_align));
+                            else
+                                copy(szIp, szIp + iStrLen, addr.__ss_pad1 + 2);
+                            char caAddrClient[INET6_ADDRSTRLEN + 1] = { 0 };
+                            char servInfoClient[NI_MAXSERV] = { 0 };
+                            if (::getnameinfo((struct sockaddr*)&addr, sizeof(struct sockaddr_storage), caAddrClient, sizeof(caAddrClient), servInfoClient, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
+                            {
+                                string strTmp(reinterpret_cast<char*>(caAddrClient));
+                                transform(begin(strTmp), end(strTmp), begin(strTmp), ::tolower);
+                                if (m_strCertComName.compare(strTmp) != 0)
+                                    m_vstrAltNames.push_back(strTmp);
+                            }
+
+
+                        }
+                    }
+                }
+
+                sk_GENERAL_NAME_pop_free(pSubAltNames, GENERAL_NAME_free);
+            }
+
         }
 
         return 1;
@@ -309,14 +372,30 @@ namespace OpenSSLWrapper
 
         const char* szHostName = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 
+        if (szHostName == nullptr)  // if the host name is not set, the connection was made by IP address, we use the IP of the interface the connection came in, to find the certificate
+        {
+            const string& (*fnForewarder)(void*) = static_cast<const string&(*)(void*)>(SSL_get_ex_data(ssl, 0));   // Index 0 = Funktion pointer to a static proxy function
+            void* Obj = SSL_get_ex_data(ssl, 1);    // Index 1 is the "this" pointer of the SslTcpSocket how owns the ssl object
+            if (fnForewarder != nullptr && Obj != nullptr)
+                szHostName = fnForewarder(Obj).c_str(); // We get the IP address of the Interface to connection come in
+        }
+
         if (pSslCtx != nullptr && szHostName != nullptr)
         {
             string strHostName(szHostName);
             transform(begin(strHostName), end(strHostName), begin(strHostName), ::tolower);
 
+            function<bool(string&)> fnDomainCompare = [strHostName](string& it) -> bool
+            {
+                if (it[0] == '^')   // we have a regular expression
+                    return regex_match(strHostName, regex(it));
+                else
+                    return it.compare(strHostName) == 0 ? true : false;
+            };
+
             for (auto& it : *pSslCtx)
             {
-                if (it->m_strCertComName == strHostName)
+                if (it->m_strCertComName[0] == '^' && regex_match(strHostName, regex(it->m_strCertComName)) || it->m_strCertComName == strHostName || find_if(begin(it->m_vstrAltNames), end(it->m_vstrAltNames), fnDomainCompare) != end(it->m_vstrAltNames))
                 {
                     SSL_set_SSL_CTX(ssl, (*it)());
                     return SSL_TLSEXT_ERR_OK;
@@ -417,6 +496,11 @@ namespace OpenSSLWrapper
     void SslConnetion::SetErrorCb(const function<void()>& fError) noexcept
     {
         m_fError = fError;
+    }
+
+    void SslConnetion::SetUserData(int iIndex, void* pVoid) noexcept
+    {
+        SSL_set_ex_data(m_ssl, iIndex, pVoid);
     }
 
     uint32_t SslConnetion::SslGetOutDataSize()

@@ -53,6 +53,8 @@ SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock, const TcpS
     atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
 
     m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocket::Close, this)));
+    m_pSslCon->SetUserData(0, &SslTcpSocket::fnFoarwarder);
+    m_pSslCon->SetUserData(1, this);
     TcpSocket::BindFuncBytesRecived(bind(&SslTcpSocket::DatenEmpfangen, this, _1));
     TcpSocket::BindCloseFunction(bind(&SslTcpSocket::Closeing, this, _1));
 
@@ -267,6 +269,7 @@ void SslTcpSocket::PumpThread()
     bool bHandShakeOk = false;
     int bShutDownState = 0;
     bool bErrFnCalled = false;
+    unique_ptr<uint8_t> Buffer(new uint8_t[0x0000ffff]);
 
     try
     {
@@ -332,12 +335,11 @@ void SslTcpSocket::PumpThread()
                 bDidSomeWork = true;
             }
 
-            uint8_t Buffer[0x0000ffff];
-            int32_t len = m_pSslCon->SslRead(Buffer, sizeof(Buffer)); // get receive data from the SSL layer, and put it into the unencrypted receive Que
+            int32_t len = m_pSslCon->SslRead(Buffer.get(), 0x0000ffff); // get receive data from the SSL layer, and put it into the unencrypted receive Que
             if (len > 0)
             {
                 shared_ptr<uint8_t> tmp(new uint8_t[len]);
-                copy(Buffer, Buffer + len, tmp.get());
+                copy(Buffer.get(), Buffer.get() + len, tmp.get());
                 m_mxInDeque.lock();
                 m_quInData.emplace_back(tmp, len);
                 m_atInBytes += len;
