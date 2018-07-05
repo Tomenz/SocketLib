@@ -17,11 +17,20 @@
 #include <functional>
 #include <fstream>
 #include <regex>
-#include <Ws2tcpip.h>
+
 #include "OpenSSLWraper.h"
 
 #include <openssl/conf.h>
 #include "openssl/x509v3.h"
+
+#if defined (_WIN32) || defined (_WIN64)
+#include <Ws2tcpip.h>
+#else
+#include <netdb.h>
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L)
+#define ASN1_STRING_get0_data(x) ASN1_STRING_data(x)
+#endif
+#endif
 
 #ifdef _WIN64
 #pragma comment(lib, "openssl-x64/libcrypto.lib")
@@ -263,7 +272,7 @@ namespace OpenSSLWrapper
                             if (iStrLen > 4)
                                 copy(szIp, szIp + iStrLen, reinterpret_cast<char*>(&addr.__ss_align));
                             else
-                                copy(szIp, szIp + iStrLen, addr.__ss_pad1 + 2);
+                                copy(szIp, szIp + iStrLen, reinterpret_cast<char*>(&addr.ss_family) + 4);
                             char caAddrClient[INET6_ADDRSTRLEN + 1] = { 0 };
                             char servInfoClient[NI_MAXSERV] = { 0 };
                             if (::getnameinfo((struct sockaddr*)&addr, sizeof(struct sockaddr_storage), caAddrClient, sizeof(caAddrClient), servInfoClient, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
@@ -273,8 +282,6 @@ namespace OpenSSLWrapper
                                 if (m_strCertComName.compare(strTmp) != 0)
                                     m_vstrAltNames.push_back(strTmp);
                             }
-
-
                         }
                     }
                 }
@@ -374,7 +381,7 @@ namespace OpenSSLWrapper
 
         if (szHostName == nullptr)  // if the host name is not set, the connection was made by IP address, we use the IP of the interface the connection came in, to find the certificate
         {
-            const string& (*fnForewarder)(void*) = static_cast<const string&(*)(void*)>(SSL_get_ex_data(ssl, 0));   // Index 0 = Funktion pointer to a static proxy function
+            const string& (*fnForewarder)(void*) = reinterpret_cast<const string&(*)(void*)>(SSL_get_ex_data(ssl, 0));   // Index 0 = Funktion pointer to a static proxy function
             void* Obj = SSL_get_ex_data(ssl, 1);    // Index 1 is the "this" pointer of the SslTcpSocket how owns the ssl object
             if (fnForewarder != nullptr && Obj != nullptr)
                 szHostName = fnForewarder(Obj).c_str(); // We get the IP address of the Interface to connection come in
@@ -395,7 +402,7 @@ namespace OpenSSLWrapper
 
             for (auto& it : *pSslCtx)
             {
-                if (it->m_strCertComName[0] == '^' && regex_match(strHostName, regex(it->m_strCertComName)) || it->m_strCertComName == strHostName || find_if(begin(it->m_vstrAltNames), end(it->m_vstrAltNames), fnDomainCompare) != end(it->m_vstrAltNames))
+                if ((it->m_strCertComName[0] == '^' && regex_match(strHostName, regex(it->m_strCertComName))) || it->m_strCertComName == strHostName || find_if(begin(it->m_vstrAltNames), end(it->m_vstrAltNames), fnDomainCompare) != end(it->m_vstrAltNames))
                 {
                     SSL_set_SSL_CTX(ssl, (*it)());
                     return SSL_TLSEXT_ERR_OK;

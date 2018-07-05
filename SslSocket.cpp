@@ -53,7 +53,7 @@ SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock, const TcpS
     atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
 
     m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocket::Close, this)));
-    m_pSslCon->SetUserData(0, &SslTcpSocket::fnFoarwarder);
+    m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocket::fnFoarwarder));
     m_pSslCon->SetUserData(1, this);
     TcpSocket::BindFuncBytesRecived(bind(&SslTcpSocket::DatenEmpfangen, this, _1));
     TcpSocket::BindCloseFunction(bind(&SslTcpSocket::Closeing, this, _1));
