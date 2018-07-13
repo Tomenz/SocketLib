@@ -21,6 +21,7 @@
 // perl Configure VC-WIN32 no-asm -D_USING_V110_SDK71_ --api=1.1.0
 // perl Configure VC-WIN64A no-asm -D_USING_V110_SDK71_ --api=1.1.0
 // Replace the /MD with /MT in the makefile
+// nmake
 #include <openssl/ssl.h>
 #include <openssl/engine.h>
 
@@ -51,6 +52,13 @@ namespace OpenSSLWrapper
         explicit SslContext(const SSL_METHOD* sslMethod);
         virtual ~SslContext();
         SSL_CTX* operator() ();
+        //SslContext(const SslContext&) = delete;
+        SslContext(SslContext& src) {
+            m_ctx = src.m_ctx; src.m_ctx = nullptr;
+        }
+        //SslContext(SslContext&&) = delete;
+        SslContext& operator=(SslContext&&) = delete;
+        SslContext& operator=(const SslContext&) = delete;
 
 #ifdef _DEBUG
     private:
@@ -68,6 +76,10 @@ namespace OpenSSLWrapper
         SslClientContext();
         void SetAlpnProtokollNames(vector<string>& vProtoList);
         void SetTrustedRootCertificates(const char* szTrustRootCert);
+        SslClientContext(const SslClientContext&) = delete;
+        SslClientContext(SslClientContext&&) = delete;
+        SslClientContext& operator=(SslClientContext&&) = delete;
+        SslClientContext& operator=(const SslClientContext&) = delete;
     };
 
     class SslServerContext : public SslContext
@@ -76,8 +88,16 @@ namespace OpenSSLWrapper
         SslServerContext();
         string& GetCertCommonName() noexcept;
         int SetCertificates(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey);
-        void AddVirtualHost(vector<shared_ptr<SslServerContext>>* pSslCtx);
+        void AddVirtualHost(vector<SslServerContext>* pSslCtx);
         bool SetDhParamFile(const char* const szDhParamFile);
+        SslServerContext(SslServerContext& src) : SslContext(src)
+        {
+            m_strCertComName = src.m_strCertComName;
+            m_vstrAltNames = src.m_vstrAltNames;
+        }
+        //SslServerContext(SslServerContext&&) = delete;
+        SslServerContext& operator=(SslServerContext&&) = delete;
+        SslServerContext& operator=(const SslServerContext&) = delete;
 
     private:
         static int ALPN_CB(SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in, unsigned int inlen, void *arg);
@@ -103,7 +123,7 @@ namespace OpenSSLWrapper
     class SslConnetion
     {
     public:
-        explicit SslConnetion(SslContext* ctx);
+        explicit SslConnetion(SslContext& ctx);
         ~SslConnetion();
 //      static long CbBioInfo(struct bio_st* pBioInfo, int iInt1, const char* cpBuf, int iInt2, long l1, long lRet);
         SSL* operator() ();
@@ -118,7 +138,7 @@ namespace OpenSSLWrapper
 //        bool HandShakeComplet();
         int GetShutDownFlag() noexcept;
         uint32_t SslRead(uint8_t* szBuffer, uint32_t nBufLen);
-        uint32_t SslWrite(uint8_t* szBuffer, uint32_t nWriteLen);
+        uint32_t SslWrite(const uint8_t* szBuffer, uint32_t nWriteLen);
         int ShutDownConnection();
         void SetAlpnProtokollNames(vector<string>& vProtoList);
         string GetSelAlpnProtocol();

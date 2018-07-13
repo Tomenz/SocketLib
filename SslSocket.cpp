@@ -20,7 +20,7 @@ using namespace std::placeholders;
 #pragma message("TODO!!! Folge Zeile wieder entfernen.")
 atomic<uint32_t> SslTcpSocket::s_atAnzahlPumps(0);
 
-SslTcpSocket::SslTcpSocket(/*SslConnetion* pSslCon*/) : m_pSslCon(nullptr/*pSslCon*/), m_iShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0)
+SslTcpSocket::SslTcpSocket() : m_pSslCon(nullptr), m_iShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0)
 {
     atomic_init(&m_atTmpBytes, static_cast<uint32_t>(0));
 	atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
@@ -36,7 +36,7 @@ SslTcpSocket::SslTcpSocket(/*SslConnetion* pSslCon*/) : m_pSslCon(nullptr/*pSslC
     //m_thPumpSsl = thread(&SslTcpSocket::PumpThread, this);
 }
 
-SslTcpSocket::SslTcpSocket(TcpSocket* pTcpSocket) : TcpSocket(pTcpSocket)
+SslTcpSocket::SslTcpSocket(TcpSocket* pTcpSocket) : TcpSocket(pTcpSocket), m_pSslCon(nullptr), m_iShutDownReceive(false), m_bStopThread(false), m_bCloseReq(false), m_iShutDown(0)
 {
     atomic_init(&m_atTmpBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
@@ -76,11 +76,11 @@ SslTcpSocket::~SslTcpSocket()
 
 bool SslTcpSocket::AddServerCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName)
 {
-    m_pServerCtx.emplace_back(make_shared<SslServerContext>());
-    m_pServerCtx.back().get()->SetCertificates(szCAcertificate, szHostCertificate, szHostKey);
-    m_pServerCtx.back().get()->SetDhParamFile(szDhParamFileName);
+    m_pServerCtx.emplace_back(SslServerContext());
+    m_pServerCtx.back().SetCertificates(szCAcertificate, szHostCertificate, szHostKey);
+    m_pServerCtx.back().SetDhParamFile(szDhParamFileName);
 
-    m_pServerCtx.begin()->get()->AddVirtualHost(&m_pServerCtx);
+    m_pServerCtx.back().AddVirtualHost(&m_pServerCtx);
 
     return true;
 }
@@ -90,7 +90,7 @@ bool SslTcpSocket::SetAcceptState()
     if (m_pSslCon != nullptr)
         delete m_pSslCon;
 
-    m_pSslCon = new SslConnetion(m_pServerCtx.begin()->get());
+    m_pSslCon = new SslConnetion(m_pServerCtx.front());
 
     SSL_set_accept_state((*m_pSslCon)());
 
@@ -101,8 +101,7 @@ bool SslTcpSocket::SetAcceptState()
 
 bool SslTcpSocket::Connect(const char* const szIpToWhere, const uint16_t sPort)
 {
-    m_pClientCtx = make_shared<SslClientContext>();
-    m_pSslCon = new SslConnetion(m_pClientCtx.get());
+    m_pSslCon = new SslConnetion(m_pClientCtx);
     m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocket::Close, this)));
     if (m_vProtoList.size() > 0)
         m_pSslCon->SetAlpnProtokollNames(m_vProtoList);
@@ -219,6 +218,22 @@ void SslTcpSocket::DatenEmpfangen(const TcpSocket* const pTcpSocket)
 
     if (nRead > 0)
     {
+        if (m_atTmpBytes == 0)
+        {
+            uint32_t nPut = m_pSslCon->SslPutInData(spBuffer.get(), nRead);
+            if (nPut != nRead)
+            {
+                uint32_t nRest = nRead - nPut;
+                shared_ptr<uint8_t> tmp(new uint8_t[nRest]);
+                copy(spBuffer.get() + nPut, spBuffer.get() + nPut + nRest, tmp.get());
+                lock_guard<mutex> lock(m_mxTmpDeque);
+                m_quTmpData.emplace_back(tmp, nRest);
+                m_atTmpBytes += nRest;
+            }
+
+            return;
+        }
+
         lock_guard<mutex> lock(m_mxTmpDeque);
         m_quTmpData.emplace_back(spBuffer, nRead);
         m_atTmpBytes += nRead;
@@ -448,21 +463,21 @@ void SslTcpSocket::PumpThread()
 
 SslTcpSocket* const SslTcpServer::MakeClientConnection(const SOCKET& fSock)
 {
-    return new SslTcpSocket(new SslConnetion(m_SslCtx.begin()->get()), fSock, this);
+    return new SslTcpSocket(new SslConnetion(m_SslCtx.front()), fSock, this);
 }
 
 bool SslTcpServer::AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey)
 {
-    m_SslCtx.emplace_back(make_shared<SslServerContext>());
-    m_SslCtx.back()->SetCertificates(szCAcertificate, szHostCertificate, szHostKey);
+    m_SslCtx.emplace_back(SslServerContext());
+    m_SslCtx.back().SetCertificates(szCAcertificate, szHostCertificate, szHostKey);
 
-    m_SslCtx.begin()->get()->AddVirtualHost(&m_SslCtx);
+    m_SslCtx.back().AddVirtualHost(&m_SslCtx);
     return true;
 }
 
 bool SslTcpServer::SetDHParameter(const char* const szDhParamFileName)
 {
-    return m_SslCtx.back()->SetDhParamFile(szDhParamFileName);
+    return m_SslCtx.back().SetDhParamFile(szDhParamFileName);
 }
 
 //************************************************************************************
@@ -472,8 +487,6 @@ SslUdpSocket::SslUdpSocket() : m_bStopThread(false), m_bCloseReq(false)
     atomic_init(&m_atTmpBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
-
-    m_pUdpCtx = make_shared<SslUdpContext>();
 
     UdpSocket::BindFuncBytesRecived(bind(&SslUdpSocket::DatenEmpfangen, this, _1));
     UdpSocket::BindCloseFunction(bind(&SslUdpSocket::Closeing, this, _1));
@@ -491,7 +504,7 @@ SslUdpSocket::~SslUdpSocket()
 
 bool SslUdpSocket::AddCertificat(const char* const szHostCertificate, const char* const szHostKey)
 {
-    m_pUdpCtx.get()->SetCertificates(szHostCertificate, szHostKey);
+    m_pUdpCtx.SetCertificates(szHostCertificate, szHostKey);
     return true;
 }
 
@@ -500,7 +513,7 @@ bool SslUdpSocket::CreateServerSide(const char* const szIpToWhere, const short s
     bool bRet = UdpSocket::Create(szIpToWhere, sPort, szIpToBind);
     if (bRet == true)
     {
-        m_pSslCon = new SslConnetion(m_pUdpCtx.get());
+        m_pSslCon = new SslConnetion(m_pUdpCtx);
         m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocket::Close, this)));
 
         //SSL_set_info_callback((*m_pSslCon)(), ssl_info_callbackServer);
@@ -517,7 +530,7 @@ bool SslUdpSocket::CreateClientSide(const char* const szIpToWhere, const short s
     bool bRet = UdpSocket::Create(szIpToWhere, sPort, szIpToBind);
     if (bRet == true)
     {
-        m_pSslCon = new SslConnetion(m_pUdpCtx.get());
+        m_pSslCon = new SslConnetion(m_pUdpCtx);
         m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocket::Close, this)));
 
         //SSL_set_info_callback((*m_pSslCon)(), ssl_info_callbackClient);

@@ -294,7 +294,7 @@ namespace OpenSSLWrapper
         return 1;
     }
 
-    void SslServerContext::AddVirtualHost(vector<shared_ptr<SslServerContext>>* pSslCtx)
+    void SslServerContext::AddVirtualHost(vector<SslServerContext>* pSslCtx)
     {
         SSL_CTX_set_tlsext_servername_arg(m_ctx, (void*)pSslCtx);
     }
@@ -375,7 +375,7 @@ namespace OpenSSLWrapper
     */
     int SslServerContext::SNI_CB(SSL *ssl, char iCmd, void* arg)
     {
-        vector<shared_ptr<SslServerContext>>* pSslCtx = (vector<shared_ptr<SslServerContext>>*)arg;
+        vector<SslServerContext>* pSslCtx = static_cast<vector<SslServerContext>*>(arg);
 
         const char* szHostName = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 
@@ -402,9 +402,9 @@ namespace OpenSSLWrapper
 
             for (auto& it : *pSslCtx)
             {
-                if ((it->m_strCertComName[0] == '^' && regex_match(strHostName, regex(it->m_strCertComName))) || it->m_strCertComName == strHostName || find_if(begin(it->m_vstrAltNames), end(it->m_vstrAltNames), fnDomainCompare) != end(it->m_vstrAltNames))
+                if ((it.m_strCertComName[0] == '^' && regex_match(strHostName, regex(it.m_strCertComName))) || it.m_strCertComName == strHostName || find_if(begin(it.m_vstrAltNames), end(it.m_vstrAltNames), fnDomainCompare) != end(it.m_vstrAltNames))
                 {
-                    SSL_set_SSL_CTX(ssl, (*it)());
+                    SSL_set_SSL_CTX(ssl, it());
                     return SSL_TLSEXT_ERR_OK;
                 }
             }
@@ -463,7 +463,7 @@ namespace OpenSSLWrapper
     }
 
 
-    SslConnetion::SslConnetion(SslContext* ctx) : m_ssl(SSL_new((*ctx)())), m_iShutDownFlag(INT32_MAX), m_iWantState(0)
+    SslConnetion::SslConnetion(SslContext& ctx) : m_ssl(SSL_new(ctx())), m_iShutDownFlag(INT32_MAX), m_iWantState(0)
     {
         m_rbio = BIO_new(BIO_s_mem());
         m_wbio = BIO_new(BIO_s_mem());
@@ -651,7 +651,7 @@ namespace OpenSSLWrapper
         return iRead;
     }
 
-    uint32_t SslConnetion::SslWrite(uint8_t* szBuffer, uint32_t nWriteLen)
+    uint32_t SslConnetion::SslWrite(const uint8_t* szBuffer, uint32_t nWriteLen)
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");

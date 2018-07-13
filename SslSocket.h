@@ -56,8 +56,8 @@ private:
     static const string& fnFoarwarder(void* obj) { return static_cast<SslTcpSocket*>(obj)->GetInterfaceAddr(); }
 
 private:
-    shared_ptr<SslClientContext>  m_pClientCtx;
-    vector<shared_ptr<SslServerContext>>  m_pServerCtx;
+    SslClientContext m_pClientCtx;
+    vector<SslServerContext>  m_pServerCtx;
     SslConnetion*    m_pSslCon;
     function<void(TcpSocket*)> m_fBytesRecived;
     function<void(BaseSocket*)> m_fCloseing;
@@ -92,7 +92,7 @@ public:
     bool SetDHParameter(const char* const szDhParamFileName);
 
 private:
-    vector<shared_ptr<SslServerContext>> m_SslCtx;
+    vector<SslServerContext> m_SslCtx;
 };
 
 class SslUdpSocket : public UdpSocket
@@ -119,7 +119,7 @@ private:
 //    static void ssl_info_callbackClient(const SSL* ssl, int where, int ret);
 
 private:
-    shared_ptr<SslUdpContext>  m_pUdpCtx;
+    SslUdpContext    m_pUdpCtx;
     SslConnetion*    m_pSslCon;
 
     function<void(UdpSocket*)> m_fBytesRecived;
