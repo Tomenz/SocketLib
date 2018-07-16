@@ -52,11 +52,12 @@ namespace OpenSSLWrapper
         explicit SslContext(const SSL_METHOD* sslMethod);
         virtual ~SslContext();
         SSL_CTX* operator() ();
-        //SslContext(const SslContext&) = delete;
-        SslContext(SslContext& src) {
-            m_ctx = src.m_ctx; src.m_ctx = nullptr;
+        SslContext(const SslContext&) = delete;
+        explicit SslContext(SslContext&& src)
+        {
+            m_ctx = move(src.m_ctx);
+            src.m_ctx = nullptr;
         }
-        //SslContext(SslContext&&) = delete;
         SslContext& operator=(SslContext&&) = delete;
         SslContext& operator=(const SslContext&) = delete;
 
@@ -85,17 +86,17 @@ namespace OpenSSLWrapper
     class SslServerContext : public SslContext
     {
     public:
-        SslServerContext();
+        explicit SslServerContext();
         string& GetCertCommonName() noexcept;
         int SetCertificates(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey);
         void AddVirtualHost(vector<SslServerContext>* pSslCtx);
         bool SetDhParamFile(const char* const szDhParamFile);
-        SslServerContext(SslServerContext& src) : SslContext(src)
+        SslServerContext(const SslServerContext& src) = delete;
+        explicit SslServerContext(SslServerContext&& src) : SslContext(move(src))
         {
-            m_strCertComName = src.m_strCertComName;
-            m_vstrAltNames = src.m_vstrAltNames;
+            m_strCertComName = move(src.m_strCertComName);
+            m_vstrAltNames = move(src.m_vstrAltNames);
         }
-        //SslServerContext(SslServerContext&&) = delete;
         SslServerContext& operator=(SslServerContext&&) = delete;
         SslServerContext& operator=(const SslServerContext&) = delete;
 
