@@ -43,6 +43,7 @@ namespace OpenSSLWrapper
     private:
         static unique_ptr<mutex[]> m_pmutLocks;
 #endif
+        string strVersion;
     };
 
 
@@ -91,6 +92,7 @@ namespace OpenSSLWrapper
         int SetCertificates(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey);
         void AddVirtualHost(vector<SslServerContext>* pSslCtx);
         bool SetDhParamFile(const char* const szDhParamFile);
+        bool SetCipher(const char* const szChiper);
         SslServerContext(const SslServerContext& src) = delete;
         explicit SslServerContext(SslServerContext&& src) : SslContext(move(src))
         {

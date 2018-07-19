@@ -77,7 +77,11 @@ namespace OpenSSLWrapper
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
         SSL_library_init();
         SSL_load_error_strings();
+        strVersion = SSLeay_version(SSLEAY_VERSION);
+#else
+        strVersion = OpenSSL_version(OPENSSL_VERSION);
 #endif
+
         ERR_load_BIO_strings();
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
         OpenSSL_add_all_algorithms();
@@ -190,6 +194,10 @@ namespace OpenSSLWrapper
         //https://raymii.org/s/tutorials/Strong_SSL_Security_On_Apache2.html
 //        SSL_CTX_set_cipher_list(m_ctx, "EECDH+AESGCM:EDH+AESGCM:ECDHE-RSA-AES128-GCM-SHA256:AES256+EECDH:DHE-RSA-AES128-GCM-SHA256:AES256+EDH:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4");
         SSL_CTX_set_cipher_list(m_ctx, "EECDH+ECDSA+AESGCM:EECDH+aRSA+AESGCM:EECDH+ECDSA:EECDH:EDH+AESGCM:EDH:+3DES:ECDH+AESGCM:ECDH+AES:ECDH:AES:HIGH:MEDIUM:!RC4:!CAMELLIA:!SEED:!aNULL:!MD5:!eNULL:!LOW:!EXP:!DSS:!PSK:!SRP");
+
+#if OPENSSL_VERSION_NUMBER > 0x10101000L
+        SSL_CTX_set_ciphersuites(m_ctx, "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256");  //https://www.openssl.org/docs/man1.1.1/man3/SSL_CTX_set_cipher_list.html
+#endif
 
         SSL_CTX_set_alpn_select_cb(m_ctx, ALPN_CB, 0);
         //SSL_CTX_set_next_proto_select_cb(m_ctx, NPN_CB, 0);
@@ -323,6 +331,11 @@ namespace OpenSSLWrapper
         }
 
         return false;
+    }
+
+    bool SslServerContext::SetCipher(const char* const szChiper)
+    {
+        return SSL_CTX_set_cipher_list(m_ctx, szChiper) == 1 ? true : false;
     }
 
     int SslServerContext::ALPN_CB(SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in, unsigned int inlen, void *arg)

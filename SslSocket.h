@@ -90,6 +90,7 @@ public:
     SslTcpSocket* const MakeClientConnection(const SOCKET&);
     bool AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey);
     bool SetDHParameter(const char* const szDhParamFileName);
+    bool SetCipher(const char* const szCipher);
 
 private:
     vector<SslServerContext> m_SslCtx;

@@ -480,6 +480,11 @@ bool SslTcpServer::SetDHParameter(const char* const szDhParamFileName)
     return m_SslCtx.back().SetDhParamFile(szDhParamFileName);
 }
 
+bool SslTcpServer::SetCipher(const char* const szCipher)
+{
+    return m_SslCtx.back().SetCipher(szCipher);
+}
+
 //************************************************************************************
 
 SslUdpSocket::SslUdpSocket() : m_bStopThread(false), m_bCloseReq(false)
