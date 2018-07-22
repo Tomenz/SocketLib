@@ -18,8 +18,8 @@
 // nmake -f ms\nt.mak |  nmake -f ms\ntdll.mak |  nmake -f ms\nt.mak clean |  nmake -f ms\nt.mak clean
 
 // From openssl ver. 1.1.0
-// perl Configure VC-WIN32 no-asm -D_USING_V110_SDK71_ --api=1.1.0
-// perl Configure VC-WIN64A no-asm -D_USING_V110_SDK71_ --api=1.1.0
+// perl Configure VC-WIN32 enable-tls1_3 no-asm no-deprecated (-D_USING_V110_SDK71_ --api=1.1.0)
+// perl Configure VC-WIN64A enable-tls1_3 no-asm no-deprecated (-D_USING_V110_SDK71_ --api=1.1.0)
 // Replace the /MD with /MT in the makefile
 // nmake
 #include <openssl/ssl.h>
