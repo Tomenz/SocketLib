@@ -448,6 +448,9 @@ void SslTcpSocket::PumpThread()
     while (bReadCall == true)
         this_thread::sleep_for(chrono::milliseconds(1));
 
+    mxNotify.lock();    // In seltenen Faellen, wurde bReadCall auf false gesetzt, und der Taskwechsel
+    mxNotify.unlock();  // hat dann diesen Thread beendet bevor der Lambda Thread mxNotify freigab - > Absturz
+
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     /* thread-local cleanup */
     ERR_remove_thread_state(nullptr);

@@ -465,9 +465,12 @@ TcpSocket::~TcpSocket()
 {
     //OutputDebugString(L"TcpSocket::~TcpSocket\r\n");
     m_bStop = true; // Stops the listening thread
+    bool bIsLocked = m_mxWrite.try_lock();
     m_bCloseReq = true;
     m_atOutBytes = 0;
     m_cv.notify_all();
+    if (bIsLocked == true)
+        m_mxWrite.unlock();
 
     if (m_thConnect.joinable() == true)
         m_thConnect.join();
@@ -628,6 +631,7 @@ size_t TcpSocket::Write(const void* buf, size_t len)
     m_quOutData.emplace_back(tmp, static_cast<uint32_t>(len));
     m_mxOutDeque.unlock();
 
+    unique_lock<mutex> lock(m_mxWrite);
     m_cv.notify_all();
 
     return len;
@@ -637,12 +641,12 @@ void TcpSocket::WriteThread()
 {
     m_iShutDownState &= ~2;
 
-    mutex mut;
-    unique_lock<mutex> lock(mut);
+    unique_lock<mutex> lock(m_mxWrite);
 
     while (m_bCloseReq == false || m_atOutBytes != 0)
     {
-        m_cv.wait(lock, [&]() { return m_atOutBytes == 0 ? m_bCloseReq : true; });
+        if (m_bCloseReq == false && m_atOutBytes == 0)
+            m_cv.wait(lock, [&]() { return m_atOutBytes == 0 ? m_bCloseReq : true; });
 
         while (m_atOutBytes != 0)
         {
@@ -743,8 +747,11 @@ void TcpSocket::StartReceiving()
 void TcpSocket::Close() noexcept
 {
     //OutputDebugString(L"TcpSocket::Close\r\n");
+    bool bIsLocked = m_mxWrite.try_lock();
     m_bCloseReq = true; // Stops the write thread after the last byte was send
     m_cv.notify_all();
+    if (bIsLocked == true)
+        m_mxWrite.unlock();
     m_bStop = true; // Stops the listening thread
 
     if (m_pRefServSocket == nullptr && m_iShutDownState == 7)
@@ -900,6 +907,9 @@ void TcpSocket::SelectThread()
 
     while (bReadCall == true)
         this_thread::sleep_for(chrono::milliseconds(10));
+
+    mxNotify.lock();    // In seltenen Faellen, wurde bReadCall auf false gesetzt, und der Taskwechsel
+    mxNotify.unlock();  // hat dann diesen Thread beendet bevor der Lambda Thread mxNotify freigab - > Absturz
 
     m_iShutDownState |= 1;
 
@@ -1734,6 +1744,9 @@ void UdpSocket::SelectThread()
 
     while (bReadCall == true)
         this_thread::sleep_for(chrono::milliseconds(10));
+
+    mxNotify.lock();    // In seltenen Faellen, wurde bReadCall auf false gesetzt, und der Taskwechsel
+    mxNotify.unlock();  // hat dann diesen Thread beendet bevor der Lambda Thread mxNotify freigab - > Absturz
 
     m_iShutDownState |= 1;
 }

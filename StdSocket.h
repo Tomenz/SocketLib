@@ -144,6 +144,7 @@ private:
     atomic<uint32_t> m_atOutBytes;
 
     bool             m_bCloseReq;
+    mutex            m_mxWrite;
     condition_variable m_cv;
 
     string           m_strClientAddr;
