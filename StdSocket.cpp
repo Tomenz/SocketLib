@@ -717,6 +717,8 @@ void TcpSocket::WriteThread()
             break;
     }
 
+    lock.unlock();
+
     // if we get out of the while loop, the stop request was send or we have an error
     if (m_iError == 0)
     {
