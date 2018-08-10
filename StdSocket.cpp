@@ -1035,6 +1035,7 @@ bool TcpSocket::GetConnectionInfo()
 
 TcpServer::~TcpServer()
 {
+    m_fNewConnection = nullptr;
     m_bStop = true; // Stops the listening thread
 
     if (m_thListen.joinable() == true)
@@ -1118,6 +1119,7 @@ unsigned short TcpServer::GetServerPort()
 
 void TcpServer::Close() noexcept
 {
+    m_fNewConnection = nullptr;
     m_bStop = true; // Stops the listening thread, deletes all Sockets at the end of the listening thread
 }
 
@@ -1159,6 +1161,8 @@ void TcpServer::Delete()
 
 void TcpServer::SelectThread()
 {
+    atomic<uint32_t> nNewConCbCount(0);
+
     while (m_bStop == false)
     {
         fd_set readfd;
@@ -1207,8 +1211,10 @@ void TcpServer::SelectThread()
 
             if (vSockets.size() > 0)
             {
-                thread([this](const vector<SOCKET> vNewSockets)
+                thread([this, &nNewConCbCount](const vector<SOCKET> vNewSockets)
                 {
+                    nNewConCbCount++;
+
                     vector<TcpSocket*> vNewConnections;
                     for (SOCKET sock : vNewSockets)
                     {
@@ -1230,11 +1236,21 @@ void TcpServer::SelectThread()
                         }
                         vNewConnections.push_back(pClient);
                     }
-                    m_fNewConnection(vNewConnections);
+                    if (m_fNewConnection != nullptr && m_bStop != true)
+                        m_fNewConnection(vNewConnections);
+                    else
+                    {
+                        for (auto pClient : vNewConnections)
+                            pClient->Close();
+                    }
+                    nNewConCbCount--;
                 }, vSockets).detach();
             }
         }
     }
+
+    while (nNewConCbCount != 0)
+        this_thread::sleep_for(chrono::milliseconds(1));
 
     Delete();
 }
