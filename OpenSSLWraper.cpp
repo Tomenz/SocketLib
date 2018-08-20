@@ -217,7 +217,7 @@ namespace OpenSSLWrapper
 #if OPENSSL_VERSION_NUMBER > 0x10101000L
         SSL_CTX_set_ciphersuites(m_ctx, "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256");  //https://www.openssl.org/docs/man1.1.1/man3/SSL_CTX_set_cipher_list.html
 #endif
-        SSL_CTX_set_session_id_context(m_ctx, reinterpret_cast<unsigned char*>(this), sizeof(void*));
+        //SSL_CTX_set_session_id_context(m_ctx, reinterpret_cast<unsigned char*>(this), sizeof(void*));
 
         SSL_CTX_set_alpn_select_cb(m_ctx, ALPN_CB, 0);
         //SSL_CTX_set_next_proto_select_cb(m_ctx, NPN_CB, 0);
@@ -496,7 +496,7 @@ namespace OpenSSLWrapper
     }
 
 
-    SslConnetion::SslConnetion(SslContext& ctx) : m_ssl(SSL_new(ctx())), m_iShutDownFlag(INT32_MAX), m_iWantState(0)
+    SslConnetion::SslConnetion(SslContext& ctx) : m_ssl(SSL_new(ctx())), m_iShutDownFlag(INT32_MIN), m_iWantState(0)
     {
         m_rbio = BIO_new(BIO_s_mem());
         m_wbio = BIO_new(BIO_s_mem());
@@ -593,53 +593,7 @@ namespace OpenSSLWrapper
         m_iWantState = 0;
         return BIO_write(m_wbio, szBuffer, nWriteLen);
     }
-/*
-    bool SslConnetion::HandShakeComplet()
-    {
-        if (nullptr == m_ssl)
-            throw runtime_error("Not Initialized");
 
-        if (false == SSL_is_init_finished(m_ssl))
-        {
-            if (m_iWantState != 0)
-                return false;
-
-            int iRet = SSL_do_handshake(m_ssl);
-
-            if (iRet <= 0)
-            {
-                int iRet2 = SSL_get_error(m_ssl, iRet);
-
-                switch (iRet2)
-                {
-                case SSL_ERROR_WANT_READ:
-                    m_iWantState = 1; break;
-                case SSL_ERROR_WANT_WRITE:
-                    m_iWantState = 2; break;
-                case SSL_ERROR_ZERO_RETURN:
-                    ShutDownConnection();
-#ifdef _DEBUG
-                    //if (m_szName)
-                    //    wcout << m_szName << ": received close notify" << endl;
-#endif
-                    break;
-                default:
-                    m_iShutDownFlag = 1;
-                    if (m_fError != nullptr)
-                        m_fError();
-#ifdef _DEBUG
-                    //if (m_szName)
-                    //    wcout << m_szName << ": error after SSL_do_handshake: " << iRet << endl;
-#endif
-                }
-
-                return false;
-            }
-        }
-
-        return true;
-    }
-*/
     int SslConnetion::GetShutDownFlag() noexcept
     {
         return m_iShutDownFlag;
@@ -760,7 +714,10 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iWrite) +
                 if (iErrorHint != nullptr)
                     *iErrorHint = iError;
                 if (iError != SSL_ERROR_WANT_READ)
-                    OutputDebugString(wstring(L"SSL_shutdown code: " + to_wstring(m_iShutDownFlag) + L" Error-Code: " + to_wstring(iError) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>(m_ssl)) + L"\r\n").c_str());
+                {
+                    OutputDebugString(wstring(L"SSL_shutdown code: " + to_wstring(m_iShutDownFlag) + L" Error-Code: " + to_wstring(iError) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>(m_ssl))).c_str());
+                    OutputDebugStringA(string(", msg: " + GetSslErrAsString()).c_str());
+                }
             }
         }
         return m_iShutDownFlag;

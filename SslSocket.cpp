@@ -37,19 +37,19 @@ void OutputDebugString(const wchar_t* pOut)
 extern void OutputDebugStringA(const char* pOut);
 #endif
 
-SslTcpSocket::SslTcpSocket() : m_pSslCon(nullptr), m_iShutDownReceive(false), m_bCloseReq(false), m_iShutDown(0)
+SslTcpSocket::SslTcpSocket() : m_pSslCon(nullptr), m_bCloseReq(false)
 {
     m_fnSslEncode = bind(&SslTcpSocket::DatenEncode, this, _1, _2);
     m_fnSslDecode = bind(&SslTcpSocket::DatenDecode, this, _1, _2);
 }
 
-SslTcpSocket::SslTcpSocket(TcpSocket* pTcpSocket) : TcpSocket(pTcpSocket), m_pSslCon(nullptr), m_iShutDownReceive(false), m_bCloseReq(false), m_iShutDown(0)
+SslTcpSocket::SslTcpSocket(TcpSocket* pTcpSocket) : TcpSocket(pTcpSocket), m_pSslCon(nullptr), m_bCloseReq(false)
 {
     m_fnSslEncode = bind(&SslTcpSocket::DatenEncode, this, _1, _2);
     m_fnSslDecode = bind(&SslTcpSocket::DatenDecode, this, _1, _2);
 }
 
-SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket) : TcpSocket(fSock, pRefServSocket), m_pSslCon(pSslCon), m_iShutDownReceive(false), m_bCloseReq(false), m_iShutDown(0)
+SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket) : TcpSocket(fSock, pRefServSocket), m_pSslCon(pSslCon), m_bCloseReq(false)
 {
     m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocket::Close, this)));
     m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocket::fnFoarwarder));
@@ -62,6 +62,9 @@ SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock, const TcpS
 
 SslTcpSocket::~SslTcpSocket()
 {
+    if (m_iSslInit == 1 && m_pSslCon->GetShutDownFlag() < 1)
+        SSL_set_shutdown((*m_pSslCon)(), SSL_SENT_SHUTDOWN | SSL_RECEIVED_SHUTDOWN);
+
     if (m_pSslCon != nullptr)
         delete m_pSslCon;
 }
@@ -193,21 +196,24 @@ void SslTcpSocket::Close() noexcept
                 nOutDataSize = m_pSslCon->SslGetOutDataSize();
             }
 
-            m_pSslCon->ShutDownConnection();
-            // Get the out Que of the openssl bio, the buffer is already encrypted
-            nOutDataSize = m_pSslCon->SslGetOutDataSize();
-            while (nOutDataSize > 0)
+            if (m_iSslInit == 1)
             {
-                auto temp = shared_ptr<uint8_t>(new uint8_t[nOutDataSize]);
-                int32_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
-                // Schreibt Daten in die SOCKET
-                if (len > 0)
-                {
-                    m_atOutBytes += static_cast<uint32_t>(len);
-                    m_quOutData.emplace_back(temp, static_cast<uint32_t>(len));
-                    bNewData = true;
-                }
+                m_pSslCon->ShutDownConnection();
+                // Get the out Que of the openssl bio, the buffer is already encrypted
                 nOutDataSize = m_pSslCon->SslGetOutDataSize();
+                while (nOutDataSize > 0)
+                {
+                    auto temp = shared_ptr<uint8_t>(new uint8_t[nOutDataSize]);
+                    int32_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
+                    // Schreibt Daten in die SOCKET
+                    if (len > 0)
+                    {
+                        m_atOutBytes += static_cast<uint32_t>(len);
+                        m_quOutData.emplace_back(temp, static_cast<uint32_t>(len));
+                        bNewData = true;
+                    }
+                    nOutDataSize = m_pSslCon->SslGetOutDataSize();
+                }
             }
 
             lock.unlock();
@@ -230,10 +236,10 @@ void SslTcpSocket::ConEstablished(const TcpSocket* const pTcpSocket)
 {
     SSL_set_connect_state((*m_pSslCon)());
 
-    int iSslInit = SSL_do_handshake((*m_pSslCon)());
-    if (iSslInit <= 0)
+    m_iSslInit = SSL_do_handshake((*m_pSslCon)());
+    if (m_iSslInit <= 0)
     {
-        int iError = SSL_get_error((*m_pSslCon)(), iSslInit);
+        int iError = SSL_get_error((*m_pSslCon)(), m_iSslInit);
         if (iError != SSL_ERROR_WANT_READ)
         {
             OutputDebugString(wstring(L"SSL_error after SSL_Handshake: " + to_wstring(iError) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
@@ -287,10 +293,10 @@ int SslTcpSocket::DatenDecode(const char* buffer, uint32_t nAnzahl)
     //if (SSL_renegotiate_pending((*m_pSslCon)()) == 1)
     //    OutputDebugString(wstring(L"SSL_renegotiate on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
 
-    int iSslInit = SSL_is_init_finished((*m_pSslCon)());
-    if (iSslInit == 0)
+    m_iSslInit = SSL_is_init_finished((*m_pSslCon)());
+    if (m_iSslInit == 0)
     {
-        iSslInit = SSL_do_handshake((*m_pSslCon)());
+        m_iSslInit = SSL_do_handshake((*m_pSslCon)());
 
         unique_lock<mutex> lock(m_mxOutDeque);
         bool bNewData = false;
@@ -316,14 +322,15 @@ int SslTcpSocket::DatenDecode(const char* buffer, uint32_t nAnzahl)
         if (bNewData == true)
             TriggerWriteThread();
 
-        if (iSslInit <= 0)
+        if (m_iSslInit <= 0)
         {
-            int iError = SSL_get_error((*m_pSslCon)(), iSslInit);
+            int iError = SSL_get_error((*m_pSslCon)(), m_iSslInit);
             if (iError != SSL_ERROR_WANT_READ)
             {
-                OutputDebugString(wstring(L"SSL_error: " + to_wstring(iError) + L", after SSL_do_handshake returnd: " + to_wstring(iSslInit) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)()))).c_str());
+                OutputDebugString(wstring(L"SSL_error: " + to_wstring(iError) + L", after SSL_do_handshake returnd: " + to_wstring(m_iSslInit) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)()))).c_str());
                 OutputDebugStringA(string(", msg: " + m_pSslCon->GetSslErrAsString()).c_str());
-                Close();
+                if (m_fError)
+                    m_fError(this);
                 return -1;
             }
         }
@@ -339,7 +346,7 @@ int SslTcpSocket::DatenDecode(const char* buffer, uint32_t nAnzahl)
     }
 
     int iReturn = -1;
-    if (iSslInit == 1)
+    if (m_iSslInit == 1)
     {
         unique_ptr<uint8_t> Buffer(new uint8_t[0x0000ffff]);
         int iErrorHint = 0;

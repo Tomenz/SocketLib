@@ -52,10 +52,8 @@ private:
     SslConnetion*    m_pSslCon;
     function<void(TcpSocket*)> m_fClientConneted;
 
-    int              m_iShutDownReceive;
     bool             m_bCloseReq;
-    int              m_iShutDown;
-
+    int              m_iSslInit;
     vector<string>   m_vProtoList;
     string           m_strTrustRootCert;
 };
