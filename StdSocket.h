@@ -212,19 +212,26 @@ public:
     virtual uint32_t GetOutBytesInQue() const noexcept;
     virtual function<void(UdpSocket*)> BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept;
 
+protected:
+    void TriggerWriteThread();
+
 private:
     void WriteThread();
     void SelectThread();
 
-private:
+protected:
+    function<int(const char*, uint32_t, const string&)> m_fnSslDecode;
     mutex            m_mxInDeque;
     deque<DATA>      m_quInData;
     atomic<uint32_t> m_atInBytes;
+    function<int(const void*, uint32_t, const string&)> m_fnSslEncode;
     mutex            m_mxOutDeque;
     deque<DATA>      m_quOutData;
     atomic<uint32_t> m_atOutBytes;
 
+private:
     bool             m_bCloseReq;
+    mutex            m_mxWrite;
     condition_variable m_cv;
 
     function<void(UdpSocket*)> m_fBytesRecived;

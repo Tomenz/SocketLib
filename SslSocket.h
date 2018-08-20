@@ -80,17 +80,12 @@ public:
     bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
     bool CreateServerSide(const char* const szIpToWhere, const short sPort, const char* const szIpToBind = nullptr);
     bool CreateClientSide(const char* const szIpToWhere, const short sPort, const char* const szDestAddr, const char* const szIpToBind = nullptr);
-    uint32_t Read(void* buf, uint32_t len, string& strFrom) override;
-    size_t Write(const void* buf, size_t len, const string& strTo) override;
     void Close() noexcept override;
-    uint32_t GetBytesAvailible() const noexcept override;
-    function<void(BaseSocket*)> BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept override;
-    function<void(UdpSocket*)> BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept override;
+    function<void(UdpSocket*)> BindFuncSslInitDone(function<void(UdpSocket*)> fSllInitDone) noexcept;
 
 private:
-    void DatenEmpfangen(const UdpSocket* const pUdpSocket);
-    void Closeing(const BaseSocket* const pTcpSocket);
-    void PumpThread();
+    int DatenEncode(const void* buf, uint32_t nAnzahl, const string& strAddress);
+    int DatenDecode(const char* buffer, uint32_t nAnzahl, const string& strAddress);
 
 //    static void ssl_info_callbackServer(const SSL* ssl, int where, int ret);
 //    static void ssl_info_callbackClient(const SSL* ssl, int where, int ret);
@@ -99,22 +94,8 @@ private:
     SslUdpContext    m_pUdpCtx;
     SslConnetion*    m_pSslCon;
 
-    function<void(UdpSocket*)> m_fBytesRecived;
-    function<void(BaseSocket*)> m_fCloseing;
-    thread           m_thPumpSsl;
+    function<void(UdpSocket*)> m_fSllInitDone;
 
-    mutex            m_mxTmpDeque;
-    deque<DATA>      m_quTmpData;
-    atomic<uint32_t> m_atTmpBytes;
-
-    mutex            m_mxInDeque;
-    deque<DATA>      m_quInData;
-    atomic<uint32_t> m_atInBytes;
-    mutex            m_mxOutDeque;
-    deque<DATA>      m_quOutData;
-    atomic<uint32_t> m_atOutBytes;
-
-    bool             m_bStopThread;
     bool             m_bCloseReq;
     string           m_strDestAddr;
 
