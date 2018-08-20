@@ -619,20 +619,32 @@ uint32_t TcpSocket::PutBackRead(void* buf, uint32_t len)
     return len;
 }
 
+void TcpSocket::TriggerWriteThread()
+{
+    unique_lock<mutex> lock(m_mxWrite);
+    m_cv.notify_all();
+}
+
 size_t TcpSocket::Write(const void* buf, size_t len)
 {
     if (m_bStop == true || m_bCloseReq == true || buf == nullptr || len == 0)
         return 0;
 
-    shared_ptr<uint8_t> tmp(new uint8_t[len]);
-    copy(static_cast<const uint8_t*>(buf), static_cast<const uint8_t*>(buf) + len, tmp.get());
-    m_mxOutDeque.lock();
-    m_atOutBytes += static_cast<uint32_t>(len);
-    m_quOutData.emplace_back(tmp, static_cast<uint32_t>(len));
-    m_mxOutDeque.unlock();
+    int iRet = 0;
+    if (m_fnSslEncode == nullptr || (iRet = m_fnSslEncode(buf, static_cast<uint32_t>(len)), iRet == 0))
+    {
+        shared_ptr<uint8_t> tmp(new uint8_t[len]);
+        copy(static_cast<const uint8_t*>(buf), static_cast<const uint8_t*>(buf) + len, tmp.get());
+        m_mxOutDeque.lock();
+        m_atOutBytes += static_cast<uint32_t>(len);
+        m_quOutData.emplace_back(tmp, static_cast<uint32_t>(len));
+        m_mxOutDeque.unlock();
 
-    unique_lock<mutex> lock(m_mxWrite);
-    m_cv.notify_all();
+        iRet = static_cast<int>(len);
+    }
+
+    if (iRet > 0)
+        TriggerWriteThread();
 
     return len;
 }
@@ -749,11 +761,14 @@ void TcpSocket::StartReceiving()
 void TcpSocket::Close() noexcept
 {
     //OutputDebugString(L"TcpSocket::Close\r\n");
-    bool bIsLocked = m_mxWrite.try_lock();
     m_bCloseReq = true; // Stops the write thread after the last byte was send
-    m_cv.notify_all();
-    if (bIsLocked == true)
-        m_mxWrite.unlock();
+    do
+    {
+        bool bIsLocked = m_mxWrite.try_lock();
+        m_cv.notify_all();
+        if (bIsLocked == true)
+            m_mxWrite.unlock();
+    } while (m_iShutDownState < 2 && m_iError == 0);
     m_bStop = true; // Stops the listening thread
 
     if (m_pRefServSocket == nullptr && m_iShutDownState == 7)
@@ -868,13 +883,17 @@ void TcpSocket::SelectThread()
                 }
                 else
                 {
-                    shared_ptr<uint8_t> tmp(new uint8_t[transferred]);
-                    copy(buf, buf + transferred, tmp.get());
-                    lock_guard<mutex> lock(m_mxInDeque);
-                    m_quInData.emplace_back(tmp, transferred);
-                    m_atInBytes += transferred;
+                    int iRet = 0;
+                    if (m_fnSslDecode == nullptr || (iRet = m_fnSslDecode(buf, transferred), iRet == 0))
+                    {
+                        shared_ptr<uint8_t> tmp(new uint8_t[transferred]);
+                        copy(buf, buf + transferred, tmp.get());
+                        lock_guard<mutex> lock(m_mxInDeque);
+                        m_quInData.emplace_back(tmp, transferred);
+                        m_atInBytes += transferred;
+                    }
 
-                    if (m_fBytesRecived && m_bStop == false)
+                    if (m_fBytesRecived && m_bStop == false && iRet != -1)
                     {
                         lock_guard<mutex> lock(mxNotify);
                         if (bReadCall == false)

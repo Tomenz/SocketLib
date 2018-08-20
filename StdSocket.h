@@ -127,6 +127,7 @@ protected:
     explicit TcpSocket(TcpSocket* pTcpSocket);
     virtual ~TcpSocket();
     virtual void SetSocketOption(const SOCKET& fd);
+    void TriggerWriteThread();
 
 private:
     void WriteThread();
@@ -134,14 +135,19 @@ private:
     void ConnectThread();
     bool GetConnectionInfo();
 
-private:
-    thread           m_thConnect;
+protected:
+    function<int(const char*, uint32_t)> m_fnSslDecode;
     mutex            m_mxInDeque;
     deque<DATA>      m_quInData;
     atomic<uint32_t> m_atInBytes;
+
+    function<int(const void*, uint32_t)> m_fnSslEncode;
     mutex            m_mxOutDeque;
     deque<DATA>      m_quOutData;
     atomic<uint32_t> m_atOutBytes;
+
+private:
+    thread           m_thConnect;
 
     bool             m_bCloseReq;
     mutex            m_mxWrite;

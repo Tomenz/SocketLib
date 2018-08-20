@@ -22,6 +22,7 @@
 
 #include <openssl/conf.h>
 #include "openssl/x509v3.h"
+#include <openssl/err.h>
 
 #if defined (_WIN32) || defined (_WIN64)
 #include <Ws2tcpip.h>
@@ -30,6 +31,24 @@
 #if (OPENSSL_VERSION_NUMBER < 0x10100000L)
 #define ASN1_STRING_get0_data(x) ASN1_STRING_data(x)
 #endif
+
+#include <string>
+#include <locale>
+#include <iomanip>
+#include <codecvt>
+#include <fcntl.h>
+#include <unistd.h>
+extern void OutputDebugString(const wchar_t* pOut);
+void OutputDebugStringA(const char* pOut)
+{   // mkfifo /tmp/dbgout  ->  tail -f /tmp/dbgout
+    int fdPipe = open("/tmp/dbgout", O_WRONLY | O_NONBLOCK);
+    if (fdPipe >= 0)
+    {
+        std::string strTmp(pOut);
+        write(fdPipe, strTmp.c_str(), strTmp.size());
+        close(fdPipe);
+    }
+}
 #endif
 
 #ifdef _WIN64
@@ -182,7 +201,7 @@ namespace OpenSSLWrapper
     SslServerContext::SslServerContext() : SslContext(SSLv23_server_method())
     {
         //SSL_CTX_set_options(m_ctx, (SSL_OP_ALL & ~SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS) | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION | SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
-        SSL_CTX_set_options(m_ctx, (SSL_OP_ALL & ~SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS) | SSL_OP_CIPHER_SERVER_PREFERENCE | SSL_OP_SINGLE_DH_USE | SSL_OP_SINGLE_ECDH_USE | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION | SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
+        SSL_CTX_set_options(m_ctx, (SSL_OP_ALL & ~SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS) | /*SSL_OP_NO_RENEGOTIATION |*/ SSL_OP_CIPHER_SERVER_PREFERENCE | SSL_OP_SINGLE_DH_USE | SSL_OP_SINGLE_ECDH_USE | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION | SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
         SSL_CTX_set_mode(m_ctx, SSL_MODE_AUTO_RETRY);
         SSL_CTX_set_mode(m_ctx, SSL_MODE_RELEASE_BUFFERS);
         SSL_CTX_set_mode(m_ctx, SSL_MODE_ENABLE_PARTIAL_WRITE);
@@ -198,6 +217,7 @@ namespace OpenSSLWrapper
 #if OPENSSL_VERSION_NUMBER > 0x10101000L
         SSL_CTX_set_ciphersuites(m_ctx, "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256");  //https://www.openssl.org/docs/man1.1.1/man3/SSL_CTX_set_cipher_list.html
 #endif
+        SSL_CTX_set_session_id_context(m_ctx, reinterpret_cast<unsigned char*>(this), sizeof(void*));
 
         SSL_CTX_set_alpn_select_cb(m_ctx, ALPN_CB, 0);
         //SSL_CTX_set_next_proto_select_cb(m_ctx, NPN_CB, 0);
@@ -625,16 +645,24 @@ namespace OpenSSLWrapper
         return m_iShutDownFlag;
     }
 
-    uint32_t SslConnetion::SslRead(uint8_t* szBuffer, uint32_t nBufLen)
+    uint32_t SslConnetion::SslRead(uint8_t* szBuffer, uint32_t nBufLen, int* iErrorHint/* = nullptr*/)
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
 
+        //OSSL_HANDSHAKE_STATE hsState = SSL_get_state(m_ssl);
+        //if (hsState != TLS_ST_OK)
+        //    OutputDebugString(wstring(L"SSL invalid state: " + to_wstring(hsState) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>(m_ssl)) + L"\r\n").c_str());
+
+        ERR_clear_error();
         int iRead = SSL_read(m_ssl, szBuffer, nBufLen);
         if (iRead <= 0)
         {
             iRead = SSL_get_error(m_ssl, iRead);
-
+            if (iErrorHint != nullptr)
+                *iErrorHint = iRead;
+if (iRead != SSL_ERROR_WANT_READ && iRead != SSL_ERROR_ZERO_RETURN)
+    OutputDebugString(wstring(L"SSL_read error code: " + to_wstring(iRead) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>(m_ssl)) + L"\r\n").c_str());
             switch (iRead)
             {
             case SSL_ERROR_WANT_READ:
@@ -648,7 +676,10 @@ namespace OpenSSLWrapper
                 //    wcout << m_szName << ": received close notify" << endl;
 #endif
                 break;
+            case SSL_ERROR_SYSCALL:
+                iRead = errno;
             default:
+OutputDebugStringA(string(GetSslErrAsString() + "\r\nerrno = " + to_string(iRead) + "\r\n").c_str());
                 m_iShutDownFlag = 1;
                 if (m_fError)
                     m_fError();
@@ -664,17 +695,25 @@ namespace OpenSSLWrapper
         return iRead;
     }
 
-    uint32_t SslConnetion::SslWrite(const uint8_t* szBuffer, uint32_t nWriteLen)
+    uint32_t SslConnetion::SslWrite(const uint8_t* szBuffer, uint32_t nWriteLen, int* iErrorHint/* = nullptr*/)
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
 
-        int iRet = SSL_write(m_ssl, szBuffer, nWriteLen);
-        if (iRet <= 0)
-        {
-            iRet = SSL_get_error(m_ssl, iRet);
+        //OSSL_HANDSHAKE_STATE hsState = SSL_get_state(m_ssl);
+        //if (hsState != TLS_ST_OK)
+        //    OutputDebugString(wstring(L"SSL invalid state: " + to_wstring(hsState) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>(m_ssl)) + L"\r\n").c_str());
 
-            switch (iRet)
+        ERR_clear_error();
+        int iWrite = SSL_write(m_ssl, szBuffer, nWriteLen);
+        if (iWrite <= 0)
+        {
+            iWrite = SSL_get_error(m_ssl, iWrite);
+            if (iErrorHint != nullptr)
+                *iErrorHint = iWrite;
+if (iWrite != SSL_ERROR_WANT_WRITE)
+    OutputDebugString(wstring(L"SSL_write error code: " + to_wstring(iWrite) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>(m_ssl)) + L" trying to write " + to_wstring(nWriteLen) + L" bytes\r\n").c_str());
+            switch (iWrite)
             {
             case SSL_ERROR_WANT_READ:
                 m_iWantState = 1; break;
@@ -687,7 +726,10 @@ namespace OpenSSLWrapper
                 //    wcout << m_szName << ": received close notify" << endl;
 #endif
                 break;
+            case SSL_ERROR_SYSCALL:
+                iWrite = errno;
             default:
+OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iWrite) + "\r\n").c_str());
                 m_iShutDownFlag = 1;
                 if (m_fError)
                     m_fError();
@@ -700,15 +742,27 @@ namespace OpenSSLWrapper
             return 0;
         }
 
-        return iRet;
+        return iWrite;
     }
 
-    int SslConnetion::ShutDownConnection()
+    int SslConnetion::ShutDownConnection(int* iErrorHint/* = nullptr*/)
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
 
-        m_iShutDownFlag = SSL_shutdown(m_ssl);
+        int iError = 0;
+        if (m_iShutDownFlag < 1)
+        {
+            m_iShutDownFlag = SSL_shutdown(m_ssl);
+            if (m_iShutDownFlag < 0)
+            {
+                iError = SSL_get_error(m_ssl, m_iShutDownFlag);
+                if (iErrorHint != nullptr)
+                    *iErrorHint = iError;
+                if (iError != SSL_ERROR_WANT_READ)
+                    OutputDebugString(wstring(L"SSL_shutdown code: " + to_wstring(m_iShutDownFlag) + L" Error-Code: " + to_wstring(iError) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>(m_ssl)) + L"\r\n").c_str());
+            }
+        }
         return m_iShutDownFlag;
     }
 
@@ -772,5 +826,28 @@ namespace OpenSSLWrapper
             lResult = X509_V_ERR_HOSTNAME_MISMATCH;
         return lResult;
     }
+
+    string SslConnetion::GetSslErrAsString() noexcept
+    {
+        /*BIO *bio = BIO_new(BIO_s_mem());
+        ERR_print_errors(bio);
+        char *buf = NULL;
+        size_t len = BIO_get_mem_data(bio, &buf);
+        string strTmp(buf, len);
+        BIO_free(bio);*/
+
+        string strTmp;
+        uint32_t nError = ERR_get_error();
+        while (nError != 0)
+        {
+            char buf[512];
+            ERR_error_string_n(nError, buf, 512);
+            strTmp += buf;
+            strTmp += "\r\n";
+            nError = ERR_get_error();
+        }
+        return strTmp;
+    }
+
 
 }

@@ -140,13 +140,14 @@ namespace OpenSSLWrapper
         uint32_t SslPutInData(uint8_t* szBuffer, uint32_t nWriteLen);
 //        bool HandShakeComplet();
         int GetShutDownFlag() noexcept;
-        uint32_t SslRead(uint8_t* szBuffer, uint32_t nBufLen);
-        uint32_t SslWrite(const uint8_t* szBuffer, uint32_t nWriteLen);
-        int ShutDownConnection();
+        uint32_t SslRead(uint8_t* szBuffer, uint32_t nBufLen, int* iErrorHint = nullptr);
+        uint32_t SslWrite(const uint8_t* szBuffer, uint32_t nWriteLen, int* iErrorHint = nullptr);
+        int ShutDownConnection(int* iErrorHint = nullptr);
         void SetAlpnProtokollNames(vector<string>& vProtoList);
         string GetSelAlpnProtocol();
         void SetTrustedRootCertificates(const char* szFileName);
         long CheckServerCertificate(const char* szHostName);
+        string GetSslErrAsString() noexcept;
 
     private:
         SSL* m_ssl;

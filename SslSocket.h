@@ -22,18 +22,13 @@ class SslTcpServer;
 class SslTcpSocket : public TcpSocket
 {
 public:
-    explicit SslTcpSocket(/*SslConnetion* pSslCon*/);
+    explicit SslTcpSocket();
     explicit SslTcpSocket(TcpSocket* pTcpSocket);
     virtual ~SslTcpSocket();
     bool AddServerCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName);
     bool SetAcceptState();
     bool Connect(const char* const szIpToWhere, const uint16_t sPort) override;
-    uint32_t Read(void* buf, uint32_t len) override;
-    size_t Write(const void* buf, size_t len) override;
     void Close() noexcept override;
-    uint32_t GetBytesAvailible() const noexcept override;
-    function<void(TcpSocket*)> BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept override;
-    function<void(BaseSocket*)> BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept override;
     function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept override;
     bool IsSslConnection() const noexcept override { return true; }
 
@@ -42,16 +37,12 @@ public:
     void SetTrustedRootCertificates(const char* const szTrustRootCert);
     long CheckServerCertificate(const char* const szHostName);
 
-#pragma message("TODO!!! Folge Zeile wieder entfernen.")
-    static atomic<uint32_t> s_atAnzahlPumps;
-
 private:
     friend SslTcpServer;
     explicit SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket);
     void ConEstablished(const TcpSocket* const pTcpSocket);
-	void DatenEmpfangen(const TcpSocket* const pTcpSocket);
-    void Closeing(const BaseSocket* const pTcpSocket);
-    void PumpThread();
+    int DatenEncode(const void* buffer, uint32_t nAnzahl);
+    int DatenDecode(const char* buffer, uint32_t nAnzahl);
 
     static const string& fnFoarwarder(void* obj) { return static_cast<SslTcpSocket*>(obj)->GetInterfaceAddr(); }
 
@@ -59,24 +50,9 @@ private:
     SslClientContext m_pClientCtx;
     vector<SslServerContext>  m_pServerCtx;
     SslConnetion*    m_pSslCon;
-    function<void(TcpSocket*)> m_fBytesRecived;
-    function<void(BaseSocket*)> m_fCloseing;
     function<void(TcpSocket*)> m_fClientConneted;
-    thread           m_thPumpSsl;
-
-    mutex            m_mxTmpDeque;
-    deque<DATA>      m_quTmpData;
-    atomic<uint32_t> m_atTmpBytes;
-
-    mutex            m_mxInDeque;
-    deque<DATA>      m_quInData;
-    atomic<uint32_t> m_atInBytes;
-    mutex            m_mxOutDeque;
-    deque<DATA>      m_quOutData;
-    atomic<uint32_t> m_atOutBytes;
 
     int              m_iShutDownReceive;
-    bool             m_bStopThread;
     bool             m_bCloseReq;
     int              m_iShutDown;
 
