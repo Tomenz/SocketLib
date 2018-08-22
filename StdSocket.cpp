@@ -265,6 +265,7 @@ BaseSocket::BaseSocket(BaseSocket* pBaseSocket) : m_fSock(INVALID_SOCKET), m_bSt
     ++s_atRefCount;
 
     swap(m_fSock, pBaseSocket->m_fSock);
+    swap(m_fError, pBaseSocket->m_fError);
     swap(m_fCloseing, pBaseSocket->m_fCloseing);
     m_iShutDownState.exchange(pBaseSocket->m_iShutDownState);
 }
@@ -660,7 +661,7 @@ void TcpSocket::WriteThread()
         if (m_bCloseReq == false && m_atOutBytes == 0)
             m_cv.wait(lock, [&]() { return m_atOutBytes == 0 ? m_bCloseReq : true; });
 
-        while (m_atOutBytes != 0)
+        if (m_atOutBytes != 0)
         {
             fd_set writefd, errorfd;
             struct timeval timeout;
@@ -674,7 +675,10 @@ void TcpSocket::WriteThread()
             FD_SET(m_fSock, &errorfd);
 
             if (::select(static_cast<int>(m_fSock + 1), nullptr, &writefd, &errorfd, &timeout) == 0)
-                continue;
+            {
+                if (m_bCloseReq == false) continue;
+                break;
+            }
 
             if (FD_ISSET(m_fSock, &errorfd))
             {
@@ -1541,7 +1545,7 @@ void UdpSocket::WriteThread()
         if (m_bCloseReq == false && m_atOutBytes == 0)
             m_cv.wait(lock, [&]() { return m_atOutBytes == 0 ? m_bCloseReq : true; });
 
-        while (m_atOutBytes != 0)
+        if (m_atOutBytes != 0)
         {
             fd_set writefd, errorfd;
             struct timeval timeout;
@@ -1555,7 +1559,10 @@ void UdpSocket::WriteThread()
             FD_SET(m_fSock, &errorfd);
 
             if (::select(static_cast<int>(m_fSock + 1), nullptr, &writefd, &errorfd, &timeout) == 0)
-                continue;
+            {
+                if (m_bCloseReq == false) continue;
+                break;
+            }
 
             if (FD_ISSET(m_fSock, &errorfd))
             {
@@ -1628,7 +1635,7 @@ void UdpSocket::WriteThread()
     }
 
     lock.unlock();
-    
+
     // if we get out of the while loop, the stop request was send or we have an error
     if (m_iError == 0)
     {

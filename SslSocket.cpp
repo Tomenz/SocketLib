@@ -86,8 +86,23 @@ bool SslTcpSocket::SetAcceptState()
         delete m_pSslCon;
 
     m_pSslCon = new SslConnetion(m_pServerCtx.front());
+    m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocket::Close, this)));
+    m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocket::fnFoarwarder));
+    m_pSslCon->SetUserData(1, this);
 
     SSL_set_accept_state((*m_pSslCon)());
+
+    m_mxInDeque.lock();
+    while (m_quInData.size() != 0)
+    {
+        DATA data = move(m_quInData.front());
+        m_quInData.pop_front();
+
+        uint32_t nToCopy = BUFLEN(data);
+        m_atInBytes -= nToCopy;
+        DatenDecode(reinterpret_cast<char*>(BUFFER(data).get()), nToCopy);
+    }
+    m_mxInDeque.unlock();
 
     return true;
 }
