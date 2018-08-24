@@ -80,6 +80,11 @@ bool SslTcpSocket::AddServerCertificat(const char* szCAcertificate, const char* 
     return true;
 }
 
+bool SslTcpSocket::SetCipher(const char* const szCipher)
+{
+    return m_pServerCtx.back().SetCipher(szCipher);
+}
+
 bool SslTcpSocket::SetAcceptState()
 {
     if (m_pSslCon != nullptr)
