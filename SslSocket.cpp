@@ -379,10 +379,10 @@ int SslTcpSocket::DatenDecode(const char* buffer, uint32_t nAnzahl)
             m_quInData.emplace_back(tmp, len);
             m_atInBytes += len;
             m_mxInDeque.unlock();
+            iReturn = 1;
 
             len = m_pSslCon->SslRead(Buffer.get(), 0x0000ffff, &iErrorHint); // get receive data from the SSL layer, and put it into the unencrypted receive Que
         }
-        iReturn = 1;
 
         unique_lock<mutex> lock(m_mxOutDeque);
         bool bNewData = false;
