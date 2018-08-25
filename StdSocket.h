@@ -116,7 +116,7 @@ public:
 
     const string& GetClientAddr() const noexcept { return m_strClientAddr; }
     uint16_t GetClientPort() const noexcept { return m_sClientPort; }
-    const string& GetInterfaceAddr() const noexcept { return m_strClientAddr; }
+    const string& GetInterfaceAddr() const noexcept { return m_strIFaceAddr; }
     uint16_t GetInterfacePort() const noexcept { return m_sIFacePort; }
 
     const TcpServer* GetServerSocketRef() const noexcept { return m_pRefServSocket; }
