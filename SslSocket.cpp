@@ -455,15 +455,26 @@ SslTcpSocket* const SslTcpServer::MakeClientConnection(const SOCKET& fSock)
 bool SslTcpServer::AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey)
 {
     m_SslCtx.emplace_back(SslServerContext());
-    m_SslCtx.back().SetCertificates(szCAcertificate, szHostCertificate, szHostKey);
-
+    int iRet = m_SslCtx.back().SetCertificates(szCAcertificate, szHostCertificate, szHostKey);
+    if (iRet != 1)
+    {
+        OutputDebugString(wstring(L"Certification could not be loaded, error: " + to_wstring(iRet) + L"\r\n").c_str());
+        m_SslCtx.pop_back();
+        return false;
+    }
     m_SslCtx.back().AddVirtualHost(&m_SslCtx);
     return true;
 }
 
 bool SslTcpServer::SetDHParameter(const char* const szDhParamFileName)
 {
-    return m_SslCtx.back().SetDhParamFile(szDhParamFileName);
+    bool bRet = m_SslCtx.back().SetDhParamFile(szDhParamFileName);
+    if (bRet == false)
+    {
+        OutputDebugString(wstring(L"DH File could not be loaded\r\n").c_str());
+        m_SslCtx.pop_back();
+    }
+    return bRet;
 }
 
 bool SslTcpServer::SetCipher(const char* const szCipher)

@@ -686,9 +686,10 @@ void TcpSocket::WriteThread()
                 {
                     socklen_t iLen = sizeof(m_iError);
                     getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
-
+                    lock.unlock();
                     if (m_fError && m_bStop == false)
                         m_fError(this);
+                    lock.lock();
                 }
                 break;
             }
@@ -706,8 +707,10 @@ void TcpSocket::WriteThread()
                 if (iError != WSAEWOULDBLOCK)
                 {
                     m_iError = iError;
+                    lock.unlock();
                     if (m_fError && m_bStop == false)
                         m_fError(this);
+                    lock.lock();
                     break;
                 }
                 // Put the not send bytes back into the que if it is not a SSL connection. A SSL connection has the bytes still available

@@ -360,7 +360,7 @@ namespace OpenSSLWrapper
 
     int SslServerContext::ALPN_CB(SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in, unsigned int inlen, void *arg)
     {
-        const static vector<string> vProtos = { { "h2" },{ "h2-16" },{ "h2-15" },{ "h2-14" },{ "http/1.1" } };
+        const static vector<string> vProtos = { { "h2" },/*{ "h2-16" },{ "h2-15" },{ "h2-14" },*/{ "http/1.1" } };
 
         for (auto& strProt : vProtos)
         {
@@ -632,6 +632,8 @@ if (iRead != SSL_ERROR_WANT_READ && iRead != SSL_ERROR_ZERO_RETURN)
                 break;
             case SSL_ERROR_SYSCALL:
                 iRead = errno;
+                if (iRead == 0 && ERR_peek_error() == 0)    // if errno and ERR_peack_error are both 0, we not having really an error, and give it a other shoot
+                    break;
             default:
 OutputDebugStringA(string(GetSslErrAsString() + "\r\nerrno = " + to_string(iRead) + "\r\n").c_str());
                 m_iShutDownFlag = 1;
