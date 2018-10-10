@@ -364,18 +364,20 @@ namespace OpenSSLWrapper
 
         for (auto& strProt : vProtos)
         {
-            for (unsigned int i = 0; i < inlen; ++i)
+            const unsigned char* inTmp = in;
+            for (unsigned int i = 0; i < inlen;)
             {
-                int nLen = *in++;
-                string strProtokoll(reinterpret_cast<const char*>(in), nLen);
+                int nLen = *inTmp++;
+                string strProtokoll(reinterpret_cast<const char*>(inTmp), nLen);
                 transform(begin(strProtokoll), end(strProtokoll), begin(strProtokoll), ::tolower);
 
                 if (strProtokoll == strProt)
                 {
-                    *out = in, *outlen = nLen;
+                    *out = inTmp, *outlen = nLen;
                     return 0;
                 }
-                in += nLen;
+                inTmp += nLen;
+                i += nLen + 1;
             }
         }
 
