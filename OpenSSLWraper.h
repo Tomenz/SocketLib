@@ -62,6 +62,9 @@ namespace OpenSSLWrapper
         SslContext& operator=(SslContext&&) = delete;
         SslContext& operator=(const SslContext&) = delete;
 
+        int SetCertificates(const char* szHostCertificate, const char* szHostKey);
+        string& GetCertCommonName() noexcept;
+
 #ifdef _DEBUG
     private:
         static void SSLInfo(const SSL *ssl, int type, int val);
@@ -70,6 +73,7 @@ namespace OpenSSLWrapper
 
     protected:
         SSL_CTX* m_ctx;
+        string   m_strCertComName;
     };
 
     class SslClientContext : public SslContext
@@ -88,7 +92,6 @@ namespace OpenSSLWrapper
     {
     public:
         explicit SslServerContext();
-        string& GetCertCommonName() noexcept;
         int SetCertificates(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey);
         void AddVirtualHost(vector<SslServerContext>* pSslCtx);
         bool SetDhParamFile(const char* const szDhParamFile);
@@ -108,7 +111,6 @@ namespace OpenSSLWrapper
         static int SNI_CB(SSL *ssl, char iCmd, void* arg);
 
     private:
-        string m_strCertComName;
         vector<string> m_vstrAltNames;
     };
 
@@ -116,11 +118,8 @@ namespace OpenSSLWrapper
     {
     public:
         SslUdpContext();
-        int SetCertificates(const char* szHostCertificate, const char* szHostKey);
     private:
         static int verify_callback(int preverify_ok, X509_STORE_CTX *ctx);
-    private:
-        string m_strCertComName;
     };
 
     class SslConnetion

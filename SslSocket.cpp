@@ -9,8 +9,6 @@
 *
 */
 
-#ifndef SSLSOCKET
-#define SSLSOCKET
 #include <functional>
 #include <string>
 
@@ -78,6 +76,11 @@ bool SslTcpSocket::AddServerCertificat(const char* szCAcertificate, const char* 
     m_pServerCtx.back().AddVirtualHost(&m_pServerCtx);
 
     return true;
+}
+
+bool SslTcpSocket::AddCertificat(const char* const szHostCertificate, const char* const szHostKey)
+{
+    return (m_pClientCtx.SetCertificates(szHostCertificate, szHostKey) < 0) ? false : true;
 }
 
 bool SslTcpSocket::SetCipher(const char* const szCipher)
@@ -857,5 +860,3 @@ int SslUdpSocket::DatenDecode(const char* buffer, uint32_t nAnzahl, const string
 
     return iReturn;
 }
-
-#endif

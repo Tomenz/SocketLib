@@ -12,9 +12,10 @@
 #ifndef STDSOCKET
 #define STDSOCKET
 
-#include <thread>
-#include <future>
+#include <vector>
 #include <deque>
+#include <mutex>
+#include <atomic>
 
 #if defined (_WIN32) || defined (_WIN64)
 // https://support.microsoft.com/de-de/kb/257460
@@ -237,4 +238,4 @@ private:
     function<void(UdpSocket*)> m_fBytesRecived;
 };
 
-#endif
+#endif  // #ifndef STDSOCKET

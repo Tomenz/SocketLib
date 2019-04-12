@@ -9,8 +9,8 @@
 *
 */
 #pragma once
-
-#include <vector>
+#ifndef SSLSOCKET
+#define SSLSOCKET
 
 #include "StdSocket.h"
 #include "OpenSSLWraper.h"
@@ -26,6 +26,7 @@ public:
     explicit SslTcpSocket(TcpSocket* pTcpSocket);
     virtual ~SslTcpSocket();
     bool AddServerCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName);
+    bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
     bool SetCipher(const char* const szCipher);
     bool SetAcceptState();
     bool Connect(const char* const szIpToWhere, const uint16_t sPort) override;
@@ -100,3 +101,5 @@ private:
 
 //    static mutex     s_mxSslInfo;
 };
+
+#endif  // #ifndef SSLSOCKET
