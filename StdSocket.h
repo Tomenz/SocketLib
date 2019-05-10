@@ -32,7 +32,7 @@
 
 using namespace std;
 
-class TcpServer;
+#include "SocketLib.h"
 
 class InitSocket
 {
@@ -59,10 +59,11 @@ private:
     function<void(bool, const string&, int, int)> m_fnCbAddrNotify;
 };
 
-class BaseSocket
+class BaseSocketImpl
 {
 public:
-    explicit BaseSocket();
+    explicit BaseSocketImpl();
+    virtual ~BaseSocketImpl();
     virtual void Close() = 0;
     virtual void SelfDestroy() = 0;
     virtual function<void(BaseSocket*)> BindErrorFunction(function<void(BaseSocket*)> fError) noexcept;
@@ -71,36 +72,38 @@ public:
     virtual void SetErrorNo(int iErrNo) noexcept { m_iError = iErrNo; }
     virtual uint16_t GetSocketPort();
     static int EnumIpAddresses(function<int(int,const string&,int,void*)> fnCallBack, void* vpUser);
+    static void SetAddrNotifyCallback(function<void(bool, const string&, int, int)>& fnCbAddrNotify);
 
 protected:
-    explicit BaseSocket(BaseSocket* pBaseSocket);
-    virtual ~BaseSocket();
+    explicit BaseSocketImpl(BaseSocketImpl* pBaseSocket);
     virtual void SetSocketOption(const SOCKET& fd);
     virtual void OnError();
     virtual void StartCloseingCB();
 
 protected:
-    SOCKET m_fSock;
-    thread m_thListen;
-    thread m_thWrite;
-    bool   m_bStop;
-    int    m_iError;
+    SOCKET						m_fSock;
+    thread						m_thListen;
+    thread						m_thWrite;
+    bool						m_bStop;
+    int							m_iError;
     atomic_uchar                m_iShutDownState;
     function<void(BaseSocket*)> m_fError;
     function<void(BaseSocket*)> m_fCloseing;
-    mutex  m_mxFnClosing;
+    mutex						m_mxFnClosing;
+    BaseSocket*					m_pBkRef;
 
 private:
     static atomic_uint s_atRefCount;
 };
 
-class TcpSocket : public BaseSocket
+class TcpSocketImpl : public BaseSocketImpl
 {
 protected:
     typedef tuple<shared_ptr<uint8_t>, uint32_t> DATA;
 
 public:
-    TcpSocket();
+    TcpSocketImpl(BaseSocket* pBkRef);
+    virtual ~TcpSocketImpl();
     virtual bool Connect(const char* const szIpToWhere, const uint16_t sPort);
     virtual uint32_t Read(void* buf, uint32_t len);
     virtual uint32_t PutBackRead(void* buf, uint32_t len);
@@ -123,18 +126,18 @@ public:
     const TcpServer* GetServerSocketRef() const noexcept { return m_pRefServSocket; }
 
 protected:
-    friend TcpServer;
-    explicit TcpSocket(const SOCKET, const TcpServer* pRefServSocket);
-    explicit TcpSocket(TcpSocket* pTcpSocket);
-    virtual ~TcpSocket();
+    friend TcpServerImpl;   // The Server class needs access to the private constructor in the next line
+    explicit TcpSocketImpl(const SOCKET, const TcpServer* pRefServSocket);
+    explicit TcpSocketImpl(BaseSocket* pBkRef, TcpSocketImpl* pTcpSocketImpl);
     virtual void SetSocketOption(const SOCKET& fd);
     void TriggerWriteThread();
+    void BindFuncConEstablished(function<void(TcpSocketImpl*)> fClientConneted) noexcept;
+    bool GetConnectionInfo();
 
 private:
     void WriteThread();
     void SelectThread();
     void ConnectThread();
-    bool GetConnectionInfo();
 
 protected:
     function<int(const char*, uint32_t)> m_fnSslDecode;
@@ -164,12 +167,14 @@ private:
 
     function<void(TcpSocket*)> m_fBytesRecived;
     function<void(TcpSocket*)> m_fClientConneted;
+    function<void(TcpSocketImpl*)> m_fClientConnetedSsl;
 };
 
-class TcpServer : public BaseSocket
+class TcpServerImpl : public BaseSocketImpl
 {
 public:
-    virtual ~TcpServer();
+    TcpServerImpl(BaseSocket* pBkRef);
+    virtual ~TcpServerImpl();
     bool Start(const char* const szIpAddr, const short sPort);
     unsigned short GetServerPort();
     void BindNewConnection(const function<void(const vector<TcpSocket*>&)>&) noexcept;
@@ -193,14 +198,14 @@ private:
     function<void(const vector<TcpSocket*>&)> m_fNewConnection;
 };
 
-class UdpSocket : public BaseSocket
+class UdpSocketImpl : public BaseSocketImpl
 {
 protected:
     typedef tuple<shared_ptr<uint8_t>, uint32_t, string> DATA;
 
 public:
-    explicit UdpSocket();
-    virtual ~UdpSocket();
+    explicit UdpSocketImpl(BaseSocket* pBkRef);
+    virtual ~UdpSocketImpl();
     virtual bool Create(const char* const szIpToWhere, const short sPort, const char* const szIpToBind = nullptr);
     virtual bool EnableBroadCast(bool bEnable = true);
     virtual bool AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);

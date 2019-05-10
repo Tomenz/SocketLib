@@ -167,11 +167,13 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="OpenSSLWraper.cpp" />
+    <ClCompile Include="SocketLip.cpp" />
     <ClCompile Include="SslSocket.cpp" />
     <ClCompile Include="StdSocket.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="OpenSSLWraper.h" />
+    <ClInclude Include="SocketLib.h" />
     <ClInclude Include="SslSocket.h" />
     <ClInclude Include="StdSocket.h" />
   </ItemGroup>

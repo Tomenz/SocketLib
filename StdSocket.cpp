@@ -92,7 +92,7 @@ InitSocket::InitSocket()
     sigemptyset(&sigset);
     sigaddset(&sigset, SIGPIPE);
     sigprocmask(SIG_BLOCK, &sigset, NULL);
-    BaseSocket::EnumIpAddresses(bind(&InitSocket::CbEnumIpAdressen, this, placeholders::_1, placeholders::_2, placeholders::_3, placeholders::_4), &m_vCurIPAddr);
+    BaseSocketImpl::EnumIpAddresses(bind(&InitSocket::CbEnumIpAdressen, this, placeholders::_1, placeholders::_2, placeholders::_3, placeholders::_4), &m_vCurIPAddr);
     m_bStopThread = false;
     m_thIpChange = thread(&InitSocket::IpChangeThread, this);
 #endif
@@ -105,7 +105,7 @@ VOID __stdcall InitSocket::IpIfaceChanged(PVOID CallerContext, PMIB_IPINTERFACE_
 
     function<int(int, const string&, int, void*)> fnCb = bind(&InitSocket::CbEnumIpAdressen, pThis, placeholders::_1, placeholders::_2, placeholders::_3, placeholders::_4);
     vector<tuple<string, int, int>> vNewIPAddr;
-    BaseSocket::EnumIpAddresses(fnCb, &vNewIPAddr);
+    BaseSocketImpl::EnumIpAddresses(fnCb, &vNewIPAddr);
     pThis->NotifyOnAddressChanges(vNewIPAddr);
 
     switch (NotificationType)
@@ -193,7 +193,7 @@ void InitSocket::IpChangeThread()
                             if_indextoname(ifa->ifa_index, name);
                             */
                             vector<tuple<string, int, int>> vNewIPAddr;
-                            BaseSocket::EnumIpAddresses(bind(&InitSocket::CbEnumIpAdressen, this, placeholders::_1, placeholders::_2, placeholders::_3, placeholders::_4), &vNewIPAddr);
+                            BaseSocketImpl::EnumIpAddresses(bind(&InitSocket::CbEnumIpAdressen, this, placeholders::_1, placeholders::_2, placeholders::_3, placeholders::_4), &vNewIPAddr);
                             NotifyOnAddressChanges(vNewIPAddr);
                         }
                         nlh = NLMSG_NEXT(nlh, transferred);
@@ -253,14 +253,14 @@ void InitSocket::NotifyOnAddressChanges(vector<tuple<string, int, int>>& vNewLis
     }
 }
 
-atomic_uint BaseSocket::s_atRefCount(0);
+atomic_uint BaseSocketImpl::s_atRefCount(0);
 
-BaseSocket::BaseSocket() : m_fSock(INVALID_SOCKET), m_bStop(false), m_iError(0), m_iShutDownState(0), m_fError(bind(&BaseSocket::OnError, this))
+BaseSocketImpl::BaseSocketImpl() : m_fSock(INVALID_SOCKET), m_bStop(false), m_iError(0), m_iShutDownState(0), m_fError(bind(&BaseSocketImpl::OnError, this)), m_pBkRef(nullptr)
 {
     ++s_atRefCount;
 }
 
-BaseSocket::BaseSocket(BaseSocket* pBaseSocket) : m_fSock(INVALID_SOCKET), m_bStop(pBaseSocket->m_bStop), m_iError(pBaseSocket->m_iError), m_iShutDownState(0), m_fError(bind(&BaseSocket::OnError, this))
+BaseSocketImpl::BaseSocketImpl(BaseSocketImpl* pBaseSocket) : m_fSock(INVALID_SOCKET), m_bStop(pBaseSocket->m_bStop), m_iError(pBaseSocket->m_iError), m_iShutDownState(0), m_fError(bind(&BaseSocketImpl::OnError, this)), m_pBkRef(nullptr)
 {
     ++s_atRefCount;
 
@@ -270,7 +270,7 @@ BaseSocket::BaseSocket(BaseSocket* pBaseSocket) : m_fSock(INVALID_SOCKET), m_bSt
     m_iShutDownState.exchange(pBaseSocket->m_iShutDownState);
 }
 
-BaseSocket::~BaseSocket()
+BaseSocketImpl::~BaseSocketImpl()
 {
     if (m_thListen.joinable() == true)
         m_thListen.join();
@@ -280,19 +280,19 @@ BaseSocket::~BaseSocket()
     --s_atRefCount;
 }
 
-function<void(BaseSocket*)> BaseSocket::BindErrorFunction(function<void(BaseSocket*)> fError) noexcept
+function<void(BaseSocket*)> BaseSocketImpl::BindErrorFunction(function<void(BaseSocket*)> fError) noexcept
 {
     m_fError.swap(fError);
     return fError;
 }
 
-function<void(BaseSocket*)> BaseSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept
+function<void(BaseSocket*)> BaseSocketImpl::BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept
 {
     m_fCloseing.swap(fCloseing);
     return fCloseing;
 }
 
-void BaseSocket::SetSocketOption(const SOCKET& fd)
+void BaseSocketImpl::SetSocketOption(const SOCKET& fd)
 {
     SOCKOPT rc = 1;
     if (::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &rc, static_cast<int>(sizeof(rc))) != 0)
@@ -309,12 +309,12 @@ void BaseSocket::SetSocketOption(const SOCKET& fd)
 #endif
 }
 
-void BaseSocket::OnError()
+void BaseSocketImpl::OnError()
 {
     Close();
 }
 
-void BaseSocket::StartCloseingCB()
+void BaseSocketImpl::StartCloseingCB()
 {
     m_mxFnClosing.lock();
     if (m_fCloseing)
@@ -322,13 +322,13 @@ void BaseSocket::StartCloseingCB()
         function<void(BaseSocket*)> tmpfun;
         m_fCloseing.swap(tmpfun);
         m_mxFnClosing.unlock();
-        tmpfun(this);
+        tmpfun(m_pBkRef);
     }
     else
         m_mxFnClosing.unlock();
 }
 
-uint16_t BaseSocket::GetSocketPort()
+uint16_t BaseSocketImpl::GetSocketPort()
 {
     struct sockaddr_storage addrPe;
     socklen_t addLen = sizeof(addrPe);
@@ -345,7 +345,7 @@ uint16_t BaseSocket::GetSocketPort()
     return 0;
 }
 
-int BaseSocket::EnumIpAddresses(function<int(int, const string&, int, void*)> fnCallBack, void* vpUser)
+int BaseSocketImpl::EnumIpAddresses(function<int(int, const string&, int, void*)> fnCallBack, void* vpUser)
 {
 #if defined(_WIN32) || defined(_WIN64)
     ULONG outBufLen = 16384;
@@ -420,15 +420,21 @@ int BaseSocket::EnumIpAddresses(function<int(int, const string&, int, void*)> fn
     return ret;
 }
 
+void BaseSocketImpl::SetAddrNotifyCallback(function<void(bool, const string&, int, int)>& fnCbAddrNotify)
+{
+    InitSocket::GetInstance()->SetAddrNotifyCallback(fnCbAddrNotify);
+}
+
 //************************************************************************************
 
-TcpSocket::TcpSocket() : m_bCloseReq(false), m_pRefServSocket(nullptr), m_bSelfDelete(false)
+TcpSocketImpl::TcpSocketImpl(BaseSocket* pBkRef) : m_bCloseReq(false), m_sClientPort(0), m_sIFacePort(0), m_pRefServSocket(nullptr), m_bSelfDelete(false)
 {
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
+    m_pBkRef = pBkRef;
 }
 
-TcpSocket::TcpSocket(const SOCKET fSock, const TcpServer* pRefServSocket) : m_bCloseReq(false), m_pRefServSocket(pRefServSocket), m_bSelfDelete(false)
+TcpSocketImpl::TcpSocketImpl(const SOCKET fSock, const TcpServer* pRefServSocket) : m_bCloseReq(false), m_sClientPort(0), m_sIFacePort(0), m_pRefServSocket(pRefServSocket), m_bSelfDelete(false)
 {
     m_fSock = fSock;
 
@@ -436,35 +442,37 @@ TcpSocket::TcpSocket(const SOCKET fSock, const TcpServer* pRefServSocket) : m_bC
     atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
 
     m_iShutDownState = 3;
-    m_thWrite = thread(&TcpSocket::WriteThread, this);
+    m_thWrite = thread(&TcpSocketImpl::WriteThread, this);
 }
 
-TcpSocket::TcpSocket(TcpSocket* pTcpSocket) : BaseSocket(pTcpSocket), m_bCloseReq(pTcpSocket->m_bCloseReq), m_pRefServSocket(pTcpSocket->m_pRefServSocket), m_bSelfDelete(pTcpSocket->m_bSelfDelete)
+TcpSocketImpl::TcpSocketImpl(BaseSocket* pBkRef, TcpSocketImpl* pTcpSocketImpl) : BaseSocketImpl(pTcpSocketImpl), m_bCloseReq(pTcpSocketImpl->m_bCloseReq), m_pRefServSocket(pTcpSocketImpl->m_pRefServSocket), m_bSelfDelete(pTcpSocketImpl->m_bSelfDelete)
 {
-    pTcpSocket->m_pRefServSocket = 0;
+    pTcpSocketImpl->m_pRefServSocket = 0;
 
-    swap(m_quInData, pTcpSocket->m_quInData);
-    m_atInBytes.exchange(pTcpSocket->m_atInBytes);
-    atomic_init(&pTcpSocket->m_atInBytes, static_cast<uint32_t>(0));
-    swap(m_quOutData, pTcpSocket->m_quOutData);
-    m_atOutBytes.exchange(pTcpSocket->m_atOutBytes);
-    atomic_init(&pTcpSocket->m_atOutBytes, static_cast<uint32_t>(0));
+    swap(m_quInData, pTcpSocketImpl->m_quInData);
+    m_atInBytes.exchange(pTcpSocketImpl->m_atInBytes);
+    atomic_init(&pTcpSocketImpl->m_atInBytes, static_cast<uint32_t>(0));
+    swap(m_quOutData, pTcpSocketImpl->m_quOutData);
+    m_atOutBytes.exchange(pTcpSocketImpl->m_atOutBytes);
+    atomic_init(&pTcpSocketImpl->m_atOutBytes, static_cast<uint32_t>(0));
 
-    swap(m_strClientAddr, pTcpSocket->m_strClientAddr);
-    swap(m_sClientPort, pTcpSocket->m_sClientPort);
-    swap(m_strIFaceAddr, pTcpSocket->m_strIFaceAddr);
-    swap(m_sIFacePort, pTcpSocket->m_sIFacePort);
+    swap(m_strClientAddr, pTcpSocketImpl->m_strClientAddr);
+    swap(m_sClientPort, pTcpSocketImpl->m_sClientPort);
+    swap(m_strIFaceAddr, pTcpSocketImpl->m_strIFaceAddr);
+    swap(m_sIFacePort, pTcpSocketImpl->m_sIFacePort);
 
-    swap(m_fBytesRecived, pTcpSocket->m_fBytesRecived);
-    swap(m_fClientConneted, pTcpSocket->m_fClientConneted);
+    swap(m_fBytesRecived, pTcpSocketImpl->m_fBytesRecived);
+    swap(m_fClientConneted, pTcpSocketImpl->m_fClientConneted);
+    swap(m_fClientConnetedSsl, pTcpSocketImpl->m_fClientConnetedSsl);
 
     m_iShutDownState = 3;
-    m_thWrite = thread(&TcpSocket::WriteThread, this);
+    m_thWrite = thread(&TcpSocketImpl::WriteThread, this);
+	m_pBkRef = pBkRef;
 }
 
-TcpSocket::~TcpSocket()
+TcpSocketImpl::~TcpSocketImpl()
 {
-    //OutputDebugString(L"TcpSocket::~TcpSocket\r\n");
+    //OutputDebugString(L"TcpSocketImpl::~TcpSocketImpl\r\n");
     m_bStop = true; // Stops the listening thread
     bool bIsLocked = m_mxWrite.try_lock();
     m_bCloseReq = true;
@@ -483,11 +491,11 @@ TcpSocket::~TcpSocket()
 
         lock_guard<mutex> lock(m_mxFnClosing);
         if (m_fCloseing)
-            m_fCloseing(this);
+            m_fCloseing(m_pBkRef);
     }
 }
 
-bool TcpSocket::Connect(const char* const szIpToWhere, const uint16_t sPort)
+bool TcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort)
 {
     if (m_fSock != INVALID_SOCKET)
     {
@@ -531,17 +539,19 @@ bool TcpSocket::Connect(const char* const szIpToWhere, const uint16_t sPort)
                 throw m_iError;
 
             m_iError = 0;
-            m_thConnect = thread(&TcpSocket::ConnectThread, this);
+            m_thConnect = thread(&TcpSocketImpl::ConnectThread, this);
         }
         else
         {
             GetConnectionInfo();
 
-            m_thListen = thread(&TcpSocket::SelectThread, this);
-            m_thWrite = thread(&TcpSocket::WriteThread, this);
+            m_thListen = thread(&TcpSocketImpl::SelectThread, this);
+            m_thWrite = thread(&TcpSocketImpl::WriteThread, this);
 
             if (m_fClientConneted)
-                m_fClientConneted(this);
+                m_fClientConneted(reinterpret_cast<TcpSocket*>(m_pBkRef));
+            if (m_fClientConnetedSsl)
+                m_fClientConnetedSsl(nullptr);
         }
     }
 
@@ -560,16 +570,16 @@ bool TcpSocket::Connect(const char* const szIpToWhere, const uint16_t sPort)
     return bRet;
 }
 
-void TcpSocket::SetSocketOption(const SOCKET& fd)
+void TcpSocketImpl::SetSocketOption(const SOCKET& fd)
 {
-    BaseSocket::SetSocketOption(fd);
+    BaseSocketImpl::SetSocketOption(fd);
 
     SOCKOPT rc = 1;
     if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &rc, sizeof(rc)) == -1)
         throw WSAGetLastError();
 }
 
-uint32_t TcpSocket::Read(void* buf, uint32_t len)
+uint32_t TcpSocketImpl::Read(void* buf, uint32_t len)
 {
     if (m_atInBytes == 0)
         return 0;
@@ -608,7 +618,7 @@ uint32_t TcpSocket::Read(void* buf, uint32_t len)
     return nRet;
 }
 
-uint32_t TcpSocket::PutBackRead(void* buf, uint32_t len)
+uint32_t TcpSocketImpl::PutBackRead(void* buf, uint32_t len)
 {
     shared_ptr<uint8_t> tmp(new uint8_t[len]);
     copy(static_cast<const uint8_t*>(buf), static_cast<const uint8_t*>(buf) + len, tmp.get());
@@ -620,13 +630,13 @@ uint32_t TcpSocket::PutBackRead(void* buf, uint32_t len)
     return len;
 }
 
-void TcpSocket::TriggerWriteThread()
+void TcpSocketImpl::TriggerWriteThread()
 {
     unique_lock<mutex> lock(m_mxWrite);
     m_cv.notify_all();
 }
 
-size_t TcpSocket::Write(const void* buf, size_t len)
+size_t TcpSocketImpl::Write(const void* buf, size_t len)
 {
     if (m_bStop == true || m_bCloseReq == true || buf == nullptr || len == 0)
         return 0;
@@ -650,7 +660,7 @@ size_t TcpSocket::Write(const void* buf, size_t len)
     return len;
 }
 
-void TcpSocket::WriteThread()
+void TcpSocketImpl::WriteThread()
 {
     m_iShutDownState &= ~2;
 
@@ -688,7 +698,7 @@ void TcpSocket::WriteThread()
                     getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
                     lock.unlock();
                     if (m_fError && m_bStop == false)
-                        m_fError(this);
+                        m_fError(m_pBkRef);
                     lock.lock();
                 }
                 break;
@@ -709,7 +719,7 @@ void TcpSocket::WriteThread()
                     m_iError = iError;
                     lock.unlock();
                     if (m_fError && m_bStop == false)
-                        m_fError(this);
+                        m_fError(m_pBkRef);
                     lock.lock();
                     break;
                 }
@@ -760,14 +770,14 @@ void TcpSocket::WriteThread()
     }
 }
 
-void TcpSocket::StartReceiving()
+void TcpSocketImpl::StartReceiving()
 {
-    m_thListen = thread(&TcpSocket::SelectThread, this);
+    m_thListen = thread(&TcpSocketImpl::SelectThread, this);
 }
 
-void TcpSocket::Close() noexcept
+void TcpSocketImpl::Close() noexcept
 {
-    //OutputDebugString(L"TcpSocket::Close\r\n");
+    //OutputDebugString(L"TcpSocketImpl::Close\r\n");
     m_bCloseReq = true; // Stops the write thread after the last byte was send
     do
     {
@@ -782,46 +792,51 @@ void TcpSocket::Close() noexcept
         thread([&]() { StartCloseingCB(); }).detach();
 }
 
-void TcpSocket::SelfDestroy() noexcept
+void TcpSocketImpl::SelfDestroy() noexcept
 {
     m_bSelfDelete = true;
     Close();
 }
 
-void TcpSocket::Delete() noexcept
+void TcpSocketImpl::Delete() noexcept
 {
-    thread([&]() { delete this; }).detach();
+    thread([&]() { delete m_pBkRef; }).detach();
 }
 
-uint32_t TcpSocket::GetBytesAvailible() const noexcept
+uint32_t TcpSocketImpl::GetBytesAvailible() const noexcept
 {
     return m_atInBytes;
 }
 
-uint32_t TcpSocket::GetOutBytesInQue() const noexcept
+uint32_t TcpSocketImpl::GetOutBytesInQue() const noexcept
 {
     return m_atOutBytes;
 }
 
-function<void(TcpSocket*)> TcpSocket::BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept
+function<void(TcpSocket*)> TcpSocketImpl::BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept
 {
     m_fBytesRecived.swap(fBytesRecived);
     return fBytesRecived;
 }
 
-function<void(TcpSocket*)> TcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
+function<void(TcpSocket*)> TcpSocketImpl::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
 {
     m_fClientConneted.swap(fClientConneted);
     return fClientConneted;
 }
+void TcpSocketImpl::BindFuncConEstablished(function<void(TcpSocketImpl*)> fClientConneted) noexcept
+{
+    m_fClientConnetedSsl.swap(fClientConneted);
+}
 
-void TcpSocket::SelectThread()
+void TcpSocketImpl::SelectThread()
 {
     m_iShutDownState &= ~1;
 
     bool bReadCall = false;
     mutex mxNotify;
     bool bSocketShutDown = false;
+	auto buf = make_unique<char[]>(0x0000ffff);
 
     while (m_bStop == false)
     {
@@ -849,15 +864,13 @@ void TcpSocket::SelectThread()
                 socklen_t iLen = sizeof(m_iError);
                 getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
                 if (m_fError && m_bStop == false)
-                    m_fError(this);
+                    m_fError(m_pBkRef);
                 break;
             }
 
             if (FD_ISSET(m_fSock, &readfd))
             {
-                char buf[0x0000ffff];
-
-                int32_t transferred = ::recv(m_fSock, buf, sizeof(buf), 0);
+                int32_t transferred = ::recv(m_fSock, buf.get(), 0x0000ffff, 0);
 
                 if (transferred <= 0)
                 {
@@ -873,7 +886,7 @@ void TcpSocket::SelectThread()
                             this_thread::sleep_for(chrono::milliseconds(10));
 
                         if (m_fBytesRecived)
-                            m_fBytesRecived(this);
+                            m_fBytesRecived(reinterpret_cast<TcpSocket*>(m_pBkRef));
                         break;
                     }
                     else
@@ -883,7 +896,7 @@ void TcpSocket::SelectThread()
                         {
                             m_iError = iError;
                             if (m_fError && m_bStop == false)
-                                m_fError(this);
+                                m_fError(m_pBkRef);
                             break;
                         }
                     }
@@ -891,10 +904,10 @@ void TcpSocket::SelectThread()
                 else
                 {
                     int iRet = 0;
-                    if (m_fnSslDecode == nullptr || (iRet = m_fnSslDecode(buf, transferred), iRet == 0))
+                    if (m_fnSslDecode == nullptr || (iRet = m_fnSslDecode(buf.get(), transferred), iRet == 0))
                     {
                         shared_ptr<uint8_t> tmp(new uint8_t[transferred]);
-                        copy(buf, buf + transferred, tmp.get());
+                        copy(buf.get(), buf.get() + transferred, tmp.get());
                         lock_guard<mutex> lock(m_mxInDeque);
                         m_quInData.emplace_back(tmp, transferred);
                         m_atInBytes += transferred;
@@ -912,7 +925,7 @@ void TcpSocket::SelectThread()
                                 while (m_atInBytes > 0 && m_bStop == false)
                                 {
                                     mxNotify.unlock();
-                                    m_fBytesRecived(this);
+                                    m_fBytesRecived(reinterpret_cast<TcpSocket*>(m_pBkRef));
                                     mxNotify.lock();
                                 }
                                 bReadCall = false;
@@ -956,7 +969,7 @@ void TcpSocket::SelectThread()
     }
 }
 
-void TcpSocket::ConnectThread()
+void TcpSocketImpl::ConnectThread()
 {
     while (m_bStop == false)
     {
@@ -980,7 +993,7 @@ void TcpSocket::ConnectThread()
 
                 m_iShutDownState = 7;
                 if (m_fError && m_bStop == false)
-                    m_fError(this);
+                    m_fError(m_pBkRef);
                 break;
             }
 
@@ -988,11 +1001,13 @@ void TcpSocket::ConnectThread()
             {
                 GetConnectionInfo();
 
-                m_thListen = thread(&TcpSocket::SelectThread, this);
-                m_thWrite = thread(&TcpSocket::WriteThread, this);
+                m_thListen = thread(&TcpSocketImpl::SelectThread, this);
+                m_thWrite = thread(&TcpSocketImpl::WriteThread, this);
 
                 if (m_fClientConneted)
-                    m_fClientConneted(this);
+                    m_fClientConneted(reinterpret_cast<TcpSocket*>(m_pBkRef));
+                if (m_fClientConnetedSsl)
+                    m_fClientConnetedSsl(nullptr);
                 break;
             }
         }
@@ -1010,7 +1025,7 @@ void TcpSocket::ConnectThread()
     }
 }
 
-bool TcpSocket::GetConnectionInfo()
+bool TcpSocketImpl::GetConnectionInfo()
 {
     struct sockaddr_storage addrCl;
     socklen_t addLen = sizeof(addrCl);
@@ -1059,7 +1074,12 @@ bool TcpSocket::GetConnectionInfo()
 
 //************************************************************************************
 
-TcpServer::~TcpServer()
+TcpServerImpl::TcpServerImpl(BaseSocket* pBkRef)
+{
+    m_pBkRef = pBkRef;
+}
+
+TcpServerImpl::~TcpServerImpl()
 {
     m_fNewConnection = nullptr;
     m_bStop = true; // Stops the listening thread
@@ -1069,7 +1089,7 @@ TcpServer::~TcpServer()
     Delete();
 }
 
-bool TcpServer::Start(const char* const szIpAddr, const short sPort)
+bool TcpServerImpl::Start(const char* const szIpAddr, const short sPort)
 {
     struct addrinfo *lstAddr, hint = { 0 };
     hint.ai_family = PF_UNSPEC;
@@ -1111,7 +1131,7 @@ bool TcpServer::Start(const char* const szIpAddr, const short sPort)
         }
 
         m_bStop = false;
-        m_thListen = thread(&TcpServer::SelectThread, this);
+        m_thListen = thread(&TcpServerImpl::SelectThread, this);
     }
 
     catch (int iSocketErr)
@@ -1126,7 +1146,7 @@ bool TcpServer::Start(const char* const szIpAddr, const short sPort)
     return bRet;
 }
 
-unsigned short TcpServer::GetServerPort()
+unsigned short TcpServerImpl::GetServerPort()
 {
     struct sockaddr_storage addrPe;
     socklen_t addLen = sizeof(addrPe);
@@ -1143,32 +1163,47 @@ unsigned short TcpServer::GetServerPort()
     return 0;
 }
 
-void TcpServer::Close() noexcept
+void TcpServerImpl::Close() noexcept
 {
     m_fNewConnection = nullptr;
     m_bStop = true; // Stops the listening thread, deletes all Sockets at the end of the listening thread
 }
 
-void TcpServer::SetSocketOption(const SOCKET& fd)
+void TcpServerImpl::SetSocketOption(const SOCKET& fd)
 {
-    BaseSocket::SetSocketOption(fd);
+    BaseSocketImpl::SetSocketOption(fd);
 
     SOCKOPT rc = 1;
     if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &rc, sizeof(rc)) == -1)
         throw WSAGetLastError();
 }
 
-TcpSocket* const TcpServer::MakeClientConnection(const SOCKET& fSock)
+TcpSocket* const TcpServerImpl::MakeClientConnection(const SOCKET& fSock)
 {
-    return new TcpSocket(fSock, this);
+    TcpSocketImpl* pImpl = new TcpSocketImpl(fSock, reinterpret_cast<TcpServer*>(this->m_pBkRef));
+
+    try
+    {
+        pImpl->SetSocketOption(fSock);
+        pImpl->GetConnectionInfo();
+    }
+
+    catch (int iErrNo)
+    {
+        pImpl->SetErrorNo(iErrNo);
+    }
+    auto pTcpSock = new TcpSocket(pImpl);
+    pImpl->m_pBkRef = pTcpSock;
+
+    return pTcpSock;
 }
 
-void TcpServer::BindNewConnection(const function<void(const vector<TcpSocket*>&)>& fNewConnetion) noexcept
+void TcpServerImpl::BindNewConnection(const function<void(const vector<TcpSocket*>&)>& fNewConnetion) noexcept
 {
     m_fNewConnection = fNewConnetion;
 }
 
-void TcpServer::Delete()
+void TcpServerImpl::Delete()
 {
     while (m_vSock.size())
     {
@@ -1185,7 +1220,7 @@ void TcpServer::Delete()
     }
 }
 
-void TcpServer::SelectThread()
+void TcpServerImpl::SelectThread()
 {
     atomic<uint32_t> nNewConCbCount(0);
 
@@ -1245,15 +1280,8 @@ void TcpServer::SelectThread()
                     for (SOCKET sock : vNewSockets)
                     {
                         TcpSocket* pClient = MakeClientConnection(sock);
-                        try
+                        if (pClient->GetErrorNo() != 0)
                         {
-                            pClient->SetSocketOption(sock);
-                            pClient->GetConnectionInfo();
-                        }
-
-                        catch (int iErrNo)
-                        {
-                            pClient->SetErrorNo(iErrNo);
                             if (m_fError)
                                 m_fError(pClient);  // Must call Close() in the error callback
                             else
@@ -1283,13 +1311,14 @@ void TcpServer::SelectThread()
 
 //********************************************************************************
 
-UdpSocket::UdpSocket() : m_bCloseReq(false)
+UdpSocketImpl::UdpSocketImpl(BaseSocket* pBkRef) : m_bCloseReq(false)
 {
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
+    m_pBkRef = pBkRef;
 }
 
-UdpSocket::~UdpSocket()
+UdpSocketImpl::~UdpSocketImpl()
 {
     m_bStop = true; // Stops the listening thread
     bool bIsLocked = m_mxWrite.try_lock();
@@ -1304,11 +1333,11 @@ UdpSocket::~UdpSocket()
         ::closesocket(m_fSock);
 
         if (m_fCloseing)
-            m_fCloseing(this);
+            m_fCloseing(m_pBkRef);
     }
 }
 
-bool UdpSocket::Create(const char* const szIpToWhere, const short sPort, const char* const szIpToBind/* = nullptr*/)
+bool UdpSocketImpl::Create(const char* const szIpToWhere, const short sPort, const char* const szIpToBind/* = nullptr*/)
 {
     struct addrinfo *lstAddr, hint = { 0 };
     hint.ai_family = PF_UNSPEC;
@@ -1354,8 +1383,8 @@ bool UdpSocket::Create(const char* const szIpToWhere, const short sPort, const c
                 throw WSAGetLastError();
         }
 
-        m_thListen = thread(&UdpSocket::SelectThread, this);
-        m_thWrite = thread(&UdpSocket::WriteThread, this);
+        m_thListen = thread(&UdpSocketImpl::SelectThread, this);
+        m_thWrite = thread(&UdpSocketImpl::WriteThread, this);
     }
 
     catch (int iSocketErr)
@@ -1373,7 +1402,7 @@ bool UdpSocket::Create(const char* const szIpToWhere, const short sPort, const c
     return bRet;
 }
 
-bool UdpSocket::EnableBroadCast(bool bEnable/* = true*/)
+bool UdpSocketImpl::EnableBroadCast(bool bEnable/* = true*/)
 {
     int iBroadcast = bEnable == true ? 1 : 0;
     if (::setsockopt(m_fSock, SOL_SOCKET, SO_BROADCAST, (char *)&iBroadcast, sizeof(int)) == SOCKET_ERROR)
@@ -1381,7 +1410,7 @@ bool UdpSocket::EnableBroadCast(bool bEnable/* = true*/)
     return true;
 }
 
-bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex)
+bool UdpSocketImpl::AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex)
 {
     struct addrinfo *lstAddr;
     if (::getaddrinfo(szMulticastIp, nullptr, nullptr, &lstAddr) != 0)
@@ -1431,7 +1460,7 @@ bool UdpSocket::AddToMulticastGroup(const char* const szMulticastIp, const char*
     return true;
 }
 
-bool UdpSocket::RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex)
+bool UdpSocketImpl::RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex)
 {
     struct addrinfo *lstAddr;
     if (::getaddrinfo(szMulticastIp, nullptr, nullptr, &lstAddr) != 0)
@@ -1475,7 +1504,7 @@ bool UdpSocket::RemoveFromMulticastGroup(const char* const szMulticastIp, const 
     return true;
 }
 
-uint32_t UdpSocket::Read(void* buf, uint32_t len, string& strFrom)
+uint32_t UdpSocketImpl::Read(void* buf, uint32_t len, string& strFrom)
 {
     if (m_atInBytes == 0)
         return 0;
@@ -1508,13 +1537,13 @@ uint32_t UdpSocket::Read(void* buf, uint32_t len, string& strFrom)
     return nRet;
 }
 
-void UdpSocket::TriggerWriteThread()
+void UdpSocketImpl::TriggerWriteThread()
 {
     unique_lock<mutex> lock(m_mxWrite);
     m_cv.notify_all();
 }
 
-size_t UdpSocket::Write(const void* buf, size_t len, const string& strTo)
+size_t UdpSocketImpl::Write(const void* buf, size_t len, const string& strTo)
 {
     if (m_bStop == true || m_bCloseReq == true || buf == nullptr || len == 0 || strTo.empty() == true)
         return 0;
@@ -1538,7 +1567,7 @@ size_t UdpSocket::Write(const void* buf, size_t len, const string& strTo)
     return len;
 }
 
-void UdpSocket::WriteThread()
+void UdpSocketImpl::WriteThread()
 {
 
     unique_lock<mutex> lock(m_mxWrite);
@@ -1575,7 +1604,7 @@ void UdpSocket::WriteThread()
                     getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
 
                     if (m_fError && m_bStop == false)
-                        m_fError(this);
+                        m_fError(m_pBkRef);
                 }
                 break;
             }
@@ -1614,7 +1643,7 @@ void UdpSocket::WriteThread()
                 if (m_iError != WSAEWOULDBLOCK)
                 {
                     if (m_fError && m_bStop == false)
-                        m_fError(this);
+                        m_fError(m_pBkRef);
                     break;
                 }
                 // Put the not send bytes back into the que if it is not a SSL connection. A SSL connection has the bytes still available
@@ -1648,7 +1677,7 @@ void UdpSocket::WriteThread()
     m_iShutDownState |= 2;
 }
 
-void UdpSocket::Close() noexcept
+void UdpSocketImpl::Close() noexcept
 {
     m_bCloseReq = true; // Stops the write thread after the last byte was send
     do
@@ -1661,27 +1690,28 @@ void UdpSocket::Close() noexcept
     m_bStop = true; // Stops the listening thread
 }
 
-uint32_t UdpSocket::GetBytesAvailible() const noexcept
+uint32_t UdpSocketImpl::GetBytesAvailible() const noexcept
 {
     return m_atInBytes;
 }
 
-uint32_t UdpSocket::GetOutBytesInQue() const noexcept
+uint32_t UdpSocketImpl::GetOutBytesInQue() const noexcept
 {
     return m_atOutBytes;
 }
 
-function<void(UdpSocket*)> UdpSocket::BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept
+function<void(UdpSocket*)> UdpSocketImpl::BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept
 {
     m_fBytesRecived.swap(fBytesRecived);
     return fBytesRecived;
 }
 
-void UdpSocket::SelectThread()
+void UdpSocketImpl::SelectThread()
 {
     bool bReadCall = false;
     mutex mxNotify;
     bool bSocketShutDown = false;
+	auto buf = make_unique<char[]>(0x0000ffff);
 
     while (m_bStop == false)
     {
@@ -1709,14 +1739,12 @@ void UdpSocket::SelectThread()
                 socklen_t iLen = sizeof(m_iError);
                 getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
                 if (m_fError && m_bStop == false)
-                    m_fError(this);
+                    m_fError(m_pBkRef);
                 break;
             }
 
             if (FD_ISSET(m_fSock, &readfd))
             {
-                char buf[0x0000ffff];
-
                 union
                 {
                     sockaddr_in sin;
@@ -1724,7 +1752,7 @@ void UdpSocket::SelectThread()
                 }SenderAddr;
                 socklen_t sinLen = sizeof(SenderAddr);
 
-                int32_t transferred = ::recvfrom(m_fSock, buf, sizeof(buf), 0, (sockaddr*)&SenderAddr, &sinLen);
+                int32_t transferred = ::recvfrom(m_fSock, buf.get(), 0x0000ffff, 0, (sockaddr*)&SenderAddr, &sinLen);
 
                 if (transferred <= 0)
                 {
@@ -1739,7 +1767,7 @@ void UdpSocket::SelectThread()
                             this_thread::sleep_for(chrono::milliseconds(10));
 
                         if (m_fBytesRecived)
-                            m_fBytesRecived(this);
+                            m_fBytesRecived(reinterpret_cast<UdpSocket*>(m_pBkRef));
                         break;
                     }
                     else
@@ -1748,7 +1776,7 @@ void UdpSocket::SelectThread()
                         if (m_iError != WSAEWOULDBLOCK)
                         {
                             if (m_fError && m_bStop == false)
-                                m_fError(this);
+                                m_fError(m_pBkRef);
                             break;
                         }
                     }
@@ -1769,10 +1797,10 @@ void UdpSocket::SelectThread()
                     }
 
                     int iRet = 0;
-                    if (m_fnSslDecode == nullptr || (iRet = m_fnSslDecode(buf, transferred, strAbsender.str()), iRet == 0))
+                    if (m_fnSslDecode == nullptr || (iRet = m_fnSslDecode(buf.get(), transferred, strAbsender.str()), iRet == 0))
                     {
                         shared_ptr<uint8_t> tmp(new uint8_t[transferred]);
-                        copy(buf, buf + transferred, tmp.get());
+                        copy(buf.get(), buf.get() + transferred, tmp.get());
                         m_mxInDeque.lock();
                         m_quInData.emplace_back(tmp, transferred, strAbsender.str());
                         m_atInBytes += transferred;
@@ -1791,7 +1819,7 @@ void UdpSocket::SelectThread()
                                 while (m_atInBytes > 0 && m_bStop == false)
                                 {
                                     mxNotify.unlock();
-                                    m_fBytesRecived(this);
+                                    m_fBytesRecived(reinterpret_cast<UdpSocket*>(m_pBkRef));
                                     mxNotify.lock();
                                 }
                                 bReadCall = false;

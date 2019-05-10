@@ -17,21 +17,19 @@
 
 using namespace OpenSSLWrapper;
 
-class SslTcpServer;
-
-class SslTcpSocket : public TcpSocket
+class SslTcpSocketImpl : public TcpSocketImpl
 {
 public:
-    explicit SslTcpSocket();
-    explicit SslTcpSocket(TcpSocket* pTcpSocket);
-    virtual ~SslTcpSocket();
+    explicit SslTcpSocketImpl(BaseSocket*);
+    explicit SslTcpSocketImpl(BaseSocket* pBkref, TcpSocketImpl* pTcpSocket);
+    virtual ~SslTcpSocketImpl();
     bool AddServerCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName);
     bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
     bool SetCipher(const char* const szCipher);
     bool SetAcceptState();
     bool Connect(const char* const szIpToWhere, const uint16_t sPort) override;
     void Close() noexcept override;
-    function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept override;
+    function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept;
     bool IsSslConnection() const noexcept override { return true; }
 
     void SetAlpnProtokollNames(vector<string>& vProtoList);
@@ -40,13 +38,13 @@ public:
     long CheckServerCertificate(const char* const szHostName);
 
 private:
-    friend SslTcpServer;
-    explicit SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket);
-    void ConEstablished(const TcpSocket* const pTcpSocket);
+    friend SslTcpServerImpl;    // The Server class needs access to the private constructor in the next line
+    explicit SslTcpSocketImpl(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket);
+    void ConEstablished(const TcpSocketImpl* const pTcpSocket);
     int DatenEncode(const void* buffer, uint32_t nAnzahl);
     int DatenDecode(const char* buffer, uint32_t nAnzahl);
 
-    static const string& fnFoarwarder(void* obj) { return static_cast<SslTcpSocket*>(obj)->GetInterfaceAddr(); }
+    static const string& fnFoarwarder(void* obj) { return static_cast<SslTcpSocketImpl*>(obj)->GetInterfaceAddr(); }
 
 private:
     SslClientContext m_pClientCtx;
@@ -60,9 +58,10 @@ private:
     string           m_strTrustRootCert;
 };
 
-class SslTcpServer : public TcpServer
+class SslTcpServerImpl : public TcpServerImpl
 {
 public:
+    SslTcpServerImpl(BaseSocket*);
     SslTcpSocket* const MakeClientConnection(const SOCKET&);
     bool AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey);
     bool SetDHParameter(const char* const szDhParamFileName);
@@ -72,11 +71,11 @@ private:
     vector<SslServerContext> m_SslCtx;
 };
 
-class SslUdpSocket : public UdpSocket
+class SslUdpSocketImpl : public UdpSocketImpl
 {
 public:
-    explicit SslUdpSocket();
-    virtual ~SslUdpSocket();
+    explicit SslUdpSocketImpl(BaseSocket* pBkRef);
+    virtual ~SslUdpSocketImpl();
     bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
     bool CreateServerSide(const char* const szIpToWhere, const short sPort, const char* const szIpToBind = nullptr);
     bool CreateClientSide(const char* const szIpToWhere, const short sPort, const char* const szDestAddr, const char* const szIpToBind = nullptr);

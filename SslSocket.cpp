@@ -35,30 +35,30 @@ void OutputDebugString(const wchar_t* pOut)
 extern void OutputDebugStringA(const char* pOut);
 #endif
 
-SslTcpSocket::SslTcpSocket() : m_pSslCon(nullptr), m_bCloseReq(false)
+SslTcpSocketImpl::SslTcpSocketImpl(BaseSocket* pBkref) : TcpSocketImpl(pBkref), m_pSslCon(nullptr), m_bCloseReq(false), m_iSslInit(0)
 {
-    m_fnSslEncode = bind(&SslTcpSocket::DatenEncode, this, _1, _2);
-    m_fnSslDecode = bind(&SslTcpSocket::DatenDecode, this, _1, _2);
+    m_fnSslEncode = bind(&SslTcpSocketImpl::DatenEncode, this, _1, _2);
+    m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, this, _1, _2);
 }
 
-SslTcpSocket::SslTcpSocket(TcpSocket* pTcpSocket) : TcpSocket(pTcpSocket), m_pSslCon(nullptr), m_bCloseReq(false)
+SslTcpSocketImpl::SslTcpSocketImpl(BaseSocket* pBkref, TcpSocketImpl* pTcpSocket) : TcpSocketImpl(pBkref, pTcpSocket), m_pSslCon(nullptr), m_bCloseReq(false), m_iSslInit(0)
 {
-    m_fnSslEncode = bind(&SslTcpSocket::DatenEncode, this, _1, _2);
-    m_fnSslDecode = bind(&SslTcpSocket::DatenDecode, this, _1, _2);
+    m_fnSslEncode = bind(&SslTcpSocketImpl::DatenEncode, this, _1, _2);
+    m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, this, _1, _2);
 }
 
-SslTcpSocket::SslTcpSocket(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket) : TcpSocket(fSock, pRefServSocket), m_pSslCon(pSslCon), m_bCloseReq(false)
+SslTcpSocketImpl::SslTcpSocketImpl(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket) : TcpSocketImpl(fSock, pRefServSocket), m_pSslCon(pSslCon), m_bCloseReq(false), m_iSslInit(0)
 {
-    m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocket::Close, this)));
-    m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocket::fnFoarwarder));
+    m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
+    m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnFoarwarder));
     m_pSslCon->SetUserData(1, this);
-    m_fnSslEncode = bind(&SslTcpSocket::DatenEncode, this, _1, _2);
-    m_fnSslDecode = bind(&SslTcpSocket::DatenDecode, this, _1, _2);
+    m_fnSslEncode = bind(&SslTcpSocketImpl::DatenEncode, this, _1, _2);
+    m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, this, _1, _2);
 
     SSL_set_accept_state((*m_pSslCon)());
 }
 
-SslTcpSocket::~SslTcpSocket()
+SslTcpSocketImpl::~SslTcpSocketImpl()
 {
     if (m_iSslInit == 1 && m_pSslCon->GetShutDownFlag() < 1)
         SSL_set_shutdown((*m_pSslCon)(), SSL_SENT_SHUTDOWN | SSL_RECEIVED_SHUTDOWN);
@@ -67,7 +67,7 @@ SslTcpSocket::~SslTcpSocket()
         delete m_pSslCon;
 }
 
-bool SslTcpSocket::AddServerCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName)
+bool SslTcpSocketImpl::AddServerCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName)
 {
     m_pServerCtx.emplace_back(SslServerContext());
     m_pServerCtx.back().SetCertificates(szCAcertificate, szHostCertificate, szHostKey);
@@ -78,24 +78,24 @@ bool SslTcpSocket::AddServerCertificat(const char* szCAcertificate, const char* 
     return true;
 }
 
-bool SslTcpSocket::AddCertificat(const char* const szHostCertificate, const char* const szHostKey)
+bool SslTcpSocketImpl::AddCertificat(const char* const szHostCertificate, const char* const szHostKey)
 {
     return (m_pClientCtx.SetCertificates(szHostCertificate, szHostKey) < 0) ? false : true;
 }
 
-bool SslTcpSocket::SetCipher(const char* const szCipher)
+bool SslTcpSocketImpl::SetCipher(const char* const szCipher)
 {
     return m_pServerCtx.back().SetCipher(szCipher);
 }
 
-bool SslTcpSocket::SetAcceptState()
+bool SslTcpSocketImpl::SetAcceptState()
 {
     if (m_pSslCon != nullptr)
         delete m_pSslCon;
 
     m_pSslCon = new SslConnetion(m_pServerCtx.front());
-    m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocket::Close, this)));
-    m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocket::fnFoarwarder));
+    m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
+    m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnFoarwarder));
     m_pSslCon->SetUserData(1, this);
 
     SSL_set_accept_state((*m_pSslCon)());
@@ -115,23 +115,25 @@ bool SslTcpSocket::SetAcceptState()
     return true;
 }
 
-bool SslTcpSocket::Connect(const char* const szIpToWhere, const uint16_t sPort)
+bool SslTcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort)
 {
     m_pSslCon = new SslConnetion(m_pClientCtx);
-    m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocket::Close, this)));
-    m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocket::fnFoarwarder));
+    m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
+    m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnFoarwarder));
     m_pSslCon->SetUserData(1, this);
+    
+    m_pSslCon->SetSniName(szIpToWhere);
 
     if (m_vProtoList.size() > 0)
         m_pSslCon->SetAlpnProtokollNames(m_vProtoList);
     if (m_strTrustRootCert.size() > 0)
         m_pSslCon->SetTrustedRootCertificates(m_strTrustRootCert.c_str());
 
-    TcpSocket::BindFuncConEstablished(bind(&SslTcpSocket::ConEstablished, this, _1));
-    return TcpSocket::Connect(szIpToWhere, sPort);
+    TcpSocketImpl::BindFuncConEstablished(bind(&SslTcpSocketImpl::ConEstablished, this, _1));
+    return TcpSocketImpl::Connect(szIpToWhere, sPort);
 }
 
-int SslTcpSocket::DatenEncode(const void* buf, uint32_t nAnzahl)
+int SslTcpSocketImpl::DatenEncode(const void* buf, uint32_t nAnzahl)
 {
     if (m_bCloseReq == true)
         return -1;
@@ -157,7 +159,7 @@ OutputDebugString(wstring(L"Bytes written part: " + to_wstring(nWritten) + L" on
                 // Schreibt Daten in die SOCKET
                 //OutputDebugString(wstring(L"    SSL Bytes written: " + to_wstring(len) + L"\r\n").c_str());
                 if (len > 0)
-                {   //TcpSocket::Write(temp.get(), len);
+                {
                     m_atOutBytes += static_cast<uint32_t>(len);
                     m_quOutData.emplace_back(temp, static_cast<uint32_t>(len));
                 }
@@ -191,9 +193,9 @@ OutputDebugString(wstring(L"Bytes written part: " + to_wstring(nWritten) + L" on
     return 0;
 }
 
-void SslTcpSocket::Close() noexcept
+void SslTcpSocketImpl::Close() noexcept
 {
-    //OutputDebugString(L"SslTcpSocket::Close\r\n");
+    //OutputDebugString(L"SslTcpSocketImpl::Close\r\n");
     m_bCloseReq = true;
 
     if (GetErrorNo() == 0)  // We get here not because of an error
@@ -246,16 +248,16 @@ void SslTcpSocket::Close() noexcept
         }
     }
 
-    TcpSocket::Close();
+    TcpSocketImpl::Close();
 }
 
-function<void(TcpSocket*)> SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
+function<void(TcpSocket*)> SslTcpSocketImpl::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
 {
     m_fClientConneted.swap(fClientConneted);
     return fClientConneted;
 }
 
-void SslTcpSocket::ConEstablished(const TcpSocket* const pTcpSocket)
+void SslTcpSocketImpl::ConEstablished(const TcpSocketImpl* const pTcpSocket)
 {
     SSL_set_connect_state((*m_pSslCon)());
 
@@ -295,7 +297,7 @@ void SslTcpSocket::ConEstablished(const TcpSocket* const pTcpSocket)
         TriggerWriteThread();
 }
 
-int SslTcpSocket::DatenDecode(const char* buffer, uint32_t nAnzahl)
+int SslTcpSocketImpl::DatenDecode(const char* buffer, uint32_t nAnzahl)
 {
     if (buffer == nullptr || nAnzahl == 0)
         return 0;
@@ -353,7 +355,7 @@ int SslTcpSocket::DatenDecode(const char* buffer, uint32_t nAnzahl)
                 OutputDebugString(wstring(L"SSL_error: " + to_wstring(iError) + L", after SSL_do_handshake returnd: " + to_wstring(m_iSslInit) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)()))).c_str());
                 OutputDebugStringA(string(", msg: " + m_pSslCon->GetSslErrAsString()).c_str());
                 if (m_fError)
-                    m_fError(this);
+                    m_fError(m_pBkRef);
                 return -1;
             }
         }
@@ -364,7 +366,7 @@ int SslTcpSocket::DatenDecode(const char* buffer, uint32_t nAnzahl)
             //    OutputDebugString(wstring(L"SSL_get_early_data_status: " + to_wstring(iEarlyData) + L"\r\n").c_str());
 
             if (m_fClientConneted)
-                m_fClientConneted(this);
+                m_fClientConneted(reinterpret_cast<SslTcpSocket*>(m_pBkRef));
         }
     }
 
@@ -424,24 +426,24 @@ int SslTcpSocket::DatenDecode(const char* buffer, uint32_t nAnzahl)
     return iReturn;
 }
 
-void SslTcpSocket::SetAlpnProtokollNames(vector<string>& vProtoList)
+void SslTcpSocketImpl::SetAlpnProtokollNames(vector<string>& vProtoList)
 {
     m_vProtoList = vProtoList;
 }
 
-const string SslTcpSocket::GetSelAlpnProtocol() const
+const string SslTcpSocketImpl::GetSelAlpnProtocol() const
 {
     if (m_pSslCon != nullptr)
         return m_pSslCon->GetSelAlpnProtocol();
     return string();
 }
 
-void SslTcpSocket::SetTrustedRootCertificates(const char* const szTrustRootCert)
+void SslTcpSocketImpl::SetTrustedRootCertificates(const char* const szTrustRootCert)
 {
     m_strTrustRootCert = szTrustRootCert;
 }
 
-long SslTcpSocket::CheckServerCertificate(const char* const szHostName)
+long SslTcpSocketImpl::CheckServerCertificate(const char* const szHostName)
 {
     if (m_pSslCon != nullptr)
         return m_pSslCon->CheckServerCertificate(szHostName);
@@ -450,12 +452,30 @@ long SslTcpSocket::CheckServerCertificate(const char* const szHostName)
 
 //************************************************************************************
 
-SslTcpSocket* const SslTcpServer::MakeClientConnection(const SOCKET& fSock)
+SslTcpServerImpl::SslTcpServerImpl(BaseSocket* pBkref) : TcpServerImpl(pBkref)
 {
-    return new SslTcpSocket(new SslConnetion(m_SslCtx.front()), fSock, this);
 }
 
-bool SslTcpServer::AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey)
+SslTcpSocket* const SslTcpServerImpl::MakeClientConnection(const SOCKET& fSock)
+{
+    auto pImpl = new SslTcpSocketImpl(new SslConnetion(m_SslCtx.front()), fSock, reinterpret_cast<SslTcpServer*>(this->m_pBkRef));
+    try
+    {
+        pImpl->SetSocketOption(fSock);
+        pImpl->GetConnectionInfo();
+    }
+
+    catch (int iErrNo)
+    {
+        pImpl->SetErrorNo(iErrNo);
+    }
+    auto pTcpSock = new SslTcpSocket(pImpl);
+    pImpl->m_pBkRef = pTcpSock;
+
+    return pTcpSock;
+}
+
+bool SslTcpServerImpl::AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey)
 {
     m_SslCtx.emplace_back(SslServerContext());
     int iRet = m_SslCtx.back().SetCertificates(szCAcertificate, szHostCertificate, szHostKey);
@@ -469,7 +489,7 @@ bool SslTcpServer::AddCertificat(const char* const szCAcertificate, const char* 
     return true;
 }
 
-bool SslTcpServer::SetDHParameter(const char* const szDhParamFileName)
+bool SslTcpServerImpl::SetDHParameter(const char* const szDhParamFileName)
 {
     bool bRet = m_SslCtx.back().SetDhParamFile(szDhParamFileName);
     if (bRet == false)
@@ -480,38 +500,38 @@ bool SslTcpServer::SetDHParameter(const char* const szDhParamFileName)
     return bRet;
 }
 
-bool SslTcpServer::SetCipher(const char* const szCipher)
+bool SslTcpServerImpl::SetCipher(const char* const szCipher)
 {
     return m_SslCtx.back().SetCipher(szCipher);
 }
 
 //************************************************************************************
 
-SslUdpSocket::SslUdpSocket() : m_bCloseReq(false)
+SslUdpSocketImpl::SslUdpSocketImpl(BaseSocket* pBkRef) : UdpSocketImpl(pBkRef), m_pSslCon(nullptr), m_bCloseReq(false)
 {
-    m_fnSslEncode = bind(&SslUdpSocket::DatenEncode, this, _1, _2, _3);
-    m_fnSslDecode = bind(&SslUdpSocket::DatenDecode, this, _1, _2, _3);
+    m_fnSslEncode = bind(&SslUdpSocketImpl::DatenEncode, this, _1, _2, _3);
+    m_fnSslDecode = bind(&SslUdpSocketImpl::DatenDecode, this, _1, _2, _3);
 }
 
-SslUdpSocket::~SslUdpSocket()
+SslUdpSocketImpl::~SslUdpSocketImpl()
 {
     if (m_pSslCon != nullptr)
         delete m_pSslCon;
 }
 
-bool SslUdpSocket::AddCertificat(const char* const szHostCertificate, const char* const szHostKey)
+bool SslUdpSocketImpl::AddCertificat(const char* const szHostCertificate, const char* const szHostKey)
 {
     m_pUdpCtx.SetCertificates(szHostCertificate, szHostKey);
     return true;
 }
 
-bool SslUdpSocket::CreateServerSide(const char* const szIpToWhere, const short sPort, const char* const szIpToBind/* = nullptr*/)
+bool SslUdpSocketImpl::CreateServerSide(const char* const szIpToWhere, const short sPort, const char* const szIpToBind/* = nullptr*/)
 {
-    bool bRet = UdpSocket::Create(szIpToWhere, sPort, szIpToBind);
+    bool bRet = UdpSocketImpl::Create(szIpToWhere, sPort, szIpToBind);
     if (bRet == true)
     {
         m_pSslCon = new SslConnetion(m_pUdpCtx);
-        m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocket::Close, this)));
+        m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
 
         //SSL_set_info_callback((*m_pSslCon)(), ssl_info_callbackServer);
 
@@ -520,14 +540,14 @@ bool SslUdpSocket::CreateServerSide(const char* const szIpToWhere, const short s
     return bRet;
 }
 
-bool SslUdpSocket::CreateClientSide(const char* const szIpToWhere, const short sPort, const char* const szDestAddr, const char* const szIpToBind/* = nullptr*/)
+bool SslUdpSocketImpl::CreateClientSide(const char* const szIpToWhere, const short sPort, const char* const szDestAddr, const char* const szIpToBind/* = nullptr*/)
 {
     m_strDestAddr = szDestAddr;
-    bool bRet = UdpSocket::Create(szIpToWhere, sPort, szIpToBind);
+    bool bRet = UdpSocketImpl::Create(szIpToWhere, sPort, szIpToBind);
     if (bRet == true)
     {
         m_pSslCon = new SslConnetion(m_pUdpCtx);
-        m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocket::Close, this)));
+        m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
 
         //SSL_set_info_callback((*m_pSslCon)(), ssl_info_callbackClient);
 
@@ -583,9 +603,9 @@ bool SslUdpSocket::CreateClientSide(const char* const szIpToWhere, const short s
       printf("\n");                                        \
     }                                                      \
   }
-mutex SslUdpSocket::s_mxSslInfo;
+mutex SslUdpSocketImpl::s_mxSslInfo;
 
-void SslUdpSocket::ssl_info_callbackServer(const SSL* ssl, int where, int ret)
+void SslUdpSocketImpl::ssl_info_callbackServer(const SSL* ssl, int where, int ret)
 {
     if (ret == 0)
     {
@@ -594,13 +614,13 @@ void SslUdpSocket::ssl_info_callbackServer(const SSL* ssl, int where, int ret)
     }
 
     const char* szName = "+ server";
-    lock_guard<mutex> lock(SslUdpSocket::s_mxSslInfo);
+    lock_guard<mutex> lock(SslUdpSocketImpl::s_mxSslInfo);
     SSL_WHERE_INFO(ssl, where, SSL_CB_LOOP, "LOOP");
     SSL_WHERE_INFO(ssl, where, SSL_CB_HANDSHAKE_START, "HANDSHAKE START");
     SSL_WHERE_INFO(ssl, where, SSL_CB_HANDSHAKE_DONE, "HANDSHAKE DONE");
 }
 
-void SslUdpSocket::ssl_info_callbackClient(const SSL* ssl, int where, int ret)
+void SslUdpSocketImpl::ssl_info_callbackClient(const SSL* ssl, int where, int ret)
 {
     if (ret == 0)
     {
@@ -609,13 +629,13 @@ void SslUdpSocket::ssl_info_callbackClient(const SSL* ssl, int where, int ret)
     }
 
     const char* szName = "+ client";
-    lock_guard<mutex> lock(SslUdpSocket::s_mxSslInfo);
+    lock_guard<mutex> lock(SslUdpSocketImpl::s_mxSslInfo);
     SSL_WHERE_INFO(ssl, where, SSL_CB_LOOP, "LOOP");
     SSL_WHERE_INFO(ssl, where, SSL_CB_HANDSHAKE_START, "HANDSHAKE START");
     SSL_WHERE_INFO(ssl, where, SSL_CB_HANDSHAKE_DONE, "HANDSHAKE DONE");
 }
 */
-int SslUdpSocket::DatenEncode(const void* buf, uint32_t nAnzahl, const string& strAddress)
+int SslUdpSocketImpl::DatenEncode(const void* buf, uint32_t nAnzahl, const string& strAddress)
 {
     if (m_bCloseReq == true)
         return -1;
@@ -641,7 +661,7 @@ int SslUdpSocket::DatenEncode(const void* buf, uint32_t nAnzahl, const string& s
                 // Schreibt Daten in die SOCKET
                 //OutputDebugString(wstring(L"    SSL Bytes written: " + to_wstring(len) + L"\r\n").c_str());
                 if (len > 0)
-                {   //TcpSocket::Write(temp.get(), len);
+                {
                     m_atOutBytes += static_cast<uint32_t>(len);
                     m_quOutData.emplace_back(temp, static_cast<uint32_t>(len), strAddress);
                 }
@@ -675,9 +695,9 @@ int SslUdpSocket::DatenEncode(const void* buf, uint32_t nAnzahl, const string& s
     return 0;
 }
 
-void SslUdpSocket::Close() noexcept
+void SslUdpSocketImpl::Close() noexcept
 {
-    //OutputDebugString(L"SslTcpSocket::Close\r\n");
+    //OutputDebugString(L"SslTcpSocketImpl::Close\r\n");
     m_bCloseReq = true;
 
     if (GetErrorNo() == 0)  // We get here not because of an error
@@ -727,16 +747,16 @@ void SslUdpSocket::Close() noexcept
         }
     }
 
-    UdpSocket::Close();
+    UdpSocketImpl::Close();
 }
 
-function<void(UdpSocket*)> SslUdpSocket::BindFuncSslInitDone(function<void(UdpSocket*)> fSllInitDone) noexcept
+function<void(UdpSocket*)> SslUdpSocketImpl::BindFuncSslInitDone(function<void(UdpSocket*)> fSllInitDone) noexcept
 {
     m_fSllInitDone.swap(fSllInitDone);
     return fSllInitDone;
 }
 
-int SslUdpSocket::DatenDecode(const char* buffer, uint32_t nAnzahl, const string& strAddress)
+int SslUdpSocketImpl::DatenDecode(const char* buffer, uint32_t nAnzahl, const string& strAddress)
 {
     if (buffer == nullptr || nAnzahl == 0)
         return 0;
@@ -794,14 +814,14 @@ int SslUdpSocket::DatenDecode(const char* buffer, uint32_t nAnzahl, const string
                 OutputDebugString(wstring(L"SSL_error: " + to_wstring(iError) + L", after SSL_do_handshake returnd: " + to_wstring(iSslInit) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)()))).c_str());
                 OutputDebugStringA(string(", msg: " + m_pSslCon->GetSslErrAsString()).c_str());
                 if (m_fError && m_bStop == false)
-                    m_fError(this);
+                    m_fError(m_pBkRef);
                 return -1;
             }
         }
         else
         {
             if (m_fSllInitDone != nullptr)
-                m_fSllInitDone(this);
+                m_fSllInitDone(reinterpret_cast<UdpSocket*>(m_pBkRef));
         }
     }
 
