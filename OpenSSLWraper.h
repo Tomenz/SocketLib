@@ -54,7 +54,7 @@ namespace OpenSSLWrapper
         virtual ~SslContext();
         SSL_CTX* operator() ();
         SslContext(const SslContext&) = delete;
-        explicit SslContext(SslContext&& src)
+        explicit SslContext(SslContext&& src) noexcept
         {
             m_ctx = move(src.m_ctx);
             src.m_ctx = nullptr;
@@ -97,7 +97,7 @@ namespace OpenSSLWrapper
         bool SetDhParamFile(const char* const szDhParamFile);
         bool SetCipher(const char* const szChiper);
         SslServerContext(const SslServerContext& src) = delete;
-        explicit SslServerContext(SslServerContext&& src) : SslContext(move(src))
+        explicit SslServerContext(SslServerContext&& src) noexcept : SslContext(move(src))
         {
             m_strCertComName = move(src.m_strCertComName);
             m_vstrAltNames = move(src.m_vstrAltNames);
@@ -143,7 +143,8 @@ namespace OpenSSLWrapper
         int ShutDownConnection(int* iErrorHint = nullptr);
         void SetAlpnProtokollNames(vector<string>& vProtoList);
         string GetSelAlpnProtocol();
-        void SetTrustedRootCertificates(const char* szFileName);
+        int SetTrustedRootCertificates(const char* szFileName);
+        long SetSniName(const char* szServerName);
         long CheckServerCertificate(const char* szHostName);
         string GetSslErrAsString() noexcept;
 

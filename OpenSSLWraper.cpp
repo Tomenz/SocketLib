@@ -752,9 +752,14 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iWrite) +
         return string();
     }
 
-    void SslConnetion::SetTrustedRootCertificates(const char* szFileName)
+    int SslConnetion::SetTrustedRootCertificates(const char* szFileName)
     {
-        SSL_CTX_load_verify_locations(SSL_get_SSL_CTX(m_ssl), szFileName, nullptr);
+        return SSL_CTX_load_verify_locations(SSL_get_SSL_CTX(m_ssl), szFileName, nullptr);
+    }
+
+    long SslConnetion::SetSniName(const char* szServerName)
+    {
+        return SSL_set_tlsext_host_name(m_ssl, szServerName);
     }
 
     long SslConnetion::CheckServerCertificate(const char* szHostName)
