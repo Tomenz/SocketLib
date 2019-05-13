@@ -23,6 +23,8 @@
 #include <Ws2tcpip.h>
 #include <Netioapi.h>
 #else
+#include <thread>
+#include <condition_variable>
 #define SOCKET int32_t
 #endif
 
