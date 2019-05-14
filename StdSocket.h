@@ -16,6 +16,7 @@
 #include <deque>
 #include <mutex>
 #include <atomic>
+#include <functional>
 
 #if defined (_WIN32) || defined (_WIN64)
 // https://support.microsoft.com/de-de/kb/257460

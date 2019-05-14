@@ -14,7 +14,6 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
-#include <functional>
 #include "StdSocket.h"
 
 #if defined (_WIN32) || defined (_WIN64)
