@@ -10,6 +10,9 @@
     <ClCompile Include="OpenSSLWraper.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
+    <ClCompile Include="SocketLip.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="OpenSSLWraper.h">
@@ -19,6 +22,9 @@
       <Filter>Headerdateien</Filter>
     </ClInclude>
     <ClInclude Include="StdSocket.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="SocketLib.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
   </ItemGroup>

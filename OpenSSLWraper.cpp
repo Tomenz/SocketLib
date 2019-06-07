@@ -26,7 +26,14 @@
 
 #if defined (_WIN32) || defined (_WIN64)
 #include <Ws2tcpip.h>
-#else
+#ifdef _WIN64
+#pragma comment(lib, "openssl-x64/libcrypto.lib")
+#pragma comment(lib, "openssl-x64/libssl.lib")
+#elif _WIN32
+#pragma comment(lib, "openssl-x86/libcrypto.lib")
+#pragma comment(lib, "openssl-x86/libssl.lib")
+#endif
+#else   // Linux
 #include <netdb.h>
 #if (OPENSSL_VERSION_NUMBER < 0x10100000L)
 #define ASN1_STRING_get0_data(x) ASN1_STRING_data(x)
@@ -49,15 +56,7 @@ void OutputDebugStringA(const char* pOut)
         close(fdPipe);
     }
 }
-#endif
-
-#ifdef _WIN64
-#pragma comment(lib, "openssl-x64/libcrypto.lib")
-#pragma comment(lib, "openssl-x64/libssl.lib")
-#elif _WIN32
-#pragma comment(lib, "openssl-x86/libcrypto.lib")
-#pragma comment(lib, "openssl-x86/libssl.lib")
-#endif
+#endif  // Linux
 
 #define WHERE_INFO(ssl, w, flag, msg) { if (w & flag) /*wcout << "\t" << msg << "  - " << SSL_state_string(ssl) << "  - " << SSL_state_string_long(ssl) << endl*/; }
 
