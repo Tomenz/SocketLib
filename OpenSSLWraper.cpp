@@ -46,16 +46,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 extern void OutputDebugString(const wchar_t* pOut);
-void OutputDebugStringA(const char* pOut)
-{   // mkfifo /tmp/dbgout  ->  tail -f /tmp/dbgout
-    int fdPipe = open("/tmp/dbgout", O_WRONLY | O_NONBLOCK);
-    if (fdPipe >= 0)
-    {
-        std::string strTmp(pOut);
-        write(fdPipe, strTmp.c_str(), strTmp.size());
-        close(fdPipe);
-    }
-}
+extern void OutputDebugStringA(const char* pOut);
 #endif  // Linux
 
 #define WHERE_INFO(ssl, w, flag, msg) { if (w & flag) /*wcout << "\t" << msg << "  - " << SSL_state_string(ssl) << "  - " << SSL_state_string_long(ssl) << endl*/; }

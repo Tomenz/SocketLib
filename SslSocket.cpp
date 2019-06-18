@@ -31,7 +31,16 @@ void OutputDebugString(const wchar_t* pOut)
         close(fdPipe);
     }
 }
-extern void OutputDebugStringA(const char* pOut);
+void OutputDebugStringA(const char* pOut)
+{   // mkfifo /tmp/dbgout  ->  tail -f /tmp/dbgout
+    int fdPipe = open("/tmp/dbgout", O_WRONLY | O_NONBLOCK);
+    if (fdPipe >= 0)
+    {
+        std::string strTmp(pOut);
+        write(fdPipe, strTmp.c_str(), strTmp.size());
+        close(fdPipe);
+    }
+}
 #endif
 
 SslTcpSocketImpl::SslTcpSocketImpl(BaseSocket* pBkref) : TcpSocketImpl(pBkref), m_pSslCon(nullptr), m_bCloseReq(false), m_iSslInit(0)
