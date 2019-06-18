@@ -248,6 +248,7 @@ function<void(UdpSocket*)> UdpSocket::BindFuncBytesRecived(function<void(UdpSock
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#ifndef WITHOUT_OPENSSL
 
 SslTcpSocket::SslTcpSocket() : TcpSocket(new SslTcpSocketImpl(this))
 {
@@ -382,3 +383,5 @@ function<void(UdpSocket*)> SslUdpSocket::BindFuncSslInitDone(function<void(UdpSo
 {
     return reinterpret_cast<SslUdpSocketImpl*>(Impl_.get())->BindFuncSslInitDone(fSllInitDone);
 }
+
+#endif // WITHOUT_OPENSSL

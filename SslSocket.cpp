@@ -9,6 +9,8 @@
 *
 */
 
+#ifndef WITHOUT_OPENSSL
+
 #include <string>
 
 #include "SslSocket.h"
@@ -888,3 +890,5 @@ int SslUdpSocketImpl::DatenDecode(const char* buffer, uint32_t nAnzahl, const st
 
     return iReturn;
 }
+
+#endif // WITHOUT_OPENSSL

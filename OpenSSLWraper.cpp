@@ -9,6 +9,8 @@
 *
 */
 
+#ifndef WITHOUT_OPENSSL
+
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -807,3 +809,5 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iWrite) +
 
 
 }
+
+#endif

@@ -12,6 +12,8 @@
 #ifndef SSLSOCKET
 #define SSLSOCKET
 
+#ifndef WITHOUT_OPENSSL
+
 #include "StdSocket.h"
 #include "OpenSSLWraper.h"
 
@@ -100,5 +102,7 @@ private:
 
 //    static mutex     s_mxSslInfo;
 };
+
+#endif  // WITHOUT_OPENSSL
 
 #endif  // #ifndef SSLSOCKET

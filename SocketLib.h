@@ -118,6 +118,8 @@ protected:
     explicit UdpSocket(UdpSocketImpl* const);
 };
 
+#ifndef WITHOUT_OPENSSL
+
 class SslTcpSocket : public TcpSocket
 {
     friend class SslTcpServerImpl;
@@ -165,5 +167,7 @@ public:
     void Close() noexcept override;
     function<void(UdpSocket*)> BindFuncSslInitDone(function<void(UdpSocket*)> fSllInitDone) noexcept;
 };
+
+#endif // WITHOUT_OPENSSL
 
 #endif // #ifndef SOCKETLIB
