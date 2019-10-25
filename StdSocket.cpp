@@ -1,12 +1,13 @@
-/* Copyright (C) Hauck Software Solutions - All Rights Reserved
-* You may use, distribute and modify this code under the terms
-* that changes to the code must be reported back the original
-* author
-*
-* Company: Hauck Software Solutions
-* Author:  Thomas Hauck
-* Email:   Thomas@fam-hauck.de
-*
+/* Copyright (C) 2016-2019 Thomas Hauck - All Rights Reserved.
+
+   Distributed under MIT license.
+   See file LICENSE for detail or copy at https://opensource.org/licenses/MIT
+
+   The author would be happy if changes and
+   improvements were reported back to him.
+
+   Author:  Thomas Hauck
+   Email:   Thomas@fam-hauck.de
 */
 
 #define _CRTDBG_MAP_ALLOC
