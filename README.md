@@ -3,7 +3,7 @@ Socket library written in c++11/14 for Windows/Linux (32/64)
 
 - IPv4 and IPv6 support
 - TCP and UDP support
-- multicast support for IPv4 and IPv4
+- multicast support for IPv4 and IPv6
 - Enum all IP's on the host
 - notify if host ip comes up / changes / is removed
 - TLS 1.3 if openssl 1.1.0 is used
