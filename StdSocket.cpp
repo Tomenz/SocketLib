@@ -460,7 +460,7 @@ TcpSocketImpl::TcpSocketImpl(BaseSocket* pBkRef, TcpSocketImpl* pTcpSocketImpl) 
     swap(m_strIFaceAddr, pTcpSocketImpl->m_strIFaceAddr);
     swap(m_sIFacePort, pTcpSocketImpl->m_sIFacePort);
 
-    swap(m_fBytesRecived, pTcpSocketImpl->m_fBytesRecived);
+    swap(m_fBytesReceived, pTcpSocketImpl->m_fBytesReceived);
     swap(m_fClientConneted, pTcpSocketImpl->m_fClientConneted);
     swap(m_fClientConnetedSsl, pTcpSocketImpl->m_fClientConnetedSsl);
 
@@ -812,10 +812,10 @@ uint32_t TcpSocketImpl::GetOutBytesInQue() const noexcept
     return m_atOutBytes;
 }
 
-function<void(TcpSocket*)> TcpSocketImpl::BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept
+function<void(TcpSocket*)> TcpSocketImpl::BindFuncBytesReceived(function<void(TcpSocket*)> fBytesReceived) noexcept
 {
-    m_fBytesRecived.swap(fBytesRecived);
-    return fBytesRecived;
+    m_fBytesReceived.swap(fBytesReceived);
+    return fBytesReceived;
 }
 
 function<void(TcpSocket*)> TcpSocketImpl::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
@@ -884,8 +884,8 @@ void TcpSocketImpl::SelectThread()
                         while (bReadCall == true)
                             this_thread::sleep_for(chrono::milliseconds(10));
 
-                        if (m_fBytesRecived)
-                            m_fBytesRecived(reinterpret_cast<TcpSocket*>(m_pBkRef));
+                        if (m_fBytesReceived)
+                            m_fBytesReceived(reinterpret_cast<TcpSocket*>(m_pBkRef));
                         break;
                     }
                     else
@@ -912,7 +912,7 @@ void TcpSocketImpl::SelectThread()
                         m_atInBytes += transferred;
                     }
 
-                    if (m_fBytesRecived && m_bStop == false && iRet != -1)
+                    if (m_fBytesReceived && m_bStop == false && iRet != -1)
                     {
                         lock_guard<mutex> lock(mxNotify);
                         if (bReadCall == false)
@@ -924,7 +924,7 @@ void TcpSocketImpl::SelectThread()
                                 while (m_atInBytes > 0 && m_bStop == false)
                                 {
                                     mxNotify.unlock();
-                                    m_fBytesRecived(reinterpret_cast<TcpSocket*>(m_pBkRef));
+                                    m_fBytesReceived(reinterpret_cast<TcpSocket*>(m_pBkRef));
                                     mxNotify.lock();
                                 }
                                 bReadCall = false;
@@ -1699,10 +1699,10 @@ uint32_t UdpSocketImpl::GetOutBytesInQue() const noexcept
     return m_atOutBytes;
 }
 
-function<void(UdpSocket*)> UdpSocketImpl::BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept
+function<void(UdpSocket*)> UdpSocketImpl::BindFuncBytesReceived(function<void(UdpSocket*)> fBytesReceived) noexcept
 {
-    m_fBytesRecived.swap(fBytesRecived);
-    return fBytesRecived;
+    m_fBytesReceived.swap(fBytesReceived);
+    return fBytesReceived;
 }
 
 void UdpSocketImpl::SelectThread()
@@ -1765,8 +1765,8 @@ void UdpSocketImpl::SelectThread()
                         while (bReadCall == true)
                             this_thread::sleep_for(chrono::milliseconds(10));
 
-                        if (m_fBytesRecived)
-                            m_fBytesRecived(reinterpret_cast<UdpSocket*>(m_pBkRef));
+                        if (m_fBytesReceived)
+                            m_fBytesReceived(reinterpret_cast<UdpSocket*>(m_pBkRef));
                         break;
                     }
                     else
@@ -1806,7 +1806,7 @@ void UdpSocketImpl::SelectThread()
                         m_mxInDeque.unlock();
                     }
 
-                    if (m_fBytesRecived && m_bStop == false && iRet != -1)
+                    if (m_fBytesReceived && m_bStop == false && iRet != -1)
                     {
                         lock_guard<mutex> lock(mxNotify);
                         if (bReadCall == false)
@@ -1818,7 +1818,7 @@ void UdpSocketImpl::SelectThread()
                                 while (m_atInBytes > 0 && m_bStop == false)
                                 {
                                     mxNotify.unlock();
-                                    m_fBytesRecived(reinterpret_cast<UdpSocket*>(m_pBkRef));
+                                    m_fBytesReceived(reinterpret_cast<UdpSocket*>(m_pBkRef));
                                     mxNotify.lock();
                                 }
                                 bReadCall = false;

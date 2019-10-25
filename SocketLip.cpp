@@ -115,9 +115,9 @@ uint32_t TcpSocket::GetOutBytesInQue() const noexcept
     return reinterpret_cast<TcpSocketImpl*>(Impl_.get())->GetOutBytesInQue();
 }
 
-function<void(TcpSocket*)> TcpSocket::BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept
+function<void(TcpSocket*)> TcpSocket::BindFuncBytesReceived(function<void(TcpSocket*)> fBytesReceived) noexcept
 {
-    return reinterpret_cast<TcpSocketImpl*>(Impl_.get())->BindFuncBytesRecived(fBytesRecived);
+    return reinterpret_cast<TcpSocketImpl*>(Impl_.get())->BindFuncBytesReceived(fBytesReceived);
 }
 function<void(TcpSocket*)> TcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
 {
@@ -242,9 +242,9 @@ uint32_t UdpSocket::GetOutBytesInQue() const noexcept
     return reinterpret_cast<UdpSocketImpl*>(Impl_.get())->GetBytesAvailible();
 }
 
-function<void(UdpSocket*)> UdpSocket::BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept
+function<void(UdpSocket*)> UdpSocket::BindFuncBytesReceived(function<void(UdpSocket*)> fBytesReceived) noexcept
 {
-    return reinterpret_cast<UdpSocketImpl*>(Impl_.get())->BindFuncBytesRecived(fBytesRecived);
+    return reinterpret_cast<UdpSocketImpl*>(Impl_.get())->BindFuncBytesReceived(fBytesReceived);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -43,10 +43,8 @@ protected:
 
 class TcpSocket : public BaseSocket
 {
-    //friend class TcpServer;
     friend class TcpServerImpl;
     friend class SslTcpSocket;
-    //friend class SslTcpServerImpl;
 public:
     explicit TcpSocket();
     virtual ~TcpSocket();
@@ -63,7 +61,7 @@ public:
     virtual void Delete() noexcept;
     virtual uint32_t GetBytesAvailible() const noexcept;
     virtual uint32_t GetOutBytesInQue() const noexcept;
-    virtual function<void(TcpSocket*)> BindFuncBytesRecived(function<void(TcpSocket*)> fBytesRecived) noexcept;
+    virtual function<void(TcpSocket*)> BindFuncBytesReceived(function<void(TcpSocket*)> fBytesReceived) noexcept;
     virtual function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept;
     virtual bool IsSslConnection() const noexcept;
 
@@ -84,8 +82,8 @@ class TcpServer : public BaseSocket
 public:
     explicit TcpServer();
     virtual ~TcpServer();
- //   TcpServer(TcpServer &&) noexcept;
-//    TcpServer& operator=(TcpServer &&) noexcept;
+    //TcpServer(TcpServer &&) noexcept;
+    //TcpServer& operator=(TcpServer &&) noexcept;
     bool Start(const char* const szIpAddr, const short sPort);
     unsigned short GetServerPort();
     virtual void BindNewConnection(function<void(const vector<TcpSocket*>&)>) noexcept;
@@ -101,8 +99,8 @@ public:
     virtual ~UdpSocket();
     UdpSocket(const UdpSocket &t) = delete;
     UdpSocket& operator=(const UdpSocket &t) = delete;
-//    UdpSocket(UdpSocket &&) noexcept;
-//    UdpSocket& operator=(UdpSocket &&) noexcept;
+    //UdpSocket(UdpSocket &&) noexcept;
+    //UdpSocket& operator=(UdpSocket &&) noexcept;
 
     virtual bool Create(const char* const szIpToWhere, const short sPort, const char* const szIpToBind = nullptr);
     virtual bool EnableBroadCast(bool bEnable = true);
@@ -113,7 +111,7 @@ public:
     virtual void Close() noexcept;
     virtual uint32_t GetBytesAvailible() const noexcept;
     virtual uint32_t GetOutBytesInQue() const noexcept;
-    virtual function<void(UdpSocket*)> BindFuncBytesRecived(function<void(UdpSocket*)> fBytesRecived) noexcept;
+    virtual function<void(UdpSocket*)> BindFuncBytesReceived(function<void(UdpSocket*)> fBytesReceived) noexcept;
 protected:
     explicit UdpSocket(UdpSocketImpl* const);
 };
@@ -127,8 +125,8 @@ public:
     explicit SslTcpSocket();
     explicit SslTcpSocket(TcpSocket* pTcpSocket);
     virtual ~SslTcpSocket();
-//   SslTcpSocket(SslTcpSocket &&) noexcept;;
-//    SslTcpSocket& operator=(SslTcpSocket &&) noexcept;
+    //SslTcpSocket(SslTcpSocket &&) noexcept;;
+    //SslTcpSocket& operator=(SslTcpSocket &&) noexcept;
     bool AddServerCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName);
     bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
     bool SetCipher(const char* const szCipher);
@@ -170,4 +168,4 @@ public:
 
 #endif // WITHOUT_OPENSSL
 
-#endif // #ifndef SOCKETLIB
+#endif // SOCKETLIB
