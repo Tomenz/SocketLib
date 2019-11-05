@@ -109,7 +109,7 @@ protected:
 public:
     TcpSocketImpl(BaseSocket* pBkRef);
     virtual ~TcpSocketImpl();
-    virtual bool Connect(const char* const szIpToWhere, const uint16_t sPort);
+    virtual bool Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint = AF_UNSPEC);
     virtual uint32_t Read(void* buf, uint32_t len);
     virtual uint32_t PutBackRead(void* buf, uint32_t len);
     virtual size_t Write(const void* buf, size_t len);

@@ -29,13 +29,6 @@
 
 #if defined (_WIN32) || defined (_WIN64)
 #include <Ws2tcpip.h>
-#ifdef _WIN64
-#pragma comment(lib, "openssl-x64/libcrypto.lib")
-#pragma comment(lib, "openssl-x64/libssl.lib")
-#elif _WIN32
-#pragma comment(lib, "openssl-x86/libcrypto.lib")
-#pragma comment(lib, "openssl-x86/libssl.lib")
-#endif
 #else   // Linux
 #include <netdb.h>
 #if (OPENSSL_VERSION_NUMBER < 0x10100000L)
@@ -113,6 +106,85 @@ namespace OpenSSLWrapper
     }
 #endif
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    bool GetCertInformation(X509* cert, string& strCommenName, vector<string>& vstrAltNames)
+    {
+        char caBuf[256];
+        X509_NAME_oneline(X509_get_subject_name(cert), caBuf, 256);
+
+        strCommenName = caBuf;
+        size_t nPos = strCommenName.find("/CN=");
+        if (nPos != string::npos)
+        {
+            strCommenName.erase(0, nPos + 4);
+            nPos = strCommenName.find("/");
+            if (nPos != string::npos)
+                strCommenName.erase(nPos, string::npos);
+            transform(begin(strCommenName), end(strCommenName), begin(strCommenName), ::tolower);
+
+            if (strCommenName[0] == '*' && strCommenName[1] == '.')
+                strCommenName = "^(.+\\.)?" + strCommenName.substr(2) + "$";
+        }
+
+        STACK_OF(GENERAL_NAME)* pSubAltNames = static_cast<STACK_OF(GENERAL_NAME)*>(X509_get_ext_d2i(cert, NID_subject_alt_name, nullptr, nullptr));
+        if (pSubAltNames != nullptr)
+        {
+            int iCountNames = sk_GENERAL_NAME_num(pSubAltNames);
+            for (int i = 0; i < iCountNames; ++i)
+            {
+                GENERAL_NAME* entry = sk_GENERAL_NAME_value(pSubAltNames, i);
+                if (!entry) continue;
+
+                if (entry->type == GEN_DNS)
+                {
+                    unsigned char* utf8 = NULL;
+                    ASN1_STRING_to_UTF8(&utf8, entry->d.dNSName);
+
+                    string strTmp(reinterpret_cast<char*>(utf8));
+                    transform(begin(strTmp), end(strTmp), begin(strTmp), ::tolower);
+                    if (strCommenName.compare(strTmp) != 0)
+                    {
+                        if (strTmp[0] == '*' && strTmp[1] == '.')
+                            strTmp = "^(.+\\.)?" + strTmp.substr(2) + "$";
+                        vstrAltNames.push_back(strTmp);
+                    }
+                    if (utf8)
+                        OPENSSL_free(utf8);
+                }
+                else if (entry->type == GEN_IPADD)
+                {
+                    const uint8_t* szIp = ASN1_STRING_get0_data(entry->d.iPAddress);
+                    int iStrLen = ASN1_STRING_length(entry->d.iPAddress);
+                    if (szIp != nullptr)
+                    {
+                        struct sockaddr_storage addr = { 0 };
+                        addr.ss_family = iStrLen > 4 ? AF_INET6 : AF_INET;
+                        if (iStrLen > 4)
+                            copy(szIp, szIp + iStrLen, reinterpret_cast<char*>(&addr.__ss_align));
+                        else
+                            copy(szIp, szIp + iStrLen, reinterpret_cast<char*>(&addr.ss_family) + 4);
+                        char caAddrClient[INET6_ADDRSTRLEN + 1] = { 0 };
+                        char servInfoClient[NI_MAXSERV] = { 0 };
+                        if (::getnameinfo((struct sockaddr*) & addr, sizeof(struct sockaddr_storage), caAddrClient, sizeof(caAddrClient), servInfoClient, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
+                        {
+                            string strTmp(reinterpret_cast<char*>(caAddrClient));
+                            transform(begin(strTmp), end(strTmp), begin(strTmp), ::tolower);
+                            if (strCommenName.compare(strTmp) != 0)
+                                vstrAltNames.push_back(strTmp);
+                        }
+                    }
+                }
+            }
+
+            sk_GENERAL_NAME_pop_free(pSubAltNames, GENERAL_NAME_free);
+        }
+
+        return true;
+    }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     SslContext::SslContext(const SSL_METHOD* sslMethod) : m_ctx(SSL_CTX_new(sslMethod))
     {
 #ifdef _DEBUG
@@ -148,22 +220,10 @@ namespace OpenSSLWrapper
         X509 *cert = SSL_CTX_get0_certificate(m_ctx);
         if (cert)
         {
-            char caBuf[256];
-            X509_NAME_oneline(X509_get_subject_name(cert), caBuf, 256);
-
-            m_strCertComName = caBuf;
-            size_t nPos = m_strCertComName.find("/CN=");
-            if (nPos != string::npos)
-            {
-                m_strCertComName.erase(0, nPos + 4);
-                nPos = m_strCertComName.find("/");
-                if (nPos != string::npos)
-                    m_strCertComName.erase(nPos, string::npos);
-                transform(begin(m_strCertComName), end(m_strCertComName), begin(m_strCertComName), ::tolower);
-            }
+            GetCertInformation(cert, m_strCertComName, m_vstrAltNames);
+            return 1;
         }
-
-        return 1;
+        return -5;
     }
 
     string& SslContext::GetCertCommonName() noexcept
@@ -249,7 +309,7 @@ namespace OpenSSLWrapper
 #endif
         //SSL_CTX_set_session_id_context(m_ctx, reinterpret_cast<unsigned char*>(this), sizeof(void*));
 
-        SSL_CTX_set_alpn_select_cb(m_ctx, ALPN_CB, 0);
+        //SSL_CTX_set_alpn_select_cb(m_ctx, ALPN_CB, this);
         //SSL_CTX_set_next_proto_select_cb(m_ctx, NPN_CB, 0);
         SSL_CTX_set_tlsext_servername_arg(m_ctx, nullptr);
         SSL_CTX_set_tlsext_servername_callback(m_ctx, SNI_CB);
@@ -260,91 +320,7 @@ namespace OpenSSLWrapper
         if (SSL_CTX_use_certificate_chain_file(m_ctx, szCAcertificate) != 1)
             return -1;// throw runtime_error("error loading CA root certificate");
 
-        if (SSL_CTX_use_certificate_file(m_ctx, szHostCertificate, SSL_FILETYPE_PEM) != 1)
-            return -2;//throw runtime_error("error loading host certificate");
-
-        if (SSL_CTX_use_PrivateKey_file(m_ctx, szHostKey, SSL_FILETYPE_PEM) != 1)
-            return -3;//throw runtime_error("error loading certificate key");
-
-        if (SSL_CTX_check_private_key(m_ctx) != 1)
-            return -4;//throw runtime_error("error key not matching certificate");
-
-        X509 *cert = SSL_CTX_get0_certificate(m_ctx);
-        if (cert)
-        {
-            char caBuf[256];
-            X509_NAME_oneline(X509_get_subject_name(cert), caBuf, 256);
-
-            m_strCertComName = caBuf;
-            size_t nPos = m_strCertComName.find("/CN=");
-            if (nPos != string::npos)
-            {
-                m_strCertComName.erase(0, nPos + 4);
-                nPos = m_strCertComName.find("/");
-                if (nPos != string::npos)
-                    m_strCertComName.erase(nPos, string::npos);
-                transform(begin(m_strCertComName), end(m_strCertComName), begin(m_strCertComName), ::tolower);
-
-                if (m_strCertComName[0] == '*' && m_strCertComName[1] == '.')
-                    m_strCertComName = "^(.+\\.)?" + m_strCertComName.substr(2) + "$";
-            }
-
-            STACK_OF(GENERAL_NAME)* pSubAltNames = static_cast<STACK_OF(GENERAL_NAME)*>(X509_get_ext_d2i(cert, NID_subject_alt_name, nullptr, nullptr));
-            if (pSubAltNames != nullptr)
-            {
-                int iCountNames = sk_GENERAL_NAME_num(pSubAltNames);
-                for (int i = 0; i < iCountNames; ++i)
-                {
-                    GENERAL_NAME* entry = sk_GENERAL_NAME_value(pSubAltNames, i);
-                    if (!entry) continue;
-
-                    if (entry->type == GEN_DNS)
-                    {
-                        unsigned char* utf8 = NULL;
-                        ASN1_STRING_to_UTF8(&utf8, entry->d.dNSName);
-
-                        string strTmp(reinterpret_cast<char*>(utf8));
-                        transform(begin(strTmp), end(strTmp), begin(strTmp), ::tolower);
-                        if (m_strCertComName.compare(strTmp) != 0)
-                        {
-                            if (strTmp[0] == '*' && strTmp[1] == '.')
-                                strTmp = "^(.+\\.)?" + strTmp.substr(2) + "$";
-                            m_vstrAltNames.push_back(strTmp);
-                        }
-                        if (utf8)
-                            OPENSSL_free(utf8);
-                    }
-                    else if (entry->type == GEN_IPADD)
-                    {
-                        const uint8_t* szIp = ASN1_STRING_get0_data(entry->d.iPAddress);
-                        int iStrLen = ASN1_STRING_length(entry->d.iPAddress);
-                        if (szIp != nullptr)
-                        {
-                            struct sockaddr_storage addr = { 0 };
-                            addr.ss_family = iStrLen > 4 ? AF_INET6 : AF_INET;
-                            if (iStrLen > 4)
-                                copy(szIp, szIp + iStrLen, reinterpret_cast<char*>(&addr.__ss_align));
-                            else
-                                copy(szIp, szIp + iStrLen, reinterpret_cast<char*>(&addr.ss_family) + 4);
-                            char caAddrClient[INET6_ADDRSTRLEN + 1] = { 0 };
-                            char servInfoClient[NI_MAXSERV] = { 0 };
-                            if (::getnameinfo((struct sockaddr*)&addr, sizeof(struct sockaddr_storage), caAddrClient, sizeof(caAddrClient), servInfoClient, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
-                            {
-                                string strTmp(reinterpret_cast<char*>(caAddrClient));
-                                transform(begin(strTmp), end(strTmp), begin(strTmp), ::tolower);
-                                if (m_strCertComName.compare(strTmp) != 0)
-                                    m_vstrAltNames.push_back(strTmp);
-                            }
-                        }
-                    }
-                }
-
-                sk_GENERAL_NAME_pop_free(pSubAltNames, GENERAL_NAME_free);
-            }
-
-        }
-
-        return 1;
+        return SslContext::SetCertificates(szHostCertificate, szHostKey);
     }
 
     void SslServerContext::AddVirtualHost(vector<SslServerContext>* pSslCtx)
@@ -383,11 +359,19 @@ namespace OpenSSLWrapper
         return SSL_CTX_set_cipher_list(m_ctx, szChiper) == 1 ? true : false;
     }
 
+    void SslServerContext::SetAlpnProtokollNames(vector<string>& vStrList)
+    {
+        m_vstrAlpnProtoList = vStrList;
+        SSL_CTX_set_alpn_select_cb(m_ctx, ALPN_CB, this);
+    }
+
     int SslServerContext::ALPN_CB(SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in, unsigned int inlen, void *arg)
     {
-        const static vector<string> vProtos = { { "h2" },/*{ "h2-16" },{ "h2-15" },{ "h2-14" },*/{ "http/1.1" } };
+        SslServerContext* pSslCtx = static_cast<SslServerContext*>(arg);
+        if (pSslCtx == nullptr)
+            return 1;
 
-        for (auto& strProt : vProtos)
+        for (auto& strProt : pSslCtx->m_vstrAlpnProtoList)
         {
             const unsigned char* inTmp = in;
             for (unsigned int i = 0; i < inlen;)
@@ -759,29 +743,28 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iWrite) +
     {
         // Check 1, is a certificate present
         string strComName;
+        vector<string> vstrAltNames;
+
         X509* cert = SSL_get_peer_certificate(m_ssl);
         if (cert)
         {
-            char caBuf[256];
-            X509_NAME_oneline(X509_get_subject_name(cert), caBuf, 256);
+            GetCertInformation(cert, strComName, vstrAltNames);
             X509_free(cert);
-
-            strComName = caBuf;
-            size_t nPos = strComName.find("/CN=");
-            if (nPos != string::npos)
-            {
-                strComName.erase(0, nPos + 4);
-                nPos = strComName.find("/");
-                if (nPos != string::npos)
-                    strComName.erase(nPos, string::npos);
-            }
         } /* Free immediately */
 
         // Check 2, is it verified?
         long lResult = SSL_get_verify_result(m_ssl);
 
         // Check 3, compare common name
-        if (strComName != szHostName && lResult == X509_V_OK)
+        function<bool(string&)> fnDomainCompare = [szHostName](string& it) -> bool
+        {
+            if (it[0] == '^')   // we have a regular expression
+                return regex_match(szHostName, regex(it));
+            else
+                return it.compare(szHostName) == 0 ? true : false;
+        };
+
+        if (strComName != szHostName && lResult == X509_V_OK && find_if(begin(vstrAltNames), end(vstrAltNames), fnDomainCompare) == end(vstrAltNames))
             lResult = X509_V_ERR_HOSTNAME_MISMATCH;
         return lResult;
     }

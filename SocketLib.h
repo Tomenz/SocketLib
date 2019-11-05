@@ -63,7 +63,7 @@ public:
     //TcpSocket(TcpSocket &&) noexcept;
     //TcpSocket& operator=(TcpSocket &&) noexcept;
 
-    virtual bool Connect(const char* const szIpToWhere, const uint16_t sPort);
+    virtual bool Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint = 0);
     virtual uint32_t Read(void* buf, uint32_t len);
     virtual uint32_t PutBackRead(void* buf, uint32_t len);
     virtual size_t Write(const void* buf, size_t len);
@@ -143,7 +143,7 @@ public:
     bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
     bool SetCipher(const char* const szCipher);
     bool SetAcceptState();
-    bool Connect(const char* const szIpToWhere, const uint16_t sPort) override;
+    bool Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint = 0) override;
     void Close() noexcept override;
     virtual function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept;
     bool IsSslConnection() const noexcept override;
@@ -165,6 +165,7 @@ public:
     bool AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey);
     bool SetDHParameter(const char* const szDhParamFileName);
     bool SetCipher(const char* const szCipher);
+    void SetAlpnProtokollNames(vector<string>& vProtoList);
 };
 
 class SslUdpSocket : public UdpSocket

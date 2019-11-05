@@ -85,9 +85,9 @@ TcpSocket::~TcpSocket() = default;
 //TcpSocket::TcpSocket(TcpSocket &&) noexcept = default;
 //TcpSocket& TcpSocket::operator=(TcpSocket &&) noexcept = default;
 
-bool TcpSocket::Connect(const char* const szIpToWhere, const uint16_t sPort)
+bool TcpSocket::Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint/* = AF_UNSPEC*/)
 {
-    return reinterpret_cast<TcpSocketImpl*>(Impl_.get())->Connect(szIpToWhere, sPort);
+    return reinterpret_cast<TcpSocketImpl*>(Impl_.get())->Connect(szIpToWhere, sPort, AddrHint);
 }
 uint32_t TcpSocket::Read(void* buf, uint32_t len)
 {
@@ -301,9 +301,9 @@ bool SslTcpSocket::SetAcceptState()
     return reinterpret_cast<SslTcpSocketImpl*>(Impl_.get())->SetAcceptState();
 }
 
-bool SslTcpSocket::Connect(const char* const szIpToWhere, const uint16_t sPort)
+bool SslTcpSocket::Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint/* = AF_UNSPEC*/)
 {
-    return reinterpret_cast<SslTcpSocketImpl*>(Impl_.get())->Connect(szIpToWhere, sPort);
+    return reinterpret_cast<SslTcpSocketImpl*>(Impl_.get())->Connect(szIpToWhere, sPort, AddrHint);
 }
 
 void SslTcpSocket::Close() noexcept
@@ -362,6 +362,11 @@ bool SslTcpServer::SetDHParameter(const char* const szDhParamFileName)
 bool SslTcpServer::SetCipher(const char* const szCipher)
 {
     return reinterpret_cast<SslTcpServerImpl*>(Impl_.get())->SetCipher(szCipher);
+}
+
+void SslTcpServer::SetAlpnProtokollNames(vector<string>& vProtoList)
+{
+    reinterpret_cast<SslTcpServerImpl*>(Impl_.get())->SetAlpnProtokollNames(vProtoList);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////

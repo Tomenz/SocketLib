@@ -126,7 +126,7 @@ bool SslTcpSocketImpl::SetAcceptState()
     return true;
 }
 
-bool SslTcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort)
+bool SslTcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint/* = AF_UNSPEC*/)
 {
     m_pSslCon = new SslConnetion(m_pClientCtx);
     m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
@@ -141,7 +141,7 @@ bool SslTcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPo
         m_pSslCon->SetTrustedRootCertificates(m_strTrustRootCert.c_str());
 
     TcpSocketImpl::BindFuncConEstablished(bind(&SslTcpSocketImpl::ConEstablished, this, _1));
-    return TcpSocketImpl::Connect(szIpToWhere, sPort);
+    return TcpSocketImpl::Connect(szIpToWhere, sPort, AddrHint);
 }
 
 int SslTcpSocketImpl::DatenEncode(const void* buf, uint32_t nAnzahl)
@@ -469,6 +469,8 @@ SslTcpServerImpl::SslTcpServerImpl(BaseSocket* pBkref) : TcpServerImpl(pBkref)
 
 SslTcpSocket* const SslTcpServerImpl::MakeClientConnection(const SOCKET& fSock)
 {
+    if (m_SslCtx.size() == 0)
+        m_SslCtx.emplace_back(SslServerContext());
     auto pImpl = new SslTcpSocketImpl(new SslConnetion(m_SslCtx.front()), fSock, reinterpret_cast<SslTcpServer*>(this->m_pBkRef));
     try
     {
@@ -514,6 +516,11 @@ bool SslTcpServerImpl::SetDHParameter(const char* const szDhParamFileName)
 bool SslTcpServerImpl::SetCipher(const char* const szCipher)
 {
     return m_SslCtx.back().SetCipher(szCipher);
+}
+
+void SslTcpServerImpl::SetAlpnProtokollNames(vector<string>& vStrProtoNames)
+{
+    m_SslCtx.back().SetAlpnProtokollNames(vStrProtoNames);
 }
 
 //************************************************************************************

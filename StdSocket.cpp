@@ -495,7 +495,7 @@ TcpSocketImpl::~TcpSocketImpl()
     }
 }
 
-bool TcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort)
+bool TcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint/* = AF_UNSPEC*/)
 {
     if (m_fSock != INVALID_SOCKET)
     {
@@ -504,7 +504,7 @@ bool TcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort)
     }
 
     struct addrinfo *lstAddr, hint = { 0 };
-    hint.ai_family = PF_UNSPEC;
+    hint.ai_family = AddrHint;
     hint.ai_socktype = SOCK_STREAM;
 
     if (::getaddrinfo(szIpToWhere, to_string(sPort).c_str(), &hint, &lstAddr) != 0)
@@ -1092,7 +1092,7 @@ TcpServerImpl::~TcpServerImpl()
 bool TcpServerImpl::Start(const char* const szIpAddr, const short sPort)
 {
     struct addrinfo *lstAddr, hint = { 0 };
-    hint.ai_family = PF_UNSPEC;
+    hint.ai_family = AF_UNSPEC;
     hint.ai_socktype = SOCK_STREAM;
     hint.ai_flags = AI_PASSIVE;
 
@@ -1340,7 +1340,7 @@ UdpSocketImpl::~UdpSocketImpl()
 bool UdpSocketImpl::Create(const char* const szIpToWhere, const short sPort, const char* const szIpToBind/* = nullptr*/)
 {
     struct addrinfo *lstAddr, hint = { 0 };
-    hint.ai_family = PF_UNSPEC;
+    hint.ai_family = AF_UNSPEC;
     hint.ai_socktype = SOCK_DGRAM;
     hint.ai_flags = AI_PASSIVE;
 

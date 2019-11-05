@@ -31,7 +31,7 @@ public:
     bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
     bool SetCipher(const char* const szCipher);
     bool SetAcceptState();
-    bool Connect(const char* const szIpToWhere, const uint16_t sPort) override;
+    bool Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint = AF_UNSPEC) override;
     void Close() noexcept override;
     function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept;
     bool IsSslConnection() const noexcept override { return true; }
@@ -70,6 +70,7 @@ public:
     bool AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey);
     bool SetDHParameter(const char* const szDhParamFileName);
     bool SetCipher(const char* const szCipher);
+    void SetAlpnProtokollNames(vector<string>& vStrProtoNames);
 
 private:
     vector<SslServerContext> m_SslCtx;

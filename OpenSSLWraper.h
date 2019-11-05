@@ -50,6 +50,7 @@ namespace OpenSSLWrapper
         string strVersion;
     };
 
+    bool GetCertInformation(X509* cert, string& strCommenName, vector<string>& vstrAltNames);
 
     class SslContext
     {
@@ -78,6 +79,7 @@ namespace OpenSSLWrapper
     protected:
         SSL_CTX* m_ctx;
         string   m_strCertComName;
+        vector<string> m_vstrAltNames;
     };
 
     class SslClientContext : public SslContext
@@ -100,11 +102,13 @@ namespace OpenSSLWrapper
         void AddVirtualHost(vector<SslServerContext>* pSslCtx);
         bool SetDhParamFile(const char* const szDhParamFile);
         bool SetCipher(const char* const szChiper);
+        void SetAlpnProtokollNames(vector<string>& vStrList);
         SslServerContext(const SslServerContext& src) = delete;
         explicit SslServerContext(SslServerContext&& src) noexcept : SslContext(move(src))
         {
             m_strCertComName = move(src.m_strCertComName);
             m_vstrAltNames = move(src.m_vstrAltNames);
+            m_vstrAlpnProtoList = move(src.m_vstrAlpnProtoList);
         }
         SslServerContext& operator=(SslServerContext&&) = delete;
         SslServerContext& operator=(const SslServerContext&) = delete;
@@ -115,7 +119,7 @@ namespace OpenSSLWrapper
         static int SNI_CB(SSL *ssl, char iCmd, void* arg);
 
     private:
-        vector<string> m_vstrAltNames;
+        vector<string> m_vstrAlpnProtoList;
     };
 
     class SslUdpContext : public SslContext
