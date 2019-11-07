@@ -30,7 +30,6 @@
     <ProjectGuid>{758383C6-5B15-4191-9F17-5835F216F7A1}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>SockTest</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

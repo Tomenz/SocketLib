@@ -184,7 +184,7 @@ public:
     unsigned short GetServerPort();
     void BindNewConnection(const function<void(const vector<TcpSocket*>&)>&) noexcept;
     virtual void Close() noexcept;
-    virtual void SelfDestroy() noexcept override { static_assert(true, "class has no selfdestroy function"); }
+    virtual void SelfDestroy() noexcept override { static_assert(true, "class has no self destroy function"); }
     virtual TcpSocket* const MakeClientConnection(const SOCKET&);
 
 protected:
@@ -218,7 +218,7 @@ public:
     virtual uint32_t Read(void* buf, uint32_t len, string& strFrom);
     virtual size_t Write(const void* buf, size_t len, const string& strTo);
     virtual void Close() noexcept;
-    virtual void SelfDestroy() noexcept override { static_assert(true, "class has no selfdestroy function"); }
+    virtual void SelfDestroy() noexcept override { static_assert(true, "class has no self destroy function"); }
     virtual uint32_t GetBytesAvailible() const noexcept;
     virtual uint32_t GetOutBytesInQue() const noexcept;
     virtual function<void(UdpSocket*)> BindFuncBytesReceived(function<void(UdpSocket*)> fBytesReceived) noexcept;

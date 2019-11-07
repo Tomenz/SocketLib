@@ -198,7 +198,7 @@ OutputDebugString(wstring(L"Bytes written part: " + to_wstring(nWritten) + L" on
     }
     else
     {
-        OutputDebugString(wstring(L"SSL not initalisiert: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
+        OutputDebugString(wstring(L"SSL not initialized: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
     }
 
     return 0;
@@ -219,7 +219,7 @@ void SslTcpSocketImpl::Close() noexcept
             uint32_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
             while (nOutDataSize > 0)
             {
-                OutputDebugString(wstring(L"SslGetOutDataSize unexpectet full: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
+                OutputDebugString(wstring(L"SslGetOutDataSize unexpected full: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
                 auto temp = shared_ptr<uint8_t>(new uint8_t[nOutDataSize]);
                 int32_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
                 // Schreibt Daten in die SOCKET
@@ -627,7 +627,7 @@ void SslUdpSocketImpl::ssl_info_callbackServer(const SSL* ssl, int where, int re
 {
     if (ret == 0)
     {
-        OutputDebugString(L"-- krx_ssl_info_callback: error occured.\r\n");
+        OutputDebugString(L"-- krx_ssl_info_callback: error occurred.\r\n");
         return;
     }
 
@@ -642,7 +642,7 @@ void SslUdpSocketImpl::ssl_info_callbackClient(const SSL* ssl, int where, int re
 {
     if (ret == 0)
     {
-        OutputDebugString(L"-- krx_ssl_info_callback: error occured.\r\n");
+        OutputDebugString(L"-- krx_ssl_info_callback: error occurred.\r\n");
         return;
     }
 
@@ -707,7 +707,7 @@ int SslUdpSocketImpl::DatenEncode(const void* buf, uint32_t nAnzahl, const strin
     }
     else
     {
-        OutputDebugString(wstring(L"SSL not initalisiert: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
+        OutputDebugString(wstring(L"SSL not initialized: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
     }
 
     return 0;
@@ -728,7 +728,7 @@ void SslUdpSocketImpl::Close() noexcept
             uint32_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
             while (nOutDataSize > 0)
             {
-                OutputDebugString(wstring(L"SslGetOutDataSize unexpectet full: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
+                OutputDebugString(wstring(L"SslGetOutDataSize unexpected full: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
                 auto temp = shared_ptr<uint8_t>(new uint8_t[nOutDataSize]);
                 int32_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
                 // Schreibt Daten in die SOCKET
@@ -829,7 +829,7 @@ int SslUdpSocketImpl::DatenDecode(const char* buffer, uint32_t nAnzahl, const st
             int iError = SSL_get_error((*m_pSslCon)(), iSslInit);
             if (iError != SSL_ERROR_WANT_READ)
             {
-                OutputDebugString(wstring(L"SSL_error: " + to_wstring(iError) + L", after SSL_do_handshake returnd: " + to_wstring(iSslInit) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)()))).c_str());
+                OutputDebugString(wstring(L"SSL_error: " + to_wstring(iError) + L", after SSL_do_handshake returned: " + to_wstring(iSslInit) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)()))).c_str());
                 OutputDebugStringA(string(", msg: " + m_pSslCon->GetSslErrAsString()).c_str());
                 if (m_fError && m_bStop == false)
                     m_fError(m_pBkRef);

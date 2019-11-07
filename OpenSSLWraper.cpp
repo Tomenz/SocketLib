@@ -236,7 +236,7 @@ namespace OpenSSLWrapper
     {
         if (val == 0)
         {
-            //wcout << "ssl error occured." << endl;
+            //wcout << "ssl error occurred." << endl;
             return;
         }
 

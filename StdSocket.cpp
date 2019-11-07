@@ -949,8 +949,8 @@ void TcpSocketImpl::SelectThread()
     while (bReadCall == true)
         this_thread::sleep_for(chrono::milliseconds(10));
 
-    mxNotify.lock();    // In seltenen Faellen, wurde bReadCall auf false gesetzt, und der Taskwechsel
-    mxNotify.unlock();  // hat dann diesen Thread beendet bevor der Lambda Thread mxNotify freigab - > Absturz
+    mxNotify.lock();    // in rare cases, bReadCall was set to false, and the task switch
+    mxNotify.unlock();  // ended that thread before the lambda thread released mxNotify -> crash
 
     m_iShutDownState |= 1;
 
@@ -1841,8 +1841,8 @@ void UdpSocketImpl::SelectThread()
     while (bReadCall == true)
         this_thread::sleep_for(chrono::milliseconds(10));
 
-    mxNotify.lock();    // In seltenen Faellen, wurde bReadCall auf false gesetzt, und der Taskwechsel
-    mxNotify.unlock();  // hat dann diesen Thread beendet bevor der Lambda Thread mxNotify freigab - > Absturz
+    mxNotify.lock();    // In rare cases, bReadCall was set to false, and the task switch
+    mxNotify.unlock();  // ended that thread before the lambda thread released mxNotify -> crash
 
     m_iShutDownState |= 1;
 }
