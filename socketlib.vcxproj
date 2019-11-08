@@ -134,7 +134,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>../openssl/include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(OpenSSL_HOME)include</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ProgramDataBaseFileName>$(IntDir)$(ProjectName)$(PlatformArchitecture)d.pdb</ProgramDataBaseFileName>
     </ClCompile>
@@ -152,7 +152,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
-      <AdditionalIncludeDirectories>../openssl/include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(OpenSSL_HOME)include</AdditionalIncludeDirectories>
       <ProgramDataBaseFileName>$(IntDir)$(ProjectName)$(PlatformArchitecture)d.pdb</ProgramDataBaseFileName>
     </ClCompile>
     <Link>
@@ -170,7 +170,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;_CRT_SECURE_NO_WARNINGS;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>../openssl/include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(OpenSSL_HOME)include</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <ProgramDataBaseFileName>$(IntDir)$(ProjectName)$(PlatformArchitecture).pdb</ProgramDataBaseFileName>
     </ClCompile>
@@ -214,7 +214,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <AdditionalIncludeDirectories>../openssl/include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(OpenSSL_HOME)include</AdditionalIncludeDirectories>
       <ProgramDataBaseFileName>$(IntDir)$(ProjectName)$(PlatformArchitecture).pdb</ProgramDataBaseFileName>
     </ClCompile>
     <Link>

@@ -1675,6 +1675,16 @@ void UdpSocketImpl::WriteThread()
             m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
     }
     m_iShutDownState |= 2;
+
+    unsigned char cExpected = 3;
+    if (m_iShutDownState.compare_exchange_strong(cExpected, 7) == true)
+    {
+        if (m_fSock != INVALID_SOCKET)
+            ::closesocket(m_fSock);
+        m_fSock = INVALID_SOCKET;
+
+        StartCloseingCB();
+    }
 }
 
 void UdpSocketImpl::Close() noexcept
@@ -1845,4 +1855,14 @@ void UdpSocketImpl::SelectThread()
     mxNotify.unlock();  // ended that thread before the lambda thread released mxNotify -> crash
 
     m_iShutDownState |= 1;
+
+    unsigned char cExpected = 3;
+    if (m_iShutDownState.compare_exchange_strong(cExpected, 7) == true)
+    {
+        if (m_fSock != INVALID_SOCKET)
+            ::closesocket(m_fSock);
+        m_fSock = INVALID_SOCKET;
+
+        StartCloseingCB();
+    }
 }
