@@ -7,6 +7,7 @@ Socket library written in c++11/14 for Windows/Linux (32/64)
 - Enum all IP's on the host
 - notify if host ip comes up / changes / is removed
 - TLS 1.3 if openssl 1.1.1 is used
+- Multithreading, none blocking. All callback function executed in own thread
 
 Examples: https://github.com/Tomenz/Examples-SocketLib
 
