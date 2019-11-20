@@ -787,7 +787,7 @@ void TcpSocketImpl::Close() noexcept
     } while (m_iShutDownState < 2 && m_iError == 0);
     m_bStop = true; // Stops the listening thread
 
-    if (m_pRefServSocket == nullptr && m_iShutDownState == 7)
+    if (m_pRefServSocket == nullptr && m_iShutDownState == 7 && m_fCloseing)
         thread([&]() { StartCloseingCB(); }).detach();
 }
 
@@ -1682,7 +1682,8 @@ void UdpSocketImpl::WriteThread()
             ::closesocket(m_fSock);
         m_fSock = INVALID_SOCKET;
 
-        StartCloseingCB();
+        if (m_fCloseing)
+            StartCloseingCB();
     }
 }
 
@@ -1862,6 +1863,7 @@ void UdpSocketImpl::SelectThread()
             ::closesocket(m_fSock);
         m_fSock = INVALID_SOCKET;
 
-        StartCloseingCB();
+        if (m_fCloseing)
+            StartCloseingCB();
     }
 }
