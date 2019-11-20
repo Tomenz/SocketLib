@@ -283,7 +283,11 @@ namespace OpenSSLWrapper
 
     void SslClientContext::SetTrustedRootCertificates(const char* szTrustRootCert)
     {
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+        SSL_CTX_load_verify_locations(m_ctx, szTrustRootCert, nullptr);
+#else
         SSL_CTX_load_verify_file(m_ctx, szTrustRootCert);
+#endif
     }
 
 
@@ -730,7 +734,11 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iWrite) +
 
     int SslConnetion::SetTrustedRootCertificates(const char* szFileName)
     {
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+        return SSL_CTX_load_verify_locations(SSL_get_SSL_CTX(m_ssl), szFileName, nullptr);
+#else
         return SSL_CTX_load_verify_file(SSL_get_SSL_CTX(m_ssl), szFileName);
+#endif
     }
 
     long SslConnetion::SetSniName(const char* szServerName)
