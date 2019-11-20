@@ -6,9 +6,12 @@ Socket library written in c++11/14 for Windows/Linux (32/64)
 - multicast support for IPv4 and IPv6
 - Enum all IP's on the host
 - notify if host ip comes up / changes / is removed
-- TLS 1.3 if openssl 1.1.0 is used
+- TLS 1.3 if openssl 1.1.1 is used
+- Multithreading, none blocking. All callback function executed in own thread
 
-I will add some samples on how to use the library in the next days.
+Examples: https://github.com/Tomenz/Examples-SocketLib
+
+In die Windows Project files is the "OpenSSL_HOME" enviroment variable as Include directory configuriert. Define the envirment variable, or change the include path in the visual studio project settings.
 
 Meanwhile a smale client / server example using the "SocketLib" library<br>
 *** The "SocketLib" library in this example should by compiled with WITHOUT_OPENSSL defined, so we don't need the opensll library<br>
