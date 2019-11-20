@@ -283,8 +283,7 @@ namespace OpenSSLWrapper
 
     void SslClientContext::SetTrustedRootCertificates(const char* szTrustRootCert)
     {
-        SSL_CTX_load_verify_locations(m_ctx, szTrustRootCert, nullptr);
-        //SSL_CTX_set_default_verify_paths(ctx);
+        SSL_CTX_load_verify_file(m_ctx, szTrustRootCert);
     }
 
 
@@ -731,7 +730,7 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iWrite) +
 
     int SslConnetion::SetTrustedRootCertificates(const char* szFileName)
     {
-        return SSL_CTX_load_verify_locations(SSL_get_SSL_CTX(m_ssl), szFileName, nullptr);
+        return SSL_CTX_load_verify_file(SSL_get_SSL_CTX(m_ssl), szFileName);
     }
 
     long SslConnetion::SetSniName(const char* szServerName)
