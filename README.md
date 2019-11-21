@@ -2,18 +2,18 @@
 Socket library written in c++11/14 for Windows/Linux (32/64) 
 
 - IPv4 and IPv6 support
-- TCP and UDP support
-- multicast support for IPv4 and IPv6
+- TCP and UDP support (both with SSL/TLS)
+- multi-cast support for IPv4 and IPv6
 - Enum all IP's on the host
 - notify if host ip comes up / changes / is removed
 - TLS 1.3 if openssl 1.1.1 is used
-- Multithreading, none blocking. All callback function executed in own thread
+- Multi-threading, none blocking. All callback function executed in own thread
 
 Examples: https://github.com/Tomenz/Examples-SocketLib
 
-In die Windows Project files is the "OpenSSL_HOME" enviroment variable as Include directory configuriert. Define the envirment variable, or change the include path in the visual studio project settings.
+In die Windows Project files is the "OpenSSL_HOME" environment variable as Include and Library directory for openssl configured. Define the environment variable, or change the include path in the visual studio project settings.
 
-Meanwhile a smale client / server example using the "SocketLib" library<br>
+Meanwhile a short client / server example using the "SocketLib" library<br>
 *** The "SocketLib" library in this example should by compiled with WITHOUT_OPENSSL defined, so we don't need the opensll library<br>
 *** If you need SSL, you have to fix the path for the openssl headers and lib's when compiling the library
 
@@ -46,8 +46,8 @@ void ServerThread(bool* bStop)
 {
     TcpServer sock;
 
-    sock.BindErrorFunction([&](BaseSocket*) { cout << "Server socket: socket error" << endl; });
-    sock.BindCloseFunction([&](BaseSocket*) { cout << "Server socket: socket closing" << endl; });
+    sock.BindErrorFunction([&](BaseSocket*) { cout << "Server: socket error" << endl; });
+    sock.BindCloseFunction([&](BaseSocket*) { cout << "Server: socket closing" << endl; });
     
     // This Callback is called if a new client connects to the server. 
     sock.BindNewConnection([&](const vector<TcpSocket*>& lstSockets)
