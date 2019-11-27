@@ -40,6 +40,11 @@ int BaseSocket::GetErrorNo() const  noexcept
     return Impl_->GetErrorNo();
 }
 
+int BaseSocket::GetErrorLoc() const  noexcept
+{
+    return Impl_->GetErrorLoc();
+}
+
 function<void(BaseSocket*)> BaseSocket::BindErrorFunction(function<void(BaseSocket*)> fError) noexcept
 {
     return Impl_->BindErrorFunction(fError);

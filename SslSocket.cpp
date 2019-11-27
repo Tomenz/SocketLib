@@ -278,6 +278,8 @@ void SslTcpSocketImpl::ConEstablished(const TcpSocketImpl* const pTcpSocket)
         int iError = SSL_get_error((*m_pSslCon)(), m_iSslInit);
         if (iError != SSL_ERROR_WANT_READ)
         {
+            m_iError = 0x80000000 | iError;
+            m_iErrLoc = 15;
             OutputDebugString(wstring(L"SSL_error after SSL_Handshake: " + to_wstring(iError) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
             Close();
             return;
@@ -363,6 +365,8 @@ int SslTcpSocketImpl::DatenDecode(const char* buffer, uint32_t nAnzahl)
             int iError = SSL_get_error((*m_pSslCon)(), m_iSslInit);
             if (iError != SSL_ERROR_WANT_READ)
             {
+                m_iError = 0x80000000 | iError;
+                m_iErrLoc = 14;
                 OutputDebugString(wstring(L"SSL_error: " + to_wstring(iError) + L", after SSL_do_handshake returnd: " + to_wstring(m_iSslInit) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)()))).c_str());
                 OutputDebugStringA(string(", msg: " + m_pSslCon->GetSslErrAsString()).c_str());
                 if (m_fError)
@@ -577,6 +581,8 @@ bool SslUdpSocketImpl::CreateClientSide(const char* const szIpToWhere, const sho
             int iError = SSL_get_error((*m_pSslCon)(), iSslInit);
             if (iError != SSL_ERROR_WANT_READ)
             {
+                m_iError = 0x80000000 | iError;
+                m_iErrLoc = 15;
                 OutputDebugString(wstring(L"SSL_error after SSL_Handshake: " + to_wstring(iError) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
                 Close();
                 return false;
@@ -829,6 +835,8 @@ int SslUdpSocketImpl::DatenDecode(const char* buffer, uint32_t nAnzahl, const st
             int iError = SSL_get_error((*m_pSslCon)(), iSslInit);
             if (iError != SSL_ERROR_WANT_READ)
             {
+                m_iError = 0x80000000 | iError;
+                m_iErrLoc = 14;
                 OutputDebugString(wstring(L"SSL_error: " + to_wstring(iError) + L", after SSL_do_handshake returned: " + to_wstring(iSslInit) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)()))).c_str());
                 OutputDebugStringA(string(", msg: " + m_pSslCon->GetSslErrAsString()).c_str());
                 if (m_fError && m_bStop == false)

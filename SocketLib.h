@@ -38,6 +38,7 @@ public:
     virtual void Close() = 0;
     virtual void SelfDestroy() noexcept { static_assert(true, "class has no self destroy function"); }
     virtual int GetErrorNo() const  noexcept;
+    virtual int GetErrorLoc() const  noexcept;
 
     virtual function<void(BaseSocket*)> BindErrorFunction(function<void(BaseSocket*)> fError) noexcept;
     virtual function<void(BaseSocket*)> BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept;

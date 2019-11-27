@@ -254,12 +254,12 @@ void InitSocket::NotifyOnAddressChanges(vector<tuple<string, int, int>>& vNewLis
 
 atomic_uint BaseSocketImpl::s_atRefCount(0);
 
-BaseSocketImpl::BaseSocketImpl() : m_fSock(INVALID_SOCKET), m_bStop(false), m_iError(0), m_iShutDownState(0), m_fError(bind(&BaseSocketImpl::OnError, this)), m_pBkRef(nullptr)
+BaseSocketImpl::BaseSocketImpl() : m_fSock(INVALID_SOCKET), m_bStop(false), m_iError(0), m_iErrLoc(0), m_iShutDownState(0), m_fError(bind(&BaseSocketImpl::OnError, this)), m_pBkRef(nullptr)
 {
     ++s_atRefCount;
 }
 
-BaseSocketImpl::BaseSocketImpl(BaseSocketImpl* pBaseSocket) : m_fSock(INVALID_SOCKET), m_bStop(pBaseSocket->m_bStop), m_iError(pBaseSocket->m_iError), m_iShutDownState(0), m_fError(bind(&BaseSocketImpl::OnError, this)), m_pBkRef(nullptr)
+BaseSocketImpl::BaseSocketImpl(BaseSocketImpl* pBaseSocket) : m_fSock(INVALID_SOCKET), m_bStop(pBaseSocket->m_bStop), m_iError(pBaseSocket->m_iError), m_iErrLoc(pBaseSocket->m_iErrLoc), m_iShutDownState(0), m_fError(bind(&BaseSocketImpl::OnError, this)), m_pBkRef(nullptr)
 {
     ++s_atRefCount;
 
@@ -557,6 +557,7 @@ bool TcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort,
     catch (int iSocketErr)
     {
         m_iError = iSocketErr;
+        m_iErrLoc = 1;
 
         if (m_fSock != INVALID_SOCKET)
             ::closesocket(m_fSock);
@@ -695,6 +696,7 @@ void TcpSocketImpl::WriteThread()
                 {
                     socklen_t iLen = sizeof(m_iError);
                     getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
+                    m_iErrLoc = 2;
                     lock.unlock();
                     if (m_fError && m_bStop == false)
                         m_fError(m_pBkRef);
@@ -716,6 +718,7 @@ void TcpSocketImpl::WriteThread()
                 if (iError != WSAEWOULDBLOCK)
                 {
                     m_iError = iError;
+                    m_iErrLoc = 3;
                     lock.unlock();
                     if (m_fError && m_bStop == false)
                         m_fError(m_pBkRef);
@@ -751,7 +754,10 @@ void TcpSocketImpl::WriteThread()
     if (m_iError == 0)
     {
         if (::shutdown(m_fSock, SD_SEND) != 0)
+        {
             m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
+            m_iErrLoc = 4;
+        }
     }
     m_iShutDownState |= 2;
 
@@ -862,6 +868,7 @@ void TcpSocketImpl::SelectThread()
             {
                 socklen_t iLen = sizeof(m_iError);
                 getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
+                m_iErrLoc = 5;
                 if (m_fError && m_bStop == false)
                     m_fError(m_pBkRef);
                 break;
@@ -878,7 +885,10 @@ void TcpSocketImpl::SelectThread()
                         // We set the flag, so we don't read on the connection any more
 
                         if (::shutdown(m_fSock, SD_RECEIVE) != 0)
+                        {
                             m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
+                            m_iErrLoc = 6;
+                        }
                         bSocketShutDown = true;
 
                         while (bReadCall == true)
@@ -894,6 +904,7 @@ void TcpSocketImpl::SelectThread()
                         if (iError != WSAEWOULDBLOCK)
                         {
                             m_iError = iError;
+                            m_iErrLoc = 7;
                             if (m_fError && m_bStop == false)
                                 m_fError(m_pBkRef);
                             break;
@@ -942,7 +953,10 @@ void TcpSocketImpl::SelectThread()
     if (bSocketShutDown == false && m_iError == 0)
     {
         if (::shutdown(m_fSock, SD_RECEIVE) != 0)
+        {
             m_iError = WSAGetLastError();// OutputDebugString(L"Error RECEIVE shutdown socket\r\n");
+            m_iErrLoc = 8;
+        }
     }
 
     while (bReadCall == true)
@@ -989,7 +1003,7 @@ void TcpSocketImpl::ConnectThread()
             {
                 socklen_t iLen = sizeof(m_iError);
                 getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
-
+                m_iErrLoc = 9;
                 m_iShutDownState = 7;
                 if (m_fError && m_bStop == false)
                     m_fError(m_pBkRef);
@@ -1031,6 +1045,7 @@ bool TcpSocketImpl::GetConnectionInfo()
     if (::getpeername(m_fSock, (struct sockaddr*)&addrCl, &addLen) != 0)  // Get the IP to where the connection was established
     {
         m_iError = WSAGetLastError();
+        m_iErrLoc = 10;
         return false;
     }
 
@@ -1039,6 +1054,7 @@ bool TcpSocketImpl::GetConnectionInfo()
     if (::getsockname(m_fSock, (struct sockaddr*)&addrPe, &addLen) != 0)  // Get our IP where the connection was established
     {
         m_iError = WSAGetLastError();
+        m_iErrLoc = 11;
         return false;
     }
 
@@ -1052,6 +1068,7 @@ bool TcpSocketImpl::GetConnectionInfo()
     else
     {
         m_iError = WSAGetLastError();
+        m_iErrLoc = 12;
         return false;
     }
 
@@ -1065,6 +1082,7 @@ bool TcpSocketImpl::GetConnectionInfo()
     else
     {
         m_iError = WSAGetLastError();
+        m_iErrLoc = 13;
         return false;
     }
 
@@ -1136,6 +1154,7 @@ bool TcpServerImpl::Start(const char* const szIpAddr, const short sPort)
     catch (int iSocketErr)
     {
         m_iError = iSocketErr;
+        m_iErrLoc = 1;
         Delete();
         bRet = false;
     }
@@ -1389,6 +1408,7 @@ bool UdpSocketImpl::Create(const char* const szIpToWhere, const short sPort, con
     catch (int iSocketErr)
     {
         m_iError = iSocketErr;
+        m_iErrLoc = 1;
         if (m_fSock != INVALID_SOCKET)
             ::closesocket(m_fSock);
         m_fSock = INVALID_SOCKET;
@@ -1433,6 +1453,7 @@ bool UdpSocketImpl::AddToMulticastGroup(const char* const szMulticastIp, const c
         || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_IF, reinterpret_cast<char*>(&mreq.ipv6mr_interface), sizeof(mreq.ipv6mr_interface)) != 0)
         {
             m_iError = WSAGetLastError();
+            m_iErrLoc = 2;
             return false;
         }
     }
@@ -1452,6 +1473,7 @@ bool UdpSocketImpl::AddToMulticastGroup(const char* const szMulticastIp, const c
         || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_IF, reinterpret_cast<char*>(&mreq.imr_interface), sizeof(mreq.imr_interface)) != 0)
         {
             m_iError = WSAGetLastError();
+            m_iErrLoc = 2;
             return false;
         }
     }
@@ -1479,6 +1501,7 @@ bool UdpSocketImpl::RemoveFromMulticastGroup(const char* const szMulticastIp, co
         || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_IF, reinterpret_cast<char*>(&AnyAddr), sizeof(uint32_t)) != 0)
         {
             m_iError = WSAGetLastError();
+            m_iErrLoc = 3;
             return false;
         }
     }
@@ -1496,6 +1519,7 @@ bool UdpSocketImpl::RemoveFromMulticastGroup(const char* const szMulticastIp, co
         || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_IF, reinterpret_cast<char*>(&AnyAddr), sizeof(uint32_t)) != 0)
         {
             m_iError = WSAGetLastError();
+            m_iErrLoc = 3;
             return false;
         }
     }
@@ -1601,7 +1625,7 @@ void UdpSocketImpl::WriteThread()
                 {
                     socklen_t iLen = sizeof(m_iError);
                     getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
-
+                    m_iErrLoc = 5;
                     if (m_fError && m_bStop == false)
                         m_fError(m_pBkRef);
                 }
@@ -1641,6 +1665,7 @@ void UdpSocketImpl::WriteThread()
                 m_iError = WSAGetLastError();
                 if (m_iError != WSAEWOULDBLOCK)
                 {
+                    m_iErrLoc = 6;
                     if (m_fError && m_bStop == false)
                         m_fError(m_pBkRef);
                     break;
@@ -1671,7 +1696,10 @@ void UdpSocketImpl::WriteThread()
     if (m_iError == 0)
     {
         if (::shutdown(m_fSock, SD_SEND) != 0)
+        {
             m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
+            m_iErrLoc = 4;
+        }
     }
     m_iShutDownState |= 2;
 
@@ -1748,6 +1776,7 @@ void UdpSocketImpl::SelectThread()
             {
                 socklen_t iLen = sizeof(m_iError);
                 getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
+                m_iErrLoc = 7;
                 if (m_fError && m_bStop == false)
                     m_fError(m_pBkRef);
                 break;
@@ -1770,7 +1799,10 @@ void UdpSocketImpl::SelectThread()
                     {   // The connection was shutdown from the other side, there will be no more bytes to read on that connection
                         // We set the flag, so we don't read on the connection any more
                         if (::shutdown(m_fSock, SD_RECEIVE) != 0)
+                        {
                             m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
+                            m_iErrLoc = 9;
+                        }
                         bSocketShutDown = true;
 
                         while (bReadCall == true)
@@ -1785,6 +1817,7 @@ void UdpSocketImpl::SelectThread()
                         m_iError = WSAGetLastError();
                         if (m_iError != WSAEWOULDBLOCK)
                         {
+                            m_iErrLoc = 9;
                             if (m_fError && m_bStop == false)
                                 m_fError(m_pBkRef);
                             break;
@@ -1845,7 +1878,10 @@ void UdpSocketImpl::SelectThread()
     if (bSocketShutDown == false && m_iError == 0)
     {
         if (::shutdown(m_fSock, SD_RECEIVE) != 0)
+        {
             m_iError = WSAGetLastError();// OutputDebugString(L"Error RECEIVE shutdown socket\r\n");
+            m_iErrLoc = 10;
+        }
     }
 
     while (bReadCall == true)

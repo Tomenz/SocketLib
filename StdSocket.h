@@ -75,6 +75,7 @@ public:
     virtual function<void(BaseSocket*)> BindErrorFunction(function<void(BaseSocket*)> fError) noexcept;
     virtual function<void(BaseSocket*)> BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept;
     virtual int GetErrorNo() const  noexcept { return m_iError; }
+    virtual int GetErrorLoc() const  noexcept { return m_iErrLoc; }
     virtual void SetErrorNo(int iErrNo) noexcept { m_iError = iErrNo; }
     virtual uint16_t GetSocketPort();
     static int EnumIpAddresses(function<int(int,const string&,int,void*)> fnCallBack, void* vpUser);
@@ -92,6 +93,7 @@ protected:
     thread                      m_thWrite;
     bool                        m_bStop;
     int                         m_iError;
+    int                         m_iErrLoc;
     atomic_uchar                m_iShutDownState;
     function<void(BaseSocket*)> m_fError;
     function<void(BaseSocket*)> m_fCloseing;

@@ -6,12 +6,13 @@ Socket library written in c++11/14 for Windows/Linux (32/64)
 - multi-cast support for IPv4 and IPv6
 - Enum all IP's on the host
 - notify if host ip comes up / changes / is removed
-- TLS 1.3 if openssl 1.1.1 is used
+- TLS 1.3 if openssl 1.1.1 or newer is used
 - Multi-threading, none blocking. All callback function executed in own thread
 
 Examples: https://github.com/Tomenz/Examples-SocketLib
 
-In die Windows Project files is the "OpenSSL_HOME" environment variable as Include and Library directory for openssl configured. Define the environment variable, or change the include path in the visual studio project settings.
+In the Windows project files "OpenSSL_HOME" is stored for the "include" and "library" directories of openssl. You should create the enviroment variable, or change the include and library directories in the Visual Studio project files.
+In Linux, libssl-dev must be installed (Or the source code of openssl must be compiled and installed).
 
 Meanwhile a short client / server example using the "SocketLib" library<br>
 *** The "SocketLib" library in this example should by compiled with WITHOUT_OPENSSL defined, so we don't need the opensll library<br>
@@ -46,7 +47,7 @@ void ServerThread(bool* bStop)
 {
     TcpServer sock;
 
-    sock.BindErrorFunction([&](BaseSocket*) { cout << "Server: socket error" << endl; });
+    sock.BindErrorFunction([&](BaseSocket* pSock) { cout << "Server: socket error" << endl; pSock->Close(); }); // Must call Close function
     sock.BindCloseFunction([&](BaseSocket*) { cout << "Server: socket closing" << endl; });
     
     // This Callback is called if a new client connects to the server. 
@@ -109,7 +110,7 @@ void ClientThread(bool* bStop)
 {
     TcpSocket sock;
 
-    sock.BindErrorFunction([&](BaseSocket*) { cout << "Client: socket error" << endl; });
+    sock.BindErrorFunction([&](BaseSocket* pSock) { cout << "Client: socket error" << endl; pSock->Close(); }); // Must call Close function
     sock.BindCloseFunction([&](BaseSocket*) { cout << "Client: socket closing" << endl; });
     sock.BindFuncBytesReceived([&](TcpSocket* pTcpSocket)
         {
