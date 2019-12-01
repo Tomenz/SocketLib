@@ -508,6 +508,8 @@ bool SslTcpServerImpl::AddCertificat(const char* const szCAcertificate, const ch
 
 bool SslTcpServerImpl::SetDHParameter(const char* const szDhParamFileName)
 {
+    if (m_SslCtx.size() == 0)
+        return false;
     bool bRet = m_SslCtx.back().SetDhParamFile(szDhParamFileName);
     if (bRet == false)
     {
@@ -519,12 +521,15 @@ bool SslTcpServerImpl::SetDHParameter(const char* const szDhParamFileName)
 
 bool SslTcpServerImpl::SetCipher(const char* const szCipher)
 {
+    if (m_SslCtx.size() == 0)
+        return false;
     return m_SslCtx.back().SetCipher(szCipher);
 }
 
 void SslTcpServerImpl::SetAlpnProtokollNames(vector<string>& vStrProtoNames)
 {
-    m_SslCtx.back().SetAlpnProtokollNames(vStrProtoNames);
+    for (auto& ctx : m_SslCtx)
+        ctx.SetAlpnProtokollNames(vStrProtoNames);
 }
 
 //************************************************************************************
