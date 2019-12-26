@@ -563,7 +563,7 @@ namespace OpenSSLWrapper
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
 
-        m_iWantState = 0;
+        m_iWantState &= ~2;
         return BIO_read(m_rbio, szBuffer, nBufLen);
     }
 
@@ -572,7 +572,7 @@ namespace OpenSSLWrapper
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
 
-        m_iWantState = 0;
+        m_iWantState &= ~1;
         return BIO_write(m_wbio, szBuffer, nWriteLen);
     }
 
@@ -602,9 +602,9 @@ if (iRead != SSL_ERROR_WANT_READ && iRead != SSL_ERROR_ZERO_RETURN)
             switch (iRead)
             {
             case SSL_ERROR_WANT_READ:
-                m_iWantState = 1; break;
+                m_iWantState |= 1; break;
             case SSL_ERROR_WANT_WRITE:
-                m_iWantState = 2; break;
+                m_iWantState |= 2; break;
             case SSL_ERROR_ZERO_RETURN:
                 ShutDownConnection();
 #ifdef _DEBUG
@@ -654,9 +654,9 @@ if (iWrite != SSL_ERROR_WANT_WRITE)
             switch (iWrite)
             {
             case SSL_ERROR_WANT_READ:
-                m_iWantState = 1; break;
+                m_iWantState |= 1; break;
             case SSL_ERROR_WANT_WRITE:
-                m_iWantState = 2; break;
+                m_iWantState |= 2; break;
             case SSL_ERROR_ZERO_RETURN:
                 ShutDownConnection();
 #ifdef _DEBUG
