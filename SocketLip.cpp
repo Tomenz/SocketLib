@@ -181,7 +181,7 @@ TcpServer::~TcpServer() = default;
 //TcpServer::TcpServer(TcpServer &&) noexcept = default;
 //TcpServer& TcpServer::operator=(TcpServer &&) noexcept = default;
 
-bool TcpServer::Start(const char* const szIpAddr, const short sPort)
+bool TcpServer::Start(const char* const szIpAddr, const uint16_t sPort)
 {
     return reinterpret_cast<TcpServerImpl*>(Impl_.get())->Start(szIpAddr, sPort);
 }
@@ -213,7 +213,7 @@ UdpSocket::~UdpSocket() = default;
 //UdpSocket::UdpSocket(UdpSocket && src) noexcept = default;
 //UdpSocket& UdpSocket::operator=(UdpSocket && src) noexcept = default;
 
-bool UdpSocket::Create(const char* const szIpToWhere, const short sPort, const char* const szIpToBind/* = nullptr*/)
+bool UdpSocket::Create(const char* const szIpToWhere, const uint16_t sPort, const char* const szIpToBind/* = nullptr*/)
 {
     return reinterpret_cast<UdpSocketImpl*>(Impl_.get())->Create(szIpToWhere, sPort, szIpToBind);
 }
@@ -385,12 +385,12 @@ bool SslUdpSocket::AddCertificat(const char* const szHostCertificate, const char
     return reinterpret_cast<SslUdpSocketImpl*>(Impl_.get())->AddCertificat(szHostCertificate, szHostKey);
 }
 
-bool SslUdpSocket::CreateServerSide(const char* const szIpToWhere, const short sPort, const char* const szIpToBind/* = nullptr*/)
+bool SslUdpSocket::CreateServerSide(const char* const szIpToWhere, const uint16_t sPort, const char* const szIpToBind/* = nullptr*/)
 {
     return reinterpret_cast<SslUdpSocketImpl*>(Impl_.get())->CreateServerSide(szIpToWhere, sPort, szIpToBind);
 }
 
-bool SslUdpSocket::CreateClientSide(const char* const szIpToWhere, const short sPort, const char* const szDestAddr, const char* const szIpToBind/* = nullptr*/)
+bool SslUdpSocket::CreateClientSide(const char* const szIpToWhere, const uint16_t sPort, const char* const szDestAddr, const char* const szIpToBind/* = nullptr*/)
 {
     return reinterpret_cast<SslUdpSocketImpl*>(Impl_.get())->CreateClientSide(szIpToWhere, sPort, szDestAddr, szIpToBind);
 }

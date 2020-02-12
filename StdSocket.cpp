@@ -1106,7 +1106,7 @@ TcpServerImpl::~TcpServerImpl()
     Delete();
 }
 
-bool TcpServerImpl::Start(const char* const szIpAddr, const short sPort)
+bool TcpServerImpl::Start(const char* const szIpAddr, const uint16_t sPort)
 {
     struct addrinfo *lstAddr, hint = { 0 };
     hint.ai_family = AF_UNSPEC;
@@ -1164,7 +1164,7 @@ bool TcpServerImpl::Start(const char* const szIpAddr, const short sPort)
     return bRet;
 }
 
-unsigned short TcpServerImpl::GetServerPort()
+uint16_t TcpServerImpl::GetServerPort()
 {
     struct sockaddr_storage addrPe;
     socklen_t addLen = sizeof(addrPe);
@@ -1355,7 +1355,7 @@ UdpSocketImpl::~UdpSocketImpl()
     }
 }
 
-bool UdpSocketImpl::Create(const char* const szIpToWhere, const short sPort, const char* const szIpToBind/* = nullptr*/)
+bool UdpSocketImpl::Create(const char* const szIpToWhere, const uint16_t sPort, const char* const szIpToBind/* = nullptr*/)
 {
     struct addrinfo *lstAddr, hint = { 0 };
     hint.ai_family = AF_UNSPEC;

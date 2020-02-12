@@ -82,8 +82,8 @@ public:
     explicit SslUdpSocketImpl(BaseSocket* pBkRef);
     virtual ~SslUdpSocketImpl();
     bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
-    bool CreateServerSide(const char* const szIpToWhere, const short sPort, const char* const szIpToBind = nullptr);
-    bool CreateClientSide(const char* const szIpToWhere, const short sPort, const char* const szDestAddr, const char* const szIpToBind = nullptr);
+    bool CreateServerSide(const char* const szIpToWhere, const uint16_t sPort, const char* const szIpToBind = nullptr);
+    bool CreateClientSide(const char* const szIpToWhere, const uint16_t sPort, const char* const szDestAddr, const char* const szIpToBind = nullptr);
     void Close() noexcept override;
     function<void(UdpSocket*)> BindFuncSslInitDone(function<void(UdpSocket*)> fSllInitDone) noexcept;
 

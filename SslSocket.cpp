@@ -552,7 +552,7 @@ bool SslUdpSocketImpl::AddCertificat(const char* const szHostCertificate, const 
     return true;
 }
 
-bool SslUdpSocketImpl::CreateServerSide(const char* const szIpToWhere, const short sPort, const char* const szIpToBind/* = nullptr*/)
+bool SslUdpSocketImpl::CreateServerSide(const char* const szIpToWhere, const uint16_t sPort, const char* const szIpToBind/* = nullptr*/)
 {
     bool bRet = UdpSocketImpl::Create(szIpToWhere, sPort, szIpToBind);
     if (bRet == true)
@@ -567,7 +567,7 @@ bool SslUdpSocketImpl::CreateServerSide(const char* const szIpToWhere, const sho
     return bRet;
 }
 
-bool SslUdpSocketImpl::CreateClientSide(const char* const szIpToWhere, const short sPort, const char* const szDestAddr, const char* const szIpToBind/* = nullptr*/)
+bool SslUdpSocketImpl::CreateClientSide(const char* const szIpToWhere, const uint16_t sPort, const char* const szDestAddr, const char* const szIpToBind/* = nullptr*/)
 {
     m_strDestAddr = szDestAddr;
     bool bRet = UdpSocketImpl::Create(szIpToWhere, sPort, szIpToBind);

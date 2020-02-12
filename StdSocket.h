@@ -183,8 +183,8 @@ class TcpServerImpl : public BaseSocketImpl
 public:
     TcpServerImpl(BaseSocket* pBkRef);
     virtual ~TcpServerImpl();
-    bool Start(const char* const szIpAddr, const short sPort);
-    unsigned short GetServerPort();
+    bool Start(const char* const szIpAddr, const uint16_t sPort);
+    uint16_t GetServerPort();
     void BindNewConnection(const function<void(const vector<TcpSocket*>&)>&) noexcept;
     virtual void Close() noexcept;
     virtual void SelfDestroy() noexcept override { static_assert(true, "class has no self destroy function"); }
@@ -214,7 +214,7 @@ protected:
 public:
     explicit UdpSocketImpl(BaseSocket* pBkRef);
     virtual ~UdpSocketImpl();
-    virtual bool Create(const char* const szIpToWhere, const short sPort, const char* const szIpToBind = nullptr);
+    virtual bool Create(const char* const szIpToWhere, const uint16_t uint16_t, const char* const szIpToBind = nullptr);
     virtual bool EnableBroadCast(bool bEnable = true);
     virtual bool AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
     virtual bool RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);

@@ -97,8 +97,8 @@ public:
     virtual ~TcpServer();
     //TcpServer(TcpServer &&) noexcept;
     //TcpServer& operator=(TcpServer &&) noexcept;
-    bool Start(const char* const szIpAddr, const short sPort);
-    unsigned short GetServerPort();
+    bool Start(const char* const szIpAddr, const uint16_t sPort);
+    uint16_t GetServerPort();
     virtual void BindNewConnection(function<void(const vector<TcpSocket*>&)>) noexcept;
     virtual void Close() noexcept;
 protected:
@@ -115,7 +115,7 @@ public:
     //UdpSocket(UdpSocket &&) noexcept;
     //UdpSocket& operator=(UdpSocket &&) noexcept;
 
-    virtual bool Create(const char* const szIpToWhere, const short sPort, const char* const szIpToBind = nullptr);
+    virtual bool Create(const char* const szIpToWhere, const uint16_t sPort, const char* const szIpToBind = nullptr);
     virtual bool EnableBroadCast(bool bEnable = true);
     virtual bool AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
     virtual bool RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
@@ -174,8 +174,8 @@ class SslUdpSocket : public UdpSocket
 public:
     explicit SslUdpSocket();
     bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
-    bool CreateServerSide(const char* const szIpToWhere, const short sPort, const char* const szIpToBind = nullptr);
-    bool CreateClientSide(const char* const szIpToWhere, const short sPort, const char* const szDestAddr, const char* const szIpToBind = nullptr);
+    bool CreateServerSide(const char* const szIpToWhere, const uint16_t uint16_t, const char* const szIpToBind = nullptr);
+    bool CreateClientSide(const char* const szIpToWhere, const uint16_t uint16_t, const char* const szDestAddr, const char* const szIpToBind = nullptr);
     void Close() noexcept override;
     function<void(UdpSocket*)> BindFuncSslInitDone(function<void(UdpSocket*)> fSllInitDone) noexcept;
 };
