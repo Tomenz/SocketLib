@@ -60,7 +60,8 @@ InitSocket* InitSocket::GetInstance()
 InitSocket::~InitSocket()
 {
 #if defined(_WIN32) || defined(_WIN64)
-    CancelMibChangeNotify2(m_hIFaceNotify);
+    if (m_hIFaceNotify != nullptr)
+        CancelMibChangeNotify2(m_hIFaceNotify);
     ::WSACleanup();
 #else
     m_bStopThread = true;
@@ -77,6 +78,14 @@ void InitSocket::SetAddrNotifyCallback(function<void(bool, const string&, int, i
         for (auto iter : m_vCurIPAddr)
             m_fnCbAddrNotify(true, get<0>(iter), get<1>(iter), get<2>(iter));
     }
+
+#if defined(_WIN32) || defined(_WIN64)
+    if (m_hIFaceNotify == nullptr)
+        NotifyIpInterfaceChange(AF_UNSPEC, IpIfaceChanged, this, TRUE, &m_hIFaceNotify);
+#else
+    if (m_thIpChange.joinable() == false)
+        m_thIpChange = thread(&InitSocket::IpChangeThread, this);
+#endif
 }
 
 InitSocket::InitSocket()
@@ -84,7 +93,7 @@ InitSocket::InitSocket()
 #if defined(_WIN32) || defined(_WIN64)
     WSADATA wsaData;
     ::WSAStartup(MAKEWORD(2, 2), &wsaData);
-    NotifyIpInterfaceChange(AF_UNSPEC, IpIfaceChanged, this, TRUE, &m_hIFaceNotify);
+    m_hIFaceNotify = nullptr;
 #else
     //signal(SIGPIPE, SIG_IGN);
     sigset_t sigset;
@@ -93,7 +102,6 @@ InitSocket::InitSocket()
     sigprocmask(SIG_BLOCK, &sigset, NULL);
     BaseSocketImpl::EnumIpAddresses(bind(&InitSocket::CbEnumIpAdressen, this, placeholders::_1, placeholders::_2, placeholders::_3, placeholders::_4), &m_vCurIPAddr);
     m_bStopThread = false;
-    m_thIpChange = thread(&InitSocket::IpChangeThread, this);
 #endif
 }
 
