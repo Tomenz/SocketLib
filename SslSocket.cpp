@@ -81,12 +81,17 @@ SslTcpSocketImpl::~SslTcpSocketImpl()
 bool SslTcpSocketImpl::AddServerCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName)
 {
     m_pServerCtx.emplace_back(SslServerContext());
-    m_pServerCtx.back().SetCertificates(szCAcertificate, szHostCertificate, szHostKey);
-    m_pServerCtx.back().SetDhParamFile(szDhParamFileName);
+    if (m_pServerCtx.back().SetCertificates(szCAcertificate, szHostCertificate, szHostKey) > 0)
+    {
+        if (m_pServerCtx.back().SetDhParamFile(szDhParamFileName) == true)
+        {
+            m_pServerCtx.back().AddVirtualHost(&m_pServerCtx);
+            return true;
+        }
+    }
 
-    m_pServerCtx.back().AddVirtualHost(&m_pServerCtx);
-
-    return true;
+    m_pServerCtx.pop_back();
+    return false;
 }
 
 bool SslTcpSocketImpl::AddCertificat(const char* const szHostCertificate, const char* const szHostKey)
@@ -211,7 +216,7 @@ void SslTcpSocketImpl::Close() noexcept
 
     if (GetErrorNo() == 0)  // We get here not because of an error
     {
-        if (SSL_get_shutdown((*m_pSslCon)()) < SSL_SENT_SHUTDOWN)
+        if (m_pSslCon != nullptr && SSL_get_shutdown((*m_pSslCon)()) < SSL_SENT_SHUTDOWN)
         {
             unique_lock<mutex> lock(m_mxOutDeque);
             bool bNewData = false;
