@@ -2,8 +2,11 @@
 # ACHTUNG unbedingt TABS benutzen beim einrücken
 
 CC = g++
-#CFLAGS = -ggdb -pthread
+ifdef $(DEBUG)
+CFLAGS = -ggdb -pthread
+else
 CFLAGS = -Wall -O3 -std=c++14 -pthread -ffunction-sections -fdata-sections
+endif
 TARGET = libsocketlib.a
 
 OBJ = $(patsubst %.cpp,%.o,$(wildcard *.cpp))	#OBJ = SslSocket.o StdSocket.o OpenSSLWraper.o
