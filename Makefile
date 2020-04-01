@@ -2,10 +2,10 @@
 # ACHTUNG unbedingt TABS benutzen beim einrücken
 
 CC = g++
-ifdef $(DEBUG)
+ifeq ($(DEBUG), yes)
 CFLAGS = -ggdb -pthread
 else
-CFLAGS = -Wall -O3 -std=c++14 -pthread -ffunction-sections -fdata-sections
+CFLAGS = -Wall -O3 -pthread -ffunction-sections -fdata-sections
 endif
 TARGET = libsocketlib.a
 
