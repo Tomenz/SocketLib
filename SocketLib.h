@@ -47,6 +47,8 @@ public:
     static int EnumIpAddresses(function<int(int, const string&, int, void*)> fnCallBack, void* vpUser);
     static void SetAddrNotifyCallback(function<void(bool, const string&, int, int)>& fnCbAddrNotify);
 
+    static void SetTraficDebugCallback(function<void(const uint16_t, const char*, uint32_t, bool)> fnCbTraficDbg);
+
 protected:
     explicit BaseSocket(BaseSocketImpl* pImpl);
     void SetImpl(BaseSocketImpl* pImpl);

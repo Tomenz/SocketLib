@@ -81,6 +81,8 @@ public:
     static int EnumIpAddresses(function<int(int,const string&,int,void*)> fnCallBack, void* vpUser);
     static void SetAddrNotifyCallback(function<void(bool, const string&, int, int)>& fnCbAddrNotify);
 
+    static void SetTraficDebugCallback(function<void(const uint16_t, const char*, uint32_t, bool)> fnCbTraficDbg) { s_fTraficDebug = fnCbTraficDbg; }
+
 protected:
     explicit BaseSocketImpl(BaseSocketImpl* pBaseSocket);
     virtual void SetSocketOption(const SOCKET& fd);
@@ -99,6 +101,8 @@ protected:
     function<void(BaseSocket*)> m_fCloseing;
     mutex                       m_mxFnClosing;
     BaseSocket*                 m_pBkRef;
+
+    static function<void(const uint16_t, const char*, uint32_t, bool)> s_fTraficDebug;
 
 private:
     static atomic_uint s_atRefCount;

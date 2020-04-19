@@ -261,6 +261,7 @@ void InitSocket::NotifyOnAddressChanges(vector<tuple<string, int, int>>& vNewLis
 }
 
 atomic_uint BaseSocketImpl::s_atRefCount(0);
+function<void(const uint16_t, const char*, uint32_t, bool)> BaseSocketImpl::s_fTraficDebug(nullptr);
 
 BaseSocketImpl::BaseSocketImpl() : m_fSock(INVALID_SOCKET), m_bStop(false), m_iError(0), m_iErrLoc(0), m_iShutDownState(0), m_fError(bind(&BaseSocketImpl::OnError, this)), m_pBkRef(nullptr)
 {
@@ -649,6 +650,9 @@ size_t TcpSocketImpl::Write(const void* buf, size_t len)
     if (m_bStop == true || m_bCloseReq == true || buf == nullptr || len == 0)
         return 0;
 
+    if (s_fTraficDebug != nullptr)
+        s_fTraficDebug(static_cast<uint16_t>(m_fSock), reinterpret_cast<const char*>(buf), static_cast<uint32_t>(len), true);
+
     int iRet = 0;
     if (m_fnSslEncode == nullptr || (iRet = m_fnSslEncode(buf, static_cast<uint32_t>(len)), iRet == 0))
     {
@@ -924,6 +928,9 @@ void TcpSocketImpl::SelectThread()
                     int iRet = 0;
                     if (m_fnSslDecode == nullptr || (iRet = m_fnSslDecode(buf.get(), transferred), iRet == 0))
                     {
+                        if (s_fTraficDebug != nullptr)
+                            s_fTraficDebug(static_cast<uint16_t>(m_fSock), buf.get(), transferred, false);
+
                         shared_ptr<uint8_t> tmp(new uint8_t[transferred]);
                         copy(buf.get(), buf.get() + transferred, tmp.get());
                         lock_guard<mutex> lock(m_mxInDeque);

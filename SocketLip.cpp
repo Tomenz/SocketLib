@@ -75,6 +75,11 @@ void BaseSocket::SetAddrNotifyCallback(function<void(bool, const string&, int, i
     return BaseSocketImpl::SetAddrNotifyCallback(fnCbAddrNotify);
 }
 
+void BaseSocket::SetTraficDebugCallback(function<void(const uint16_t, const char*, uint32_t, bool)> fnCbTraficDbg)
+{
+    BaseSocketImpl::SetTraficDebugCallback(fnCbTraficDbg);
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 TcpSocket::TcpSocket() : BaseSocket(new TcpSocketImpl(this))
