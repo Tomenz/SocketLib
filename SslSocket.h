@@ -31,9 +31,11 @@ public:
     bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
     bool SetCipher(const char* const szCipher);
     bool SetAcceptState();
+    bool SetConnectState();
     bool Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint = AF_UNSPEC) override;
     void Close() noexcept override;
     function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept;
+    function<void(TcpSocket*, void*)> BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted) noexcept;
     bool IsSslConnection() const noexcept override { return true; }
 
     void SetAlpnProtokollNames(vector<string>& vProtoList);
@@ -55,6 +57,7 @@ private:
     vector<SslServerContext>  m_pServerCtx;
     SslConnetion*    m_pSslCon;
     function<void(TcpSocket*)> m_fClientConneted;
+    function<void(TcpSocket*, void*)> m_fClientConnetedParam;
 
     bool             m_bCloseReq;
     int              m_iSslInit;
@@ -86,6 +89,7 @@ public:
     bool CreateClientSide(const char* const szIpToWhere, const uint16_t sPort, const char* const szDestAddr, const char* const szIpToBind = nullptr);
     void Close() noexcept override;
     function<void(UdpSocket*)> BindFuncSslInitDone(function<void(UdpSocket*)> fSllInitDone) noexcept;
+    function<void(UdpSocket*, void*)> BindFuncSslInitDone(function<void(UdpSocket*, void*)> fSllInitDone) noexcept;
 
 private:
     int DatenEncode(const void* buf, uint32_t nAnzahl, const string& strAddress);
@@ -99,6 +103,7 @@ private:
     SslConnetion*    m_pSslCon;
 
     function<void(UdpSocket*)> m_fSllInitDone;
+    function<void(UdpSocket*, void*)> m_fSllInitDoneParam;
 
     bool             m_bCloseReq;
     string           m_strDestAddr;

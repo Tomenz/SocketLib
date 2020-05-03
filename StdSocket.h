@@ -73,7 +73,10 @@ public:
     virtual void Close() = 0;
     virtual void SelfDestroy() = 0;
     virtual function<void(BaseSocket*)> BindErrorFunction(function<void(BaseSocket*)> fError) noexcept;
+    virtual function<void(BaseSocket*, void*)> BindErrorFunction(function<void(BaseSocket*, void*)> fError) noexcept;
     virtual function<void(BaseSocket*)> BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept;
+    virtual function<void(BaseSocket*, void*)> BindCloseFunction(function<void(BaseSocket*, void*)> fCloseing) noexcept;
+    virtual void SetCallbackUserData(void*);
     virtual int GetErrorNo() const  noexcept { return m_iError; }
     virtual int GetErrorLoc() const  noexcept { return m_iErrLoc; }
     virtual void SetErrorNo(int iErrNo) noexcept { m_iError = iErrNo; }
@@ -98,7 +101,10 @@ protected:
     int                         m_iErrLoc;
     atomic_uchar                m_iShutDownState;
     function<void(BaseSocket*)> m_fError;
+    function<void(BaseSocket*, void*)> m_fErrorParam;
     function<void(BaseSocket*)> m_fCloseing;
+    function<void(BaseSocket*, void*)> m_fCloseingParam;
+    void*                       m_pvUserData;
     mutex                       m_mxFnClosing;
     BaseSocket*                 m_pBkRef;
 
@@ -127,7 +133,9 @@ public:
     virtual uint32_t GetBytesAvailible() const noexcept;
     virtual uint32_t GetOutBytesInQue() const noexcept;
     virtual function<void(TcpSocket*)> BindFuncBytesReceived(function<void(TcpSocket*)> fBytesReceived) noexcept;
+    virtual function<void(TcpSocket*, void*)> BindFuncBytesReceived(function<void(TcpSocket*, void*)> fBytesReceived) noexcept;
     virtual function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept;
+    virtual function<void(TcpSocket*, void*)> BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted) noexcept;
     virtual bool IsSslConnection() const noexcept { return false; }
 
     const string& GetClientAddr() const noexcept { return m_strClientAddr; }
@@ -178,7 +186,9 @@ private:
     bool             m_bSelfDelete;
 
     function<void(TcpSocket*)> m_fBytesReceived;
+    function<void(TcpSocket*,void*)> m_fBytesReceivedParam;
     function<void(TcpSocket*)> m_fClientConneted;
+    function<void(TcpSocket*,void*)> m_fClientConnetedParam;
     function<void(TcpSocketImpl*)> m_fClientConnetedSsl;
 };
 
@@ -190,6 +200,7 @@ public:
     bool Start(const char* const szIpAddr, const uint16_t sPort);
     uint16_t GetServerPort();
     void BindNewConnection(const function<void(const vector<TcpSocket*>&)>&) noexcept;
+    void BindNewConnection(const function<void(const vector<TcpSocket*>&, void*)>&) noexcept;
     virtual void Close() noexcept;
     virtual void SelfDestroy() noexcept override { static_assert(true, "class has no self destroy function"); }
     virtual TcpSocket* const MakeClientConnection(const SOCKET&);
@@ -208,6 +219,7 @@ protected:
 private:
     vector<SOCKET> m_vSock;
     function<void(const vector<TcpSocket*>&)> m_fNewConnection;
+    function<void(const vector<TcpSocket*>&, void*)> m_fNewConnectionParam;
 };
 
 class UdpSocketImpl : public BaseSocketImpl
@@ -229,6 +241,7 @@ public:
     virtual uint32_t GetBytesAvailible() const noexcept;
     virtual uint32_t GetOutBytesInQue() const noexcept;
     virtual function<void(UdpSocket*)> BindFuncBytesReceived(function<void(UdpSocket*)> fBytesReceived) noexcept;
+    virtual function<void(UdpSocket*, void*)> BindFuncBytesReceived(function<void(UdpSocket*, void*)> fBytesReceived) noexcept;
 
 protected:
     void TriggerWriteThread();
@@ -253,6 +266,7 @@ private:
     condition_variable m_cv;
 
     function<void(UdpSocket*)> m_fBytesReceived;
+    function<void(UdpSocket*, void*)> m_fBytesReceivedParam;
 };
 
 #endif  // #ifndef STDSOCKET

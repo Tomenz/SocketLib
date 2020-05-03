@@ -263,18 +263,20 @@ void InitSocket::NotifyOnAddressChanges(vector<tuple<string, int, int>>& vNewLis
 atomic_uint BaseSocketImpl::s_atRefCount(0);
 function<void(const uint16_t, const char*, uint32_t, bool)> BaseSocketImpl::s_fTraficDebug(nullptr);
 
-BaseSocketImpl::BaseSocketImpl() : m_fSock(INVALID_SOCKET), m_bStop(false), m_iError(0), m_iErrLoc(0), m_iShutDownState(0), m_fError(bind(&BaseSocketImpl::OnError, this)), m_pBkRef(nullptr)
+BaseSocketImpl::BaseSocketImpl() : m_fSock(INVALID_SOCKET), m_bStop(false), m_iError(0), m_iErrLoc(0), m_iShutDownState(0), m_fError(bind(&BaseSocketImpl::OnError, this)), m_pvUserData(nullptr), m_pBkRef(nullptr)
 {
     ++s_atRefCount;
 }
 
-BaseSocketImpl::BaseSocketImpl(BaseSocketImpl* pBaseSocket) : m_fSock(INVALID_SOCKET), m_bStop(pBaseSocket->m_bStop), m_iError(pBaseSocket->m_iError), m_iErrLoc(pBaseSocket->m_iErrLoc), m_iShutDownState(0), m_fError(bind(&BaseSocketImpl::OnError, this)), m_pBkRef(nullptr)
+BaseSocketImpl::BaseSocketImpl(BaseSocketImpl* pBaseSocket) : m_fSock(INVALID_SOCKET), m_bStop(pBaseSocket->m_bStop), m_iError(pBaseSocket->m_iError), m_iErrLoc(pBaseSocket->m_iErrLoc), m_iShutDownState(0), m_fError(bind(&BaseSocketImpl::OnError, this)), m_pvUserData(pBaseSocket->m_pvUserData), m_pBkRef(nullptr)
 {
     ++s_atRefCount;
 
     swap(m_fSock, pBaseSocket->m_fSock);
     swap(m_fError, pBaseSocket->m_fError);
+    swap(m_fErrorParam, pBaseSocket->m_fErrorParam);
     swap(m_fCloseing, pBaseSocket->m_fCloseing);
+    swap(m_fCloseingParam, pBaseSocket->m_fCloseingParam);
     m_iShutDownState.exchange(pBaseSocket->m_iShutDownState);
 }
 
@@ -294,10 +296,27 @@ function<void(BaseSocket*)> BaseSocketImpl::BindErrorFunction(function<void(Base
     return fError;
 }
 
+function<void(BaseSocket*, void*)> BaseSocketImpl::BindErrorFunction(function<void(BaseSocket*, void*)> fError) noexcept
+{
+    m_fErrorParam.swap(fError);
+    return fError;
+}
+
 function<void(BaseSocket*)> BaseSocketImpl::BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept
 {
     m_fCloseing.swap(fCloseing);
     return fCloseing;
+}
+
+function<void(BaseSocket*, void*)> BaseSocketImpl::BindCloseFunction(function<void(BaseSocket*, void*)> fCloseing) noexcept
+{
+    m_fCloseingParam.swap(fCloseing);
+    return fCloseing;
+}
+
+void BaseSocketImpl::SetCallbackUserData(void* pUserData)
+{
+    m_pvUserData = pUserData;
 }
 
 void BaseSocketImpl::SetSocketOption(const SOCKET& fd)
@@ -325,7 +344,14 @@ void BaseSocketImpl::OnError()
 void BaseSocketImpl::StartCloseingCB()
 {
     m_mxFnClosing.lock();
-    if (m_fCloseing)
+    if (m_fCloseingParam)
+    {
+        function<void(BaseSocket*, void*)> tmpfun;
+        m_fCloseingParam.swap(tmpfun);
+        m_mxFnClosing.unlock();
+        tmpfun(m_pBkRef, m_pvUserData);
+    }
+    else if (m_fCloseing)
     {
         function<void(BaseSocket*)> tmpfun;
         m_fCloseing.swap(tmpfun);
@@ -470,7 +496,9 @@ TcpSocketImpl::TcpSocketImpl(BaseSocket* pBkRef, TcpSocketImpl* pTcpSocketImpl) 
     swap(m_sIFacePort, pTcpSocketImpl->m_sIFacePort);
 
     swap(m_fBytesReceived, pTcpSocketImpl->m_fBytesReceived);
+    swap(m_fBytesReceivedParam, pTcpSocketImpl->m_fBytesReceivedParam);
     swap(m_fClientConneted, pTcpSocketImpl->m_fClientConneted);
+    swap(m_fClientConnetedParam, pTcpSocketImpl->m_fClientConnetedParam);
     swap(m_fClientConnetedSsl, pTcpSocketImpl->m_fClientConnetedSsl);
 
     m_iShutDownState = 3;
@@ -498,7 +526,9 @@ TcpSocketImpl::~TcpSocketImpl()
         m_fSock = INVALID_SOCKET;
 
         lock_guard<mutex> lock(m_mxFnClosing);
-        if (m_fCloseing)
+        if (m_fCloseingParam)
+            m_fCloseingParam(m_pBkRef, m_pvUserData);
+        else if (m_fCloseing)
             m_fCloseing(m_pBkRef);
     }
 }
@@ -556,8 +586,11 @@ bool TcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort,
             m_thListen = thread(&TcpSocketImpl::SelectThread, this);
             m_thWrite = thread(&TcpSocketImpl::WriteThread, this);
 
-            if (m_fClientConneted)
+            if (m_fClientConnetedParam)
+                m_fClientConnetedParam(reinterpret_cast<TcpSocket*>(m_pBkRef), m_pvUserData);
+            else if (m_fClientConneted)
                 m_fClientConneted(reinterpret_cast<TcpSocket*>(m_pBkRef));
+
             if (m_fClientConnetedSsl)
                 m_fClientConnetedSsl(nullptr);
         }
@@ -710,7 +743,9 @@ void TcpSocketImpl::WriteThread()
                     getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
                     m_iErrLoc = 2;
                     lock.unlock();
-                    if (m_fError && m_bStop == false)
+                    if (m_fErrorParam && m_bStop == false)
+                        m_fErrorParam(m_pBkRef, m_pvUserData);
+                    else if (m_fError && m_bStop == false)
                         m_fError(m_pBkRef);
                     lock.lock();
                 }
@@ -732,7 +767,9 @@ void TcpSocketImpl::WriteThread()
                     m_iError = iError;
                     m_iErrLoc = 3;
                     lock.unlock();
-                    if (m_fError && m_bStop == false)
+                    if (m_fErrorParam && m_bStop == false)
+                        m_fErrorParam(m_pBkRef, m_pvUserData);
+                    else if (m_fError && m_bStop == false)
                         m_fError(m_pBkRef);
                     lock.lock();
                     break;
@@ -836,9 +873,20 @@ function<void(TcpSocket*)> TcpSocketImpl::BindFuncBytesReceived(function<void(Tc
     return fBytesReceived;
 }
 
+function<void(TcpSocket*, void*)> TcpSocketImpl::BindFuncBytesReceived(function<void(TcpSocket*, void*)> fBytesReceived) noexcept
+{
+    m_fBytesReceivedParam.swap(fBytesReceived);
+    return fBytesReceived;
+}
+
 function<void(TcpSocket*)> TcpSocketImpl::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
 {
     m_fClientConneted.swap(fClientConneted);
+    return fClientConneted;
+}
+function<void(TcpSocket*, void*)> TcpSocketImpl::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted) noexcept
+{
+    m_fClientConnetedParam.swap(fClientConneted);
     return fClientConneted;
 }
 void TcpSocketImpl::BindFuncConEstablished(function<void(TcpSocketImpl*)> fClientConneted) noexcept
@@ -881,7 +929,9 @@ void TcpSocketImpl::SelectThread()
                 socklen_t iLen = sizeof(m_iError);
                 getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
                 m_iErrLoc = 5;
-                if (m_fError && m_bStop == false)
+                if (m_fErrorParam && m_bStop == false)
+                    m_fErrorParam(m_pBkRef, m_pvUserData);
+                else if (m_fError && m_bStop == false)
                     m_fError(m_pBkRef);
                 break;
             }
@@ -906,7 +956,9 @@ void TcpSocketImpl::SelectThread()
                         while (bReadCall == true)
                             this_thread::sleep_for(chrono::milliseconds(10));
 
-                        if (m_fBytesReceived)
+                        if (m_fBytesReceivedParam)
+                            m_fBytesReceivedParam(reinterpret_cast<TcpSocket*>(m_pBkRef), m_pvUserData);
+                        else if (m_fBytesReceived)
                             m_fBytesReceived(reinterpret_cast<TcpSocket*>(m_pBkRef));
                         break;
                     }
@@ -917,7 +969,9 @@ void TcpSocketImpl::SelectThread()
                         {
                             m_iError = iError;
                             m_iErrLoc = 7;
-                            if (m_fError && m_bStop == false)
+                            if (m_fErrorParam && m_bStop == false)
+                                m_fErrorParam(m_pBkRef, m_pvUserData);
+                            else if (m_fError && m_bStop == false)
                                 m_fError(m_pBkRef);
                             break;
                         }
@@ -938,7 +992,7 @@ void TcpSocketImpl::SelectThread()
                         m_atInBytes += transferred;
                     }
 
-                    if (m_fBytesReceived && m_bStop == false && iRet != -1)
+                    if ((m_fBytesReceived || m_fBytesReceivedParam) && m_bStop == false && iRet != -1)
                     {
                         lock_guard<mutex> lock(mxNotify);
                         if (bReadCall == false)
@@ -950,7 +1004,10 @@ void TcpSocketImpl::SelectThread()
                                 while (m_atInBytes > 0 && m_bStop == false)
                                 {
                                     mxNotify.unlock();
-                                    m_fBytesReceived(reinterpret_cast<TcpSocket*>(m_pBkRef));
+                                    if (m_fBytesReceivedParam != nullptr)
+                                        m_fBytesReceivedParam(reinterpret_cast<TcpSocket*>(m_pBkRef), m_pvUserData);
+                                    else 
+                                        m_fBytesReceived(reinterpret_cast<TcpSocket*>(m_pBkRef));
                                     mxNotify.lock();
                                 }
                                 bReadCall = false;
@@ -1020,7 +1077,9 @@ void TcpSocketImpl::ConnectThread()
                 getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
                 m_iErrLoc = 9;
                 m_iShutDownState = 7;
-                if (m_fError && m_bStop == false)
+                if (m_fErrorParam && m_bStop == false)
+                    m_fErrorParam(m_pBkRef, m_pvUserData);
+                else if (m_fError && m_bStop == false)
                     m_fError(m_pBkRef);
                 break;
             }
@@ -1032,8 +1091,11 @@ void TcpSocketImpl::ConnectThread()
                 m_thListen = thread(&TcpSocketImpl::SelectThread, this);
                 m_thWrite = thread(&TcpSocketImpl::WriteThread, this);
 
-                if (m_fClientConneted)
+                if (m_fClientConnetedParam)
+                    m_fClientConnetedParam(reinterpret_cast<TcpSocket*>(m_pBkRef), m_pvUserData);
+                else if (m_fClientConneted)
                     m_fClientConneted(reinterpret_cast<TcpSocket*>(m_pBkRef));
+
                 if (m_fClientConnetedSsl)
                     m_fClientConnetedSsl(nullptr);
                 break;
@@ -1236,6 +1298,11 @@ void TcpServerImpl::BindNewConnection(const function<void(const vector<TcpSocket
     m_fNewConnection = fNewConnetion;
 }
 
+void TcpServerImpl::BindNewConnection(const function<void(const vector<TcpSocket*>&, void*)>& fNewConnetion) noexcept
+{
+    m_fNewConnectionParam = fNewConnetion;
+}
+
 void TcpServerImpl::Delete()
 {
     while (m_vSock.size())
@@ -1315,7 +1382,9 @@ void TcpServerImpl::SelectThread()
                         TcpSocket* pClient = MakeClientConnection(sock);
                         if (pClient->GetErrorNo() != 0)
                         {
-                            if (m_fError)
+                            if (m_fErrorParam)
+                                m_fErrorParam(pClient, m_pvUserData);  // Must call Close() in the error callback
+                            else if (m_fError)
                                 m_fError(pClient);  // Must call Close() in the error callback
                             else
                                 pClient->Close();
@@ -1323,7 +1392,9 @@ void TcpServerImpl::SelectThread()
                         }
                         vNewConnections.push_back(pClient);
                     }
-                    if (m_fNewConnection != nullptr && m_bStop != true)
+                    if (m_fNewConnectionParam != nullptr && m_bStop != true)
+                        m_fNewConnectionParam(vNewConnections, m_pvUserData);
+                    else if (m_fNewConnection != nullptr && m_bStop != true)
                         m_fNewConnection(vNewConnections);
                     else
                     {
@@ -1365,7 +1436,9 @@ UdpSocketImpl::~UdpSocketImpl()
     {
         ::closesocket(m_fSock);
 
-        if (m_fCloseing)
+        if (m_fCloseingParam)
+            m_fCloseingParam(m_pBkRef, m_pvUserData);
+        else if (m_fCloseing)
             m_fCloseing(m_pBkRef);
     }
 }
@@ -1641,7 +1714,9 @@ void UdpSocketImpl::WriteThread()
                     socklen_t iLen = sizeof(m_iError);
                     getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
                     m_iErrLoc = 5;
-                    if (m_fError && m_bStop == false)
+                    if (m_fErrorParam && m_bStop == false)
+                        m_fErrorParam(m_pBkRef, m_pvUserData);
+                    else if (m_fError && m_bStop == false)
                         m_fError(m_pBkRef);
                 }
                 break;
@@ -1681,7 +1756,9 @@ void UdpSocketImpl::WriteThread()
                 if (m_iError != WSAEWOULDBLOCK)
                 {
                     m_iErrLoc = 6;
-                    if (m_fError && m_bStop == false)
+                    if (m_fErrorParam && m_bStop == false)
+                        m_fErrorParam(m_pBkRef, m_pvUserData);
+                    else if (m_fError && m_bStop == false)
                         m_fError(m_pBkRef);
                     break;
                 }
@@ -1759,6 +1836,12 @@ function<void(UdpSocket*)> UdpSocketImpl::BindFuncBytesReceived(function<void(Ud
     return fBytesReceived;
 }
 
+function<void(UdpSocket*, void*)> UdpSocketImpl::BindFuncBytesReceived(function<void(UdpSocket*, void*)> fBytesReceived) noexcept
+{
+    m_fBytesReceivedParam.swap(fBytesReceived);
+    return fBytesReceived;
+}
+
 void UdpSocketImpl::SelectThread()
 {
     bool bReadCall = false;
@@ -1792,7 +1875,9 @@ void UdpSocketImpl::SelectThread()
                 socklen_t iLen = sizeof(m_iError);
                 getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
                 m_iErrLoc = 7;
-                if (m_fError && m_bStop == false)
+                if (m_fErrorParam && m_bStop == false)
+                    m_fErrorParam(m_pBkRef, m_pvUserData);
+                else if (m_fError && m_bStop == false)
                     m_fError(m_pBkRef);
                 break;
             }
@@ -1823,7 +1908,9 @@ void UdpSocketImpl::SelectThread()
                         while (bReadCall == true)
                             this_thread::sleep_for(chrono::milliseconds(10));
 
-                        if (m_fBytesReceived)
+                        if (m_fBytesReceivedParam)
+                            m_fBytesReceivedParam(reinterpret_cast<UdpSocket*>(m_pBkRef), m_pvUserData);
+                        else if (m_fBytesReceived)
                             m_fBytesReceived(reinterpret_cast<UdpSocket*>(m_pBkRef));
                         break;
                     }
@@ -1833,7 +1920,9 @@ void UdpSocketImpl::SelectThread()
                         if (m_iError != WSAEWOULDBLOCK)
                         {
                             m_iErrLoc = 9;
-                            if (m_fError && m_bStop == false)
+                            if (m_fErrorParam && m_bStop == false)
+                                m_fErrorParam(m_pBkRef, m_pvUserData);
+                            else if (m_fError && m_bStop == false)
                                 m_fError(m_pBkRef);
                             break;
                         }
@@ -1865,7 +1954,7 @@ void UdpSocketImpl::SelectThread()
                         m_mxInDeque.unlock();
                     }
 
-                    if (m_fBytesReceived && m_bStop == false && iRet != -1)
+                    if ((m_fBytesReceived || m_fBytesReceivedParam) && m_bStop == false && iRet != -1)
                     {
                         lock_guard<mutex> lock(mxNotify);
                         if (bReadCall == false)
@@ -1877,7 +1966,10 @@ void UdpSocketImpl::SelectThread()
                                 while (m_atInBytes > 0 && m_bStop == false)
                                 {
                                     mxNotify.unlock();
-                                    m_fBytesReceived(reinterpret_cast<UdpSocket*>(m_pBkRef));
+                                    if (m_fBytesReceivedParam != nullptr)
+                                        m_fBytesReceivedParam(reinterpret_cast<UdpSocket*>(m_pBkRef), m_pvUserData);
+                                    else
+                                        m_fBytesReceived(reinterpret_cast<UdpSocket*>(m_pBkRef));
                                     mxNotify.lock();
                                 }
                                 bReadCall = false;

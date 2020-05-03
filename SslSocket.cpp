@@ -131,6 +131,20 @@ bool SslTcpSocketImpl::SetAcceptState()
     return true;
 }
 
+bool SslTcpSocketImpl::SetConnectState()
+{
+    m_pSslCon = new SslConnetion(m_pClientCtx);
+    m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
+    m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnFoarwarder));
+    m_pSslCon->SetUserData(1, this);
+
+    if (m_strTrustRootCert.size() > 0)
+        m_pSslCon->SetTrustedRootCertificates(m_strTrustRootCert.c_str());
+
+    ConEstablished(this);
+    return true;
+}
+
 bool SslTcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint/* = AF_UNSPEC*/)
 {
     m_pSslCon = new SslConnetion(m_pClientCtx);
@@ -273,6 +287,12 @@ function<void(TcpSocket*)> SslTcpSocketImpl::BindFuncConEstablished(function<voi
     return fClientConneted;
 }
 
+function<void(TcpSocket*, void*)> SslTcpSocketImpl::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted) noexcept
+{
+    m_fClientConnetedParam.swap(fClientConneted);
+    return fClientConneted;
+}
+
 void SslTcpSocketImpl::ConEstablished(const TcpSocketImpl* const pTcpSocket)
 {
     SSL_set_connect_state((*m_pSslCon)());
@@ -374,7 +394,9 @@ int SslTcpSocketImpl::DatenDecode(const char* buffer, uint32_t nAnzahl)
                 m_iErrLoc = 14;
                 OutputDebugString(wstring(L"SSL_error: " + to_wstring(iError) + L", after SSL_do_handshake returnd: " + to_wstring(m_iSslInit) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)()))).c_str());
                 OutputDebugStringA(string(", msg: " + m_pSslCon->GetSslErrAsString()).c_str());
-                if (m_fError)
+                if (m_fErrorParam)
+                    m_fErrorParam(m_pBkRef, m_pvUserData);
+                else if (m_fError)
                     m_fError(m_pBkRef);
                 return -1;
             }
@@ -385,6 +407,8 @@ int SslTcpSocketImpl::DatenDecode(const char* buffer, uint32_t nAnzahl)
             //if (iEarlyData != SSL_EARLY_DATA_NOT_SENT)
             //    OutputDebugString(wstring(L"SSL_get_early_data_status: " + to_wstring(iEarlyData) + L"\r\n").c_str());
 
+            if (m_fClientConnetedParam)
+                m_fClientConnetedParam(reinterpret_cast<SslTcpSocket*>(m_pBkRef), m_pvUserData);
             if (m_fClientConneted)
                 m_fClientConneted(reinterpret_cast<SslTcpSocket*>(m_pBkRef));
         }
@@ -790,6 +814,12 @@ function<void(UdpSocket*)> SslUdpSocketImpl::BindFuncSslInitDone(function<void(U
     return fSllInitDone;
 }
 
+function<void(UdpSocket*, void*)> SslUdpSocketImpl::BindFuncSslInitDone(function<void(UdpSocket*, void*)> fSllInitDone) noexcept
+{
+    m_fSllInitDoneParam.swap(fSllInitDone);
+    return fSllInitDone;
+}
+
 int SslUdpSocketImpl::DatenDecode(const char* buffer, uint32_t nAnzahl, const string& strAddress)
 {
     if (buffer == nullptr || nAnzahl == 0)
@@ -849,14 +879,18 @@ int SslUdpSocketImpl::DatenDecode(const char* buffer, uint32_t nAnzahl, const st
                 m_iErrLoc = 14;
                 OutputDebugString(wstring(L"SSL_error: " + to_wstring(iError) + L", after SSL_do_handshake returned: " + to_wstring(iSslInit) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)()))).c_str());
                 OutputDebugStringA(string(", msg: " + m_pSslCon->GetSslErrAsString()).c_str());
-                if (m_fError && m_bStop == false)
+                if (m_fErrorParam && m_bStop == false)
+                    m_fErrorParam(m_pBkRef, m_pvUserData);
+                else if (m_fError && m_bStop == false)
                     m_fError(m_pBkRef);
                 return -1;
             }
         }
         else
         {
-            if (m_fSllInitDone != nullptr)
+            if (m_fSllInitDoneParam != nullptr)
+                m_fSllInitDoneParam(reinterpret_cast<UdpSocket*>(m_pBkRef), m_pvUserData);
+            else if (m_fSllInitDone != nullptr)
                 m_fSllInitDone(reinterpret_cast<UdpSocket*>(m_pBkRef));
         }
     }

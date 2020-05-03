@@ -50,9 +50,24 @@ function<void(BaseSocket*)> BaseSocket::BindErrorFunction(function<void(BaseSock
     return Impl_->BindErrorFunction(fError);
 }
 
+function<void(BaseSocket*, void*)> BaseSocket::BindErrorFunction(function<void(BaseSocket*, void*)> fError) noexcept
+{
+    return Impl_->BindErrorFunction(fError);
+}
+
 function<void(BaseSocket*)> BaseSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept
 {
     return Impl_->BindCloseFunction(fCloseing);
+}
+
+function<void(BaseSocket*, void*)> BaseSocket::BindCloseFunction(function<void(BaseSocket*, void*)> fCloseing) noexcept
+{
+    return Impl_->BindCloseFunction(fCloseing);
+}
+
+void BaseSocket::SetCallbackUserData(void* pUserData)
+{
+    Impl_->SetCallbackUserData(pUserData);
 }
 
 void BaseSocket::SetErrorNo(int iErrNo) noexcept
@@ -140,7 +155,15 @@ function<void(TcpSocket*)> TcpSocket::BindFuncBytesReceived(function<void(TcpSoc
 {
     return reinterpret_cast<TcpSocketImpl*>(Impl_.get())->BindFuncBytesReceived(fBytesReceived);
 }
+function<void(TcpSocket*, void*)> TcpSocket::BindFuncBytesReceived(function<void(TcpSocket*, void*)> fBytesReceived) noexcept
+{
+    return reinterpret_cast<TcpSocketImpl*>(Impl_.get())->BindFuncBytesReceived(fBytesReceived);
+}
 function<void(TcpSocket*)> TcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
+{
+    return reinterpret_cast<TcpSocketImpl*>(Impl_.get())->BindFuncConEstablished(fClientConneted);
+}
+function<void(TcpSocket*, void*)> TcpSocket::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted) noexcept
 {
     return reinterpret_cast<TcpSocketImpl*>(Impl_.get())->BindFuncConEstablished(fClientConneted);
 }
@@ -195,6 +218,10 @@ unsigned short TcpServer::GetServerPort()
     return reinterpret_cast<TcpServerImpl*>(Impl_.get())->GetServerPort();
 }
 void TcpServer::BindNewConnection(function<void(const vector<TcpSocket*>&)> fnNewConnection) noexcept
+{
+    reinterpret_cast<TcpServerImpl*>(Impl_.get())->BindNewConnection(fnNewConnection);
+}
+void TcpServer::BindNewConnection(function<void(const vector<TcpSocket*>&, void*)> fnNewConnection) noexcept
 {
     reinterpret_cast<TcpServerImpl*>(Impl_.get())->BindNewConnection(fnNewConnection);
 }
@@ -268,6 +295,11 @@ function<void(UdpSocket*)> UdpSocket::BindFuncBytesReceived(function<void(UdpSoc
     return reinterpret_cast<UdpSocketImpl*>(Impl_.get())->BindFuncBytesReceived(fBytesReceived);
 }
 
+function<void(UdpSocket*, void*)> UdpSocket::BindFuncBytesReceived(function<void(UdpSocket*, void*)> fBytesReceived) noexcept
+{
+    return reinterpret_cast<UdpSocketImpl*>(Impl_.get())->BindFuncBytesReceived(fBytesReceived);
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifndef WITHOUT_OPENSSL
 
@@ -311,6 +343,11 @@ bool SslTcpSocket::SetAcceptState()
     return reinterpret_cast<SslTcpSocketImpl*>(Impl_.get())->SetAcceptState();
 }
 
+bool SslTcpSocket::SetConnectState()
+{
+    return reinterpret_cast<SslTcpSocketImpl*>(Impl_.get())->SetConnectState();
+}
+
 bool SslTcpSocket::Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint/* = AF_UNSPEC*/)
 {
     return reinterpret_cast<SslTcpSocketImpl*>(Impl_.get())->Connect(szIpToWhere, sPort, AddrHint);
@@ -322,6 +359,11 @@ void SslTcpSocket::Close() noexcept
 }
 
 function<void(TcpSocket*)> SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
+{
+    return reinterpret_cast<SslTcpSocketImpl*>(Impl_.get())->BindFuncConEstablished(fClientConneted);
+}
+
+function<void(TcpSocket*, void*)> SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted) noexcept
 {
     return reinterpret_cast<SslTcpSocketImpl*>(Impl_.get())->BindFuncConEstablished(fClientConneted);
 }
@@ -406,6 +448,11 @@ void SslUdpSocket::Close() noexcept
 }
 
 function<void(UdpSocket*)> SslUdpSocket::BindFuncSslInitDone(function<void(UdpSocket*)> fSllInitDone) noexcept
+{
+    return reinterpret_cast<SslUdpSocketImpl*>(Impl_.get())->BindFuncSslInitDone(fSllInitDone);
+}
+
+function<void(UdpSocket*, void*)> SslUdpSocket::BindFuncSslInitDone(function<void(UdpSocket*, void*)> fSllInitDone) noexcept
 {
     return reinterpret_cast<SslUdpSocketImpl*>(Impl_.get())->BindFuncSslInitDone(fSllInitDone);
 }
