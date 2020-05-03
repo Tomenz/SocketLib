@@ -208,6 +208,9 @@ namespace OpenSSLWrapper
 
     int SslContext::SetCertificates(const char* szHostCertificate, const char* szHostKey)
     {
+        if (szHostCertificate == nullptr || szHostKey == nullptr)
+            return 0;
+
         if (SSL_CTX_use_certificate_file(m_ctx, szHostCertificate, SSL_FILETYPE_PEM) != 1)
             return -2;//throw runtime_error("error loading host certificate");
 
@@ -320,7 +323,7 @@ namespace OpenSSLWrapper
 
     int SslServerContext::SetCertificates(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey)
     {
-        if (SSL_CTX_use_certificate_chain_file(m_ctx, szCAcertificate) != 1)
+        if (szCAcertificate != nullptr && SSL_CTX_use_certificate_chain_file(m_ctx, szCAcertificate) != 1)
             return -1;// throw runtime_error("error loading CA root certificate");
 
         return SslContext::SetCertificates(szHostCertificate, szHostKey);

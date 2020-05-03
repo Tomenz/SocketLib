@@ -170,6 +170,9 @@ protected:
     deque<DATA>      m_quOutData;
     atomic<uint32_t> m_atOutBytes;
 
+    function<void(TcpSocket*)> m_fClientConneted;
+    function<void(TcpSocket*, void*)> m_fClientConnetedParam;
+
 private:
     thread           m_thConnect;
 
@@ -187,8 +190,6 @@ private:
 
     function<void(TcpSocket*)> m_fBytesReceived;
     function<void(TcpSocket*,void*)> m_fBytesReceivedParam;
-    function<void(TcpSocket*)> m_fClientConneted;
-    function<void(TcpSocket*,void*)> m_fClientConnetedParam;
     function<void(TcpSocketImpl*)> m_fClientConnetedSsl;
 };
 

@@ -56,6 +56,9 @@ SslTcpSocketImpl::SslTcpSocketImpl(BaseSocket* pBkref, TcpSocketImpl* pTcpSocket
 {
     m_fnSslEncode = bind(&SslTcpSocketImpl::DatenEncode, this, _1, _2);
     m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, this, _1, _2);
+
+    m_fClientConneted.swap(TcpSocketImpl::m_fClientConneted);
+    m_fClientConnetedParam.swap(TcpSocketImpl::m_fClientConnetedParam);
 }
 
 SslTcpSocketImpl::SslTcpSocketImpl(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket) : TcpSocketImpl(fSock, pRefServSocket), m_pSslCon(pSslCon), m_bCloseReq(false), m_iSslInit(0)
@@ -83,7 +86,7 @@ bool SslTcpSocketImpl::AddServerCertificat(const char* szCAcertificate, const ch
     m_pServerCtx.emplace_back(SslServerContext());
     if (m_pServerCtx.back().SetCertificates(szCAcertificate, szHostCertificate, szHostKey) > 0)
     {
-        if (m_pServerCtx.back().SetDhParamFile(szDhParamFileName) == true)
+        if (szDhParamFileName == nullptr || m_pServerCtx.back().SetDhParamFile(szDhParamFileName) == true)
         {
             m_pServerCtx.back().AddVirtualHost(&m_pServerCtx);
             return true;
