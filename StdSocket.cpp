@@ -475,7 +475,7 @@ TcpSocketImpl::TcpSocketImpl(const SOCKET fSock, const TcpServer* pRefServSocket
     atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
     atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
 
-    m_iShutDownState = 3;
+    m_iShutDownState = 7;
     m_thWrite = thread(&TcpSocketImpl::WriteThread, this);
 }
 
@@ -501,7 +501,7 @@ TcpSocketImpl::TcpSocketImpl(BaseSocket* pBkRef, TcpSocketImpl* pTcpSocketImpl) 
     swap(m_fClientConnetedParam, pTcpSocketImpl->m_fClientConnetedParam);
     swap(m_fClientConnetedSsl, pTcpSocketImpl->m_fClientConnetedSsl);
 
-    m_iShutDownState = 3;
+    m_iShutDownState = 7;
     m_thWrite = thread(&TcpSocketImpl::WriteThread, this);
 	m_pBkRef = pBkRef;
 }
@@ -810,8 +810,8 @@ void TcpSocketImpl::WriteThread()
     }
     m_iShutDownState |= 2;
 
-    unsigned char cExpected = 3;
-    if (m_iShutDownState.compare_exchange_strong(cExpected, 7) == true)
+    unsigned char cExpected = 7;
+    if (m_iShutDownState.compare_exchange_strong(cExpected, 15) == true)
     {
         if (m_fSock != INVALID_SOCKET)
             ::closesocket(m_fSock);
@@ -839,10 +839,10 @@ void TcpSocketImpl::Close() noexcept
         m_cv.notify_all();
         if (bIsLocked == true)
             m_mxWrite.unlock();
-    } while (m_iShutDownState < 2 && m_iError == 0);
+    } while ((m_iShutDownState & 2) == 0 && m_iError == 0); // Wait until the write thread is finished
     m_bStop = true; // Stops the listening thread
 
-    if (m_pRefServSocket == nullptr && m_iShutDownState == 7 && m_fCloseing)
+    if (m_pRefServSocket == nullptr && m_iShutDownState == 15 && m_fCloseing)
         thread([&]() { StartCloseingCB(); }).detach();
 }
 
@@ -1039,8 +1039,8 @@ void TcpSocketImpl::SelectThread()
 
     m_iShutDownState |= 1;
 
-    unsigned char cExpected = 3;
-    if (m_iShutDownState.compare_exchange_strong(cExpected, 7) == true)
+    unsigned char cExpected = 7;
+    if (m_iShutDownState.compare_exchange_strong(cExpected, 15) == true)
     {
         if (m_fSock != INVALID_SOCKET)
             ::closesocket(m_fSock);
@@ -1050,12 +1050,14 @@ void TcpSocketImpl::SelectThread()
 
         // if it is a auto-delete class we start the auto-delete thread now
         if (m_pRefServSocket != nullptr || m_bSelfDelete == true)    // Auto-delete, socket created from server socket
-            Delete();// thread([&]() { delete this; }).detach();
+             Delete();// thread([&]() { delete this; }).detach();
     }
 }
 
 void TcpSocketImpl::ConnectThread()
 {
+    m_iShutDownState &= ~4;
+
     while (m_bStop == false)
     {
         fd_set writefd, errorfd;
@@ -1076,7 +1078,7 @@ void TcpSocketImpl::ConnectThread()
                 socklen_t iLen = sizeof(m_iError);
                 getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
                 m_iErrLoc = 9;
-                m_iShutDownState = 7;
+                m_iShutDownState = 15;
                 if (m_fErrorParam && m_bStop == false)
                     m_fErrorParam(m_pBkRef, m_pvUserData);
                 else if (m_fError && m_bStop == false)
@@ -1103,15 +1105,21 @@ void TcpSocketImpl::ConnectThread()
         }
     }
 
-    if ((m_iError != 0 && m_fSock != INVALID_SOCKET) || m_bStop == true)
+    m_iShutDownState |= 4;
+
+    unsigned char cExpected = 7;
+    if (m_iShutDownState.compare_exchange_strong(cExpected, 15) == true)
     {
-        ::closesocket(m_fSock);
-        m_fSock = INVALID_SOCKET;
+        if ((m_iError != 0 && m_fSock != INVALID_SOCKET) || m_bStop == true)
+        {
+            ::closesocket(m_fSock);
+            m_fSock = INVALID_SOCKET;
 
-        StartCloseingCB();
+            StartCloseingCB();
 
-        if (m_bSelfDelete == true)    // Auto-delete, socket created from server socket
-            Delete();// thread([&]() { delete this; }).detach();
+            if (m_bSelfDelete == true)    // Auto-delete, socket created from server socket
+                Delete();// thread([&]() { delete this; }).detach();
+        }
     }
 }
 
@@ -1796,7 +1804,7 @@ void UdpSocketImpl::WriteThread()
     m_iShutDownState |= 2;
 
     unsigned char cExpected = 3;
-    if (m_iShutDownState.compare_exchange_strong(cExpected, 7) == true)
+    if (m_iShutDownState.compare_exchange_strong(cExpected, 15) == true)
     {
         if (m_fSock != INVALID_SOCKET)
             ::closesocket(m_fSock);
@@ -1816,7 +1824,7 @@ void UdpSocketImpl::Close() noexcept
         m_cv.notify_all();
         if (bIsLocked == true)
             m_mxWrite.unlock();
-    } while (m_iShutDownState < 2 && m_iError == 0);
+    } while ((m_iShutDownState & 2) == 0 && m_iError == 0); // Wait until the write thread is finished
     m_bStop = true; // Stops the listening thread
 }
 
@@ -2000,7 +2008,7 @@ void UdpSocketImpl::SelectThread()
     m_iShutDownState |= 1;
 
     unsigned char cExpected = 3;
-    if (m_iShutDownState.compare_exchange_strong(cExpected, 7) == true)
+    if (m_iShutDownState.compare_exchange_strong(cExpected, 15) == true)
     {
         if (m_fSock != INVALID_SOCKET)
             ::closesocket(m_fSock);
