@@ -1378,12 +1378,12 @@ void TcpServerImpl::SelectThread()
                 }
             }
 
-            if (vSockets.size() > 0)
+            if (vSockets.size() > 0 && m_bStop == false)
             {
+                nNewConCbCount++;
+
                 thread([this, &nNewConCbCount](const vector<SOCKET> vNewSockets)
                 {
-                    nNewConCbCount++;
-
                     vector<TcpSocket*> vNewConnections;
                     for (SOCKET sock : vNewSockets)
                     {
