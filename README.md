@@ -1,3 +1,6 @@
+[![Total alerts](https://img.shields.io/lgtm/alerts/g/Tomenz/SocketLib.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/Tomenz/SocketLib/alerts/)
+[![Language grade: C/C++](https://img.shields.io/lgtm/grade/cpp/g/Tomenz/SocketLib.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/Tomenz/SocketLib/context:cpp)
+
 # SocketLib
 Socket library written in c++11/14 for Windows/Linux (32/64) 
 
