@@ -644,7 +644,7 @@ uint32_t TcpSocketImpl::Read(void* buf, uint32_t len)
     if (nToCopy < BUFLEN(data))
     {   // Put the Rest of the Data back to the Que
         uint32_t nRest = BUFLEN(data) - nToCopy;
-        shared_ptr<uint8_t> tmp(new uint8_t[nRest]);
+        shared_ptr<uint8_t[]> tmp(new uint8_t[nRest]);
         copy(BUFFER(data).get() + nToCopy, BUFFER(data).get() + nToCopy + nRest, tmp.get());
         m_mxInDeque.lock();
         m_quInData.emplace_front(tmp, nRest);
@@ -662,7 +662,7 @@ uint32_t TcpSocketImpl::Read(void* buf, uint32_t len)
 
 uint32_t TcpSocketImpl::PutBackRead(void* buf, uint32_t len)
 {
-    shared_ptr<uint8_t> tmp(new uint8_t[len]);
+    shared_ptr<uint8_t[]> tmp(new uint8_t[len]);
     copy(static_cast<const uint8_t*>(buf), static_cast<const uint8_t*>(buf) + len, tmp.get());
     m_mxInDeque.lock();
     m_quInData.emplace_front(tmp, len);
@@ -689,7 +689,7 @@ size_t TcpSocketImpl::Write(const void* buf, size_t len)
     int iRet = 0;
     if (m_fnSslEncode == nullptr || (iRet = m_fnSslEncode(buf, static_cast<uint32_t>(len)), iRet == 0))
     {
-        shared_ptr<uint8_t> tmp(new uint8_t[len]);
+        shared_ptr<uint8_t[]> tmp(new uint8_t[len]);
         copy(static_cast<const uint8_t*>(buf), static_cast<const uint8_t*>(buf) + len, tmp.get());
         m_mxOutDeque.lock();
         m_atOutBytes += static_cast<uint32_t>(len);
@@ -775,7 +775,7 @@ void TcpSocketImpl::WriteThread()
                     break;
                 }
                 // Put the not send bytes back into the que if it is not a SSL connection. A SSL connection has the bytes still available
-                shared_ptr<uint8_t> tmp(new uint8_t[BUFLEN(data)]);
+                shared_ptr<uint8_t[]> tmp(new uint8_t[BUFLEN(data)]);
                 copy(BUFFER(data).get(), BUFFER(data).get() + BUFLEN(data), tmp.get());
                 m_mxOutDeque.lock();
                 m_quOutData.emplace_front(tmp, BUFLEN(data));
@@ -784,7 +784,7 @@ void TcpSocketImpl::WriteThread()
             }
             else if (transferred < BUFLEN(data)) // Less bytes send as buffer size, we put the rast back in your que
             {
-                shared_ptr<uint8_t> tmp(new uint8_t[BUFLEN(data) - transferred]);
+                shared_ptr<uint8_t[]> tmp(new uint8_t[BUFLEN(data) - transferred]);
                 copy(BUFFER(data).get() + transferred, BUFFER(data).get() + transferred + (BUFLEN(data) - transferred), tmp.get());
                 m_mxOutDeque.lock();
                 m_quOutData.emplace_front(tmp, (BUFLEN(data) - transferred));
@@ -985,7 +985,7 @@ void TcpSocketImpl::SelectThread()
                         if (s_fTraficDebug != nullptr)
                             s_fTraficDebug(static_cast<uint16_t>(m_fSock), buf.get(), transferred, false);
 
-                        shared_ptr<uint8_t> tmp(new uint8_t[transferred]);
+                        shared_ptr<uint8_t[]> tmp(new uint8_t[transferred]);
                         copy(buf.get(), buf.get() + transferred, tmp.get());
                         lock_guard<mutex> lock(m_mxInDeque);
                         m_quInData.emplace_back(tmp, transferred);
@@ -1281,7 +1281,7 @@ void TcpServerImpl::SetSocketOption(const SOCKET& fd)
         throw WSAGetLastError();
 }
 
-TcpSocket* const TcpServerImpl::MakeClientConnection(const SOCKET& fSock)
+TcpSocket* TcpServerImpl::MakeClientConnection(const SOCKET& fSock)
 {
     TcpSocketImpl* pImpl = new TcpSocketImpl(fSock, reinterpret_cast<TcpServer*>(this->m_pBkRef));
 
@@ -1646,7 +1646,7 @@ uint32_t UdpSocketImpl::Read(void* buf, uint32_t len, string& strFrom)
     if (nToCopy < BUFLEN(data))
     {   // Put the Rest of the Data back to the Que
         uint32_t nRest = BUFLEN(data) - nToCopy;
-        shared_ptr<uint8_t> tmp(new uint8_t[nRest]);
+        shared_ptr<uint8_t[]> tmp(new uint8_t[nRest]);
         copy(BUFFER(data).get() + nToCopy, BUFFER(data).get() + nToCopy + nRest, tmp.get());
         m_mxInDeque.lock();
         m_quInData.emplace_front(tmp, nRest, ADDRESS(data));
@@ -1670,7 +1670,7 @@ size_t UdpSocketImpl::Write(const void* buf, size_t len, const string& strTo)
     int iRet = 0;
     if (m_fnSslEncode == nullptr || (iRet = m_fnSslEncode(buf, static_cast<uint32_t>(len), strTo), iRet == 0))
     {
-        shared_ptr<uint8_t> tmp(new uint8_t[len]);
+        shared_ptr<uint8_t[]> tmp(new uint8_t[len]);
         copy(static_cast<const uint8_t*>(buf), static_cast<const uint8_t*>(buf) + len, tmp.get());
         m_mxOutDeque.lock();
         m_quOutData.emplace_back(tmp, static_cast<uint32_t>(len), strTo);
@@ -1771,7 +1771,7 @@ void UdpSocketImpl::WriteThread()
                     break;
                 }
                 // Put the not send bytes back into the que if it is not a SSL connection. A SSL connection has the bytes still available
-                shared_ptr<uint8_t> tmp(new uint8_t[BUFLEN(data)]);
+                shared_ptr<uint8_t[]> tmp(new uint8_t[BUFLEN(data)]);
                 copy(BUFFER(data).get(), BUFFER(data).get() + BUFLEN(data), tmp.get());
                 m_mxOutDeque.lock();
                 m_quOutData.emplace_front(tmp, BUFLEN(data), ADDRESS(data));
@@ -1780,7 +1780,7 @@ void UdpSocketImpl::WriteThread()
             }
             else if (transferred < BUFLEN(data)) // Less bytes send as buffer size, we put the rast back in your que
             {
-                shared_ptr<uint8_t> tmp(new uint8_t[BUFLEN(data) - transferred]);
+                shared_ptr<uint8_t[]> tmp(new uint8_t[BUFLEN(data) - transferred]);
                 copy(BUFFER(data).get() + transferred, BUFFER(data).get() + transferred + (BUFLEN(data) - transferred), tmp.get());
                 m_mxOutDeque.lock();
                 m_quOutData.emplace_front(tmp, (BUFLEN(data) - transferred), ADDRESS(data));
@@ -1954,7 +1954,7 @@ void UdpSocketImpl::SelectThread()
                     int iRet = 0;
                     if (m_fnSslDecode == nullptr || (iRet = m_fnSslDecode(buf.get(), transferred, strAbsender.str()), iRet == 0))
                     {
-                        shared_ptr<uint8_t> tmp(new uint8_t[transferred]);
+                        shared_ptr<uint8_t[]> tmp(new uint8_t[transferred]);
                         copy(buf.get(), buf.get() + transferred, tmp.get());
                         m_mxInDeque.lock();
                         m_quInData.emplace_back(tmp, transferred, strAbsender.str());

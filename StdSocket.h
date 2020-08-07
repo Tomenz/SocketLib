@@ -117,7 +117,7 @@ private:
 class TcpSocketImpl : public BaseSocketImpl
 {
 protected:
-    typedef tuple<shared_ptr<uint8_t>, uint32_t> DATA;
+    typedef tuple<shared_ptr<uint8_t[]>, uint32_t> DATA;
 
 public:
     TcpSocketImpl(BaseSocket* pBkRef);
@@ -204,7 +204,7 @@ public:
     void BindNewConnection(const function<void(const vector<TcpSocket*>&, void*)>&) noexcept;
     virtual void Close() noexcept;
     virtual void SelfDestroy() noexcept override { static_assert(true, "class has no self destroy function"); }
-    virtual TcpSocket* const MakeClientConnection(const SOCKET&);
+    virtual TcpSocket* MakeClientConnection(const SOCKET&);
 
 protected:
     virtual void SetSocketOption(const SOCKET& fd);
@@ -226,7 +226,7 @@ private:
 class UdpSocketImpl : public BaseSocketImpl
 {
 protected:
-    typedef tuple<shared_ptr<uint8_t>, uint32_t, string> DATA;
+    typedef tuple<shared_ptr<uint8_t[]>, uint32_t, string> DATA;
 
 public:
     explicit UdpSocketImpl(BaseSocket* pBkRef);
