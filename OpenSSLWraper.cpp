@@ -24,8 +24,11 @@
 #include "OpenSSLWraper.h"
 
 #include <openssl/conf.h>
-#include "openssl/x509v3.h"
+#include <openssl/x509v3.h>
 #include <openssl/err.h>
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+DEFINE_STACK_OF(GENERAL_NAME);
+#endif
 
 #if defined (_WIN32) || defined (_WIN64)
 #include <Ws2tcpip.h>
@@ -691,13 +694,12 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iWrite) +
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
 
-        int iError = 0;
         if (m_iShutDownFlag < 1)
         {
             m_iShutDownFlag = SSL_shutdown(m_ssl);
             if (m_iShutDownFlag < 0)
             {
-                iError = SSL_get_error(m_ssl, m_iShutDownFlag);
+                int iError = SSL_get_error(m_ssl, m_iShutDownFlag);
                 if (iErrorHint != nullptr)
                     *iErrorHint = iError;
                 if (iError != SSL_ERROR_WANT_READ)
@@ -755,7 +757,7 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iWrite) +
         string strComName;
         vector<string> vstrAltNames;
 
-        X509* cert = SSL_get_peer_certificate(m_ssl);
+        X509* cert = SSL_get1_peer_certificate(m_ssl);
         if (cert)
         {
             GetCertInformation(cert, strComName, vstrAltNames);

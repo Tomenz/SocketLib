@@ -25,7 +25,8 @@
 // perl Configure VC-WIN32 enable-tls1_3 no-asm no-deprecated (-D_USING_V110_SDK71_ --api=1.1.0)
 // perl Configure VC-WIN64A enable-tls1_3 no-asm no-deprecated (-D_USING_V110_SDK71_ --api=1.1.0)
 // Replace the /MD with /MT in the makefile
-// nmake
+// nmake build_libs
+// nmake distclean
 #include <openssl/ssl.h>
 #include <openssl/engine.h>
 
