@@ -757,7 +757,11 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iWrite) +
         string strComName;
         vector<string> vstrAltNames;
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
         X509* cert = SSL_get1_peer_certificate(m_ssl);
+#else
+        X509* cert = SSL_get_peer_certificate(m_ssl);
+#endif
         if (cert)
         {
             GetCertInformation(cert, strComName, vstrAltNames);
