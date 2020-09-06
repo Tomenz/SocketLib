@@ -173,7 +173,7 @@ int SslTcpSocketImpl::DatenEncode(const void* buf, uint32_t nAnzahl)
     if (SSL_get_shutdown((*m_pSslCon)()) >= SSL_SENT_SHUTDOWN)
         return -1;
 
-    unique_lock<mutex> lock(m_mxOutDeque);
+    unique_lock<mutex> lock(m_mxEencode);
     //OutputDebugString(wstring(L"Bytes written soll: " + to_wstring(len) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
     int iSslInit = SSL_is_init_finished((*m_pSslCon)());
     if (iSslInit == 1)
@@ -193,8 +193,10 @@ OutputDebugString(wstring(L"Bytes written part: " + to_wstring(nWritten) + L" on
                 //OutputDebugString(wstring(L"    SSL Bytes written: " + to_wstring(len) + L"\r\n").c_str());
                 if (len > 0)
                 {
+                    m_mxOutDeque.lock();
                     m_atOutBytes += static_cast<uint32_t>(len);
                     m_quOutData.emplace_back(temp, static_cast<uint32_t>(len));
+                    m_mxOutDeque.unlock();
                 }
 
                 nOutDataSize = m_pSslCon->SslGetOutDataSize();
@@ -211,8 +213,10 @@ OutputDebugString(wstring(L"Bytes written part: " + to_wstring(nWritten) + L" on
             // Schreibt Daten in die SOCKET
             if (len > 0)
             {
+                m_mxOutDeque.lock();
                 m_atOutBytes += static_cast<uint32_t>(len);
                 m_quOutData.emplace_back(temp, static_cast<uint32_t>(len));
+                m_mxOutDeque.unlock();
             }
             nOutDataSize = m_pSslCon->SslGetOutDataSize();
         }

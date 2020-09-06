@@ -63,6 +63,8 @@ private:
     int              m_iSslInit;
     vector<string>   m_vProtoList;
     string           m_strTrustRootCert;
+
+    mutex            m_mxEencode;
 };
 
 class SslTcpServerImpl : public TcpServerImpl
