@@ -90,7 +90,7 @@ void BaseSocket::SetAddrNotifyCallback(function<void(bool, const string&, int, i
     return BaseSocketImpl::SetAddrNotifyCallback(fnCbAddrNotify);
 }
 
-void BaseSocket::SetTraficDebugCallback(function<void(const uint16_t, const char*, uint32_t, bool)> fnCbTraficDbg)
+void BaseSocket::SetTraficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTraficDbg)
 {
     BaseSocketImpl::SetTraficDebugCallback(fnCbTraficDbg);
 }
@@ -114,11 +114,11 @@ bool TcpSocket::Connect(const char* const szIpToWhere, const uint16_t sPort, con
 {
     return reinterpret_cast<TcpSocketImpl*>(Impl_.get())->Connect(szIpToWhere, sPort, AddrHint);
 }
-uint32_t TcpSocket::Read(void* buf, uint32_t len)
+size_t TcpSocket::Read(void* buf, size_t len)
 {
     return reinterpret_cast<TcpSocketImpl*>(Impl_.get())->Read(buf, len);
 }
-uint32_t TcpSocket::PutBackRead(void* buf, uint32_t len)
+size_t TcpSocket::PutBackRead(void* buf, size_t len)
 {
     return reinterpret_cast<TcpSocketImpl*>(Impl_.get())->PutBackRead(buf, len);
 }
@@ -142,11 +142,11 @@ void TcpSocket::Delete() noexcept
 {
     reinterpret_cast<TcpSocketImpl*>(Impl_.get())->Delete();
 }
-uint32_t TcpSocket::GetBytesAvailible() const noexcept
+size_t TcpSocket::GetBytesAvailible() const noexcept
 {
     return reinterpret_cast<TcpSocketImpl*>(Impl_.get())->GetBytesAvailible();
 }
-uint32_t TcpSocket::GetOutBytesInQue() const noexcept
+size_t TcpSocket::GetOutBytesInQue() const noexcept
 {
     return reinterpret_cast<TcpSocketImpl*>(Impl_.get())->GetOutBytesInQue();
 }
@@ -265,7 +265,7 @@ bool UdpSocket::RemoveFromMulticastGroup(const char* const szMulticastIp, const 
     return reinterpret_cast<UdpSocketImpl*>(Impl_.get())->RemoveFromMulticastGroup(szMulticastIp, szInterfaceIp, nInterfaceIndex);
 }
 
-uint32_t UdpSocket::Read(void* buf, uint32_t len, string& strFrom)
+size_t UdpSocket::Read(void* buf, size_t len, string& strFrom)
 {
     return reinterpret_cast<UdpSocketImpl*>(Impl_.get())->Read(buf, len, strFrom);
 }
@@ -280,12 +280,12 @@ void UdpSocket::Close() noexcept
     reinterpret_cast<UdpSocketImpl*>(Impl_.get())->Close();
 }
 
-uint32_t UdpSocket::GetBytesAvailible() const noexcept
+size_t UdpSocket::GetBytesAvailible() const noexcept
 {
     return reinterpret_cast<UdpSocketImpl*>(Impl_.get())->GetBytesAvailible();
 }
 
-uint32_t UdpSocket::GetOutBytesInQue() const noexcept
+size_t UdpSocket::GetOutBytesInQue() const noexcept
 {
     return reinterpret_cast<UdpSocketImpl*>(Impl_.get())->GetBytesAvailible();
 }

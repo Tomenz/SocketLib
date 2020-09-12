@@ -84,7 +84,7 @@ public:
     static int EnumIpAddresses(function<int(int,const string&,int,void*)> fnCallBack, void* vpUser);
     static void SetAddrNotifyCallback(function<void(bool, const string&, int, int)>& fnCbAddrNotify);
 
-    static void SetTraficDebugCallback(function<void(const uint16_t, const char*, uint32_t, bool)> fnCbTraficDbg) { s_fTraficDebug = fnCbTraficDbg; }
+    static void SetTraficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTraficDbg) { s_fTraficDebug = fnCbTraficDbg; }
 
 protected:
     explicit BaseSocketImpl(BaseSocketImpl* pBaseSocket);
@@ -108,7 +108,7 @@ protected:
     mutex                       m_mxFnClosing;
     BaseSocket*                 m_pBkRef;
 
-    static function<void(const uint16_t, const char*, uint32_t, bool)> s_fTraficDebug;
+    static function<void(const uint16_t, const char*, size_t, bool)> s_fTraficDebug;
 
 private:
     static atomic_uint s_atRefCount;
@@ -117,21 +117,21 @@ private:
 class TcpSocketImpl : public BaseSocketImpl
 {
 protected:
-    typedef tuple<shared_ptr<uint8_t[]>, uint32_t> DATA;
+    typedef tuple<shared_ptr<uint8_t[]>, size_t> DATA;
 
 public:
     TcpSocketImpl(BaseSocket* pBkRef);
     virtual ~TcpSocketImpl();
     virtual bool Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint = AF_UNSPEC);
-    virtual uint32_t Read(void* buf, uint32_t len);
-    virtual uint32_t PutBackRead(void* buf, uint32_t len);
+    virtual size_t Read(void* buf, size_t len);
+    virtual size_t PutBackRead(void* buf, size_t len);
     virtual size_t Write(const void* buf, size_t len);
     void StartReceiving();
     virtual void Close() noexcept;
     virtual void SelfDestroy() noexcept;
     virtual void Delete() noexcept;
-    virtual uint32_t GetBytesAvailible() const noexcept;
-    virtual uint32_t GetOutBytesInQue() const noexcept;
+    virtual size_t GetBytesAvailible() const noexcept;
+    virtual size_t GetOutBytesInQue() const noexcept;
     virtual function<void(TcpSocket*)> BindFuncBytesReceived(function<void(TcpSocket*)> fBytesReceived) noexcept;
     virtual function<void(TcpSocket*, void*)> BindFuncBytesReceived(function<void(TcpSocket*, void*)> fBytesReceived) noexcept;
     virtual function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept;
@@ -160,15 +160,15 @@ private:
     void ConnectThread();
 
 protected:
-    function<int(const char*, uint32_t)> m_fnSslDecode;
+    function<int(const char*, size_t)> m_fnSslDecode;
     mutex            m_mxInDeque;
     deque<DATA>      m_quInData;
-    atomic<uint32_t> m_atInBytes;
+    atomic<size_t>  m_atInBytes;
 
-    function<int(const void*, uint32_t)> m_fnSslEncode;
+    function<int(const void*, size_t)> m_fnSslEncode;
     mutex            m_mxOutDeque;
     deque<DATA>      m_quOutData;
-    atomic<uint32_t> m_atOutBytes;
+    atomic<size_t>  m_atOutBytes;
 
     function<void(TcpSocket*)> m_fClientConneted;
     function<void(TcpSocket*, void*)> m_fClientConnetedParam;
@@ -226,7 +226,7 @@ private:
 class UdpSocketImpl : public BaseSocketImpl
 {
 protected:
-    typedef tuple<shared_ptr<uint8_t[]>, uint32_t, string> DATA;
+    typedef tuple<shared_ptr<uint8_t[]>, size_t, string> DATA;
 
 public:
     explicit UdpSocketImpl(BaseSocket* pBkRef);
@@ -235,12 +235,12 @@ public:
     virtual bool EnableBroadCast(bool bEnable = true);
     virtual bool AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
     virtual bool RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
-    virtual uint32_t Read(void* buf, uint32_t len, string& strFrom);
+    virtual size_t Read(void* buf, size_t len, string& strFrom);
     virtual size_t Write(const void* buf, size_t len, const string& strTo);
     virtual void Close() noexcept;
     virtual void SelfDestroy() noexcept override { static_assert(true, "class has no self destroy function"); }
-    virtual uint32_t GetBytesAvailible() const noexcept;
-    virtual uint32_t GetOutBytesInQue() const noexcept;
+    virtual size_t GetBytesAvailible() const noexcept;
+    virtual size_t GetOutBytesInQue() const noexcept;
     virtual function<void(UdpSocket*)> BindFuncBytesReceived(function<void(UdpSocket*)> fBytesReceived) noexcept;
     virtual function<void(UdpSocket*, void*)> BindFuncBytesReceived(function<void(UdpSocket*, void*)> fBytesReceived) noexcept;
 
@@ -252,14 +252,14 @@ private:
     void SelectThread();
 
 protected:
-    function<int(const char*, uint32_t, const string&)> m_fnSslDecode;
+    function<int(const char*, size_t, const string&)> m_fnSslDecode;
     mutex            m_mxInDeque;
     deque<DATA>      m_quInData;
-    atomic<uint32_t> m_atInBytes;
-    function<int(const void*, uint32_t, const string&)> m_fnSslEncode;
+    atomic<size_t>  m_atInBytes;
+    function<int(const void*, size_t, const string&)> m_fnSslEncode;
     mutex            m_mxOutDeque;
     deque<DATA>      m_quOutData;
-    atomic<uint32_t> m_atOutBytes;
+    atomic<size_t>   m_atOutBytes;
 
 private:
     bool             m_bCloseReq;

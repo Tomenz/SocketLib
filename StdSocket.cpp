@@ -106,7 +106,7 @@ InitSocket::InitSocket()
 }
 
 #if defined (_WIN32) || defined (_WIN64)
-VOID __stdcall InitSocket::IpIfaceChanged(PVOID CallerContext, PMIB_IPINTERFACE_ROW pRow, MIB_NOTIFICATION_TYPE NotificationType)
+VOID __stdcall InitSocket::IpIfaceChanged(PVOID CallerContext, PMIB_IPINTERFACE_ROW /*pRow*/, MIB_NOTIFICATION_TYPE NotificationType)
 {
     InitSocket* pThis = static_cast<InitSocket*>(CallerContext);
 
@@ -261,7 +261,7 @@ void InitSocket::NotifyOnAddressChanges(vector<tuple<string, int, int>>& vNewLis
 }
 
 atomic_uint BaseSocketImpl::s_atRefCount(0);
-function<void(const uint16_t, const char*, uint32_t, bool)> BaseSocketImpl::s_fTraficDebug(nullptr);
+function<void(const uint16_t, const char*, size_t, bool)> BaseSocketImpl::s_fTraficDebug(nullptr);
 
 BaseSocketImpl::BaseSocketImpl() : m_fSock(INVALID_SOCKET), m_bStop(false), m_iError(0), m_iErrLoc(0), m_iShutDownState(0), m_fError(bind(&BaseSocketImpl::OnError, this)), m_pvUserData(nullptr), m_pBkRef(nullptr)
 {
@@ -372,7 +372,7 @@ uint16_t BaseSocketImpl::GetSocketPort()
         char servInfoPeer[NI_MAXSERV] = { 0 };
         if (::getnameinfo((struct sockaddr*)&addrPe, sizeof(struct sockaddr_storage), caAddrPeer, sizeof(caAddrPeer), servInfoPeer, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
         {
-            return stoi(servInfoPeer);
+            return static_cast<uint16_t>(stoi(servInfoPeer));
         }
     }
 
@@ -463,8 +463,8 @@ void BaseSocketImpl::SetAddrNotifyCallback(function<void(bool, const string&, in
 
 TcpSocketImpl::TcpSocketImpl(BaseSocket* pBkRef) : m_bCloseReq(false), m_sClientPort(0), m_sIFacePort(0), m_pRefServSocket(nullptr), m_bSelfDelete(false)
 {
-    atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
-    atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
+    atomic_init(&m_atInBytes, static_cast<size_t>(0));
+    atomic_init(&m_atOutBytes, static_cast<size_t>(0));
     m_pBkRef = pBkRef;
 }
 
@@ -472,8 +472,8 @@ TcpSocketImpl::TcpSocketImpl(const SOCKET fSock, const TcpServer* pRefServSocket
 {
     m_fSock = fSock;
 
-    atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
-    atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
+    atomic_init(&m_atInBytes, static_cast<size_t>(0));
+    atomic_init(&m_atOutBytes, static_cast<size_t>(0));
 
     m_iShutDownState = 7;
     m_thWrite = thread(&TcpSocketImpl::WriteThread, this);
@@ -485,10 +485,10 @@ TcpSocketImpl::TcpSocketImpl(BaseSocket* pBkRef, TcpSocketImpl* pTcpSocketImpl) 
 
     swap(m_quInData, pTcpSocketImpl->m_quInData);
     m_atInBytes.exchange(pTcpSocketImpl->m_atInBytes);
-    atomic_init(&pTcpSocketImpl->m_atInBytes, static_cast<uint32_t>(0));
+    atomic_init(&pTcpSocketImpl->m_atInBytes, static_cast<size_t>(0));
     swap(m_quOutData, pTcpSocketImpl->m_quOutData);
     m_atOutBytes.exchange(pTcpSocketImpl->m_atOutBytes);
-    atomic_init(&pTcpSocketImpl->m_atOutBytes, static_cast<uint32_t>(0));
+    atomic_init(&pTcpSocketImpl->m_atOutBytes, static_cast<size_t>(0));
 
     swap(m_strClientAddr, pTcpSocketImpl->m_strClientAddr);
     swap(m_sClientPort, pTcpSocketImpl->m_sClientPort);
@@ -621,13 +621,13 @@ void TcpSocketImpl::SetSocketOption(const SOCKET& fd)
         throw WSAGetLastError();
 }
 
-uint32_t TcpSocketImpl::Read(void* buf, uint32_t len)
+size_t TcpSocketImpl::Read(void* buf, size_t len)
 {
     if (m_atInBytes == 0)
         return 0;
 
-    uint32_t nOffset = 0;
-    uint32_t nRet = 0;
+    size_t nOffset = 0;
+    size_t nRet = 0;
 
     NextFromQue:
     m_mxInDeque.lock();
@@ -636,14 +636,14 @@ uint32_t TcpSocketImpl::Read(void* buf, uint32_t len)
     m_mxInDeque.unlock();
 
     // Copy the data into the destination buffer
-    uint32_t nToCopy = min(BUFLEN(data), len);
+    size_t nToCopy = min(BUFLEN(data), len);
     copy(BUFFER(data).get(), BUFFER(data).get() + nToCopy, &static_cast<uint8_t*>(buf)[nOffset]);
     m_atInBytes -= nToCopy;
     nRet += nToCopy;
 
     if (nToCopy < BUFLEN(data))
     {   // Put the Rest of the Data back to the Que
-        uint32_t nRest = BUFLEN(data) - nToCopy;
+        size_t nRest = BUFLEN(data) - nToCopy;
         shared_ptr<uint8_t[]> tmp(new uint8_t[nRest]);
         copy(BUFFER(data).get() + nToCopy, BUFFER(data).get() + nToCopy + nRest, tmp.get());
         m_mxInDeque.lock();
@@ -660,7 +660,7 @@ uint32_t TcpSocketImpl::Read(void* buf, uint32_t len)
     return nRet;
 }
 
-uint32_t TcpSocketImpl::PutBackRead(void* buf, uint32_t len)
+size_t TcpSocketImpl::PutBackRead(void* buf, size_t len)
 {
     shared_ptr<uint8_t[]> tmp(new uint8_t[len]);
     copy(static_cast<const uint8_t*>(buf), static_cast<const uint8_t*>(buf) + len, tmp.get());
@@ -684,19 +684,19 @@ size_t TcpSocketImpl::Write(const void* buf, size_t len)
         return 0;
 
     if (s_fTraficDebug != nullptr)
-        s_fTraficDebug(static_cast<uint16_t>(m_fSock), reinterpret_cast<const char*>(buf), static_cast<uint32_t>(len), true);
+        s_fTraficDebug(static_cast<uint16_t>(m_fSock), reinterpret_cast<const char*>(buf), len, true);
 
     int iRet = 0;
-    if (m_fnSslEncode == nullptr || (iRet = m_fnSslEncode(buf, static_cast<uint32_t>(len)), iRet == 0))
+    if (m_fnSslEncode == nullptr || (iRet = m_fnSslEncode(buf, len), iRet == 0))
     {
         shared_ptr<uint8_t[]> tmp(new uint8_t[len]);
         copy(static_cast<const uint8_t*>(buf), static_cast<const uint8_t*>(buf) + len, tmp.get());
         m_mxOutDeque.lock();
-        m_atOutBytes += static_cast<uint32_t>(len);
-        m_quOutData.emplace_back(tmp, static_cast<uint32_t>(len));
+        m_atOutBytes += len;
+        m_quOutData.emplace_back(tmp, len);
         m_mxOutDeque.unlock();
 
-        iRet = static_cast<int>(len);
+        iRet = 1;   // Trigger WriteThread
     }
 
     if (iRet > 0)
@@ -707,7 +707,7 @@ size_t TcpSocketImpl::Write(const void* buf, size_t len)
 
 void TcpSocketImpl::WriteThread()
 {
-    m_iShutDownState &= ~2;
+    m_iShutDownState &= static_cast<uint8_t>(~2);
 
     unique_lock<mutex> lock(m_mxWrite);
 
@@ -758,7 +758,7 @@ void TcpSocketImpl::WriteThread()
             m_atOutBytes -= BUFLEN(data);
             m_mxOutDeque.unlock();
 
-            uint32_t transferred = ::send(m_fSock, reinterpret_cast<char*>(BUFFER(data).get()), BUFLEN(data), 0);
+            uint32_t transferred = ::send(m_fSock, reinterpret_cast<char*>(BUFFER(data).get()), static_cast<int>(BUFLEN(data)), 0);
             if (static_cast<int32_t>(transferred) <= 0)
             {
                 int iError = WSAGetLastError();
@@ -857,12 +857,12 @@ void TcpSocketImpl::Delete() noexcept
     thread([&]() { delete m_pBkRef; }).detach();
 }
 
-uint32_t TcpSocketImpl::GetBytesAvailible() const noexcept
+size_t TcpSocketImpl::GetBytesAvailible() const noexcept
 {
     return m_atInBytes;
 }
 
-uint32_t TcpSocketImpl::GetOutBytesInQue() const noexcept
+size_t TcpSocketImpl::GetOutBytesInQue() const noexcept
 {
     return m_atOutBytes;
 }
@@ -896,7 +896,7 @@ void TcpSocketImpl::BindFuncConEstablished(function<void(TcpSocketImpl*)> fClien
 
 void TcpSocketImpl::SelectThread()
 {
-    m_iShutDownState &= ~1;
+    m_iShutDownState &= static_cast<uint8_t>(~1);
 
     bool bReadCall = false;
     mutex mxNotify;
@@ -1056,7 +1056,7 @@ void TcpSocketImpl::SelectThread()
 
 void TcpSocketImpl::ConnectThread()
 {
-    m_iShutDownState &= ~4;
+    m_iShutDownState &= static_cast<uint8_t>(~4);
 
     while (m_bStop == false)
     {
@@ -1148,7 +1148,7 @@ bool TcpSocketImpl::GetConnectionInfo()
     if (::getnameinfo((struct sockaddr*)&addrCl, sizeof(struct sockaddr_storage), caAddrClient, sizeof(caAddrClient), servInfoClient, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
     {
         m_strClientAddr = caAddrClient;
-        m_sClientPort = stoi(servInfoClient);
+        m_sClientPort = static_cast<uint16_t>(stoi(servInfoClient));
     }
     else
     {
@@ -1162,7 +1162,7 @@ bool TcpSocketImpl::GetConnectionInfo()
     if (::getnameinfo((struct sockaddr*)&addrPe, sizeof(struct sockaddr_storage), caAddrPeer, sizeof(caAddrPeer), servInfoPeer, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
     {
         m_strIFaceAddr = caAddrPeer;
-        m_sIFacePort = stoi(servInfoPeer);
+        m_sIFacePort = static_cast<uint16_t>(stoi(servInfoPeer));
     }
     else
     {
@@ -1259,7 +1259,7 @@ uint16_t TcpServerImpl::GetServerPort()
         char servInfoPeer[NI_MAXSERV] = { 0 };
         if (::getnameinfo((struct sockaddr*)&addrPe, sizeof(struct sockaddr_storage), caAddrPeer, sizeof(caAddrPeer), servInfoPeer, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
         {
-            return stoi(servInfoPeer);
+            return static_cast<uint16_t>(stoi(servInfoPeer));
         }
     }
 
@@ -1425,8 +1425,8 @@ void TcpServerImpl::SelectThread()
 
 UdpSocketImpl::UdpSocketImpl(BaseSocket* pBkRef) : m_bCloseReq(false)
 {
-    atomic_init(&m_atInBytes, static_cast<uint32_t>(0));
-    atomic_init(&m_atOutBytes, static_cast<uint32_t>(0));
+    atomic_init(&m_atInBytes, static_cast<size_t>(0));
+    atomic_init(&m_atOutBytes, static_cast<size_t>(0));
     m_pBkRef = pBkRef;
 }
 
@@ -1533,7 +1533,7 @@ bool UdpSocketImpl::AddToMulticastGroup(const char* const szMulticastIp, const c
     int iAddFamily = lstAddr->ai_family;
     ::freeaddrinfo(lstAddr);
 
-    uint32_t hops = '\xff';
+    uint32_t hops = static_cast<uint8_t>('\xff');
     uint32_t loop = 1;
 
     if (iAddFamily == AF_INET6)
@@ -1623,13 +1623,13 @@ bool UdpSocketImpl::RemoveFromMulticastGroup(const char* const szMulticastIp, co
     return true;
 }
 
-uint32_t UdpSocketImpl::Read(void* buf, uint32_t len, string& strFrom)
+size_t UdpSocketImpl::Read(void* buf, size_t len, string& strFrom)
 {
     if (m_atInBytes == 0)
         return 0;
 
-    uint32_t nOffset = 0;
-    uint32_t nRet = 0;
+    size_t nOffset = 0;
+    size_t nRet = 0;
 
     m_mxInDeque.lock();
     DATA data = move(m_quInData.front());
@@ -1637,7 +1637,7 @@ uint32_t UdpSocketImpl::Read(void* buf, uint32_t len, string& strFrom)
     m_mxInDeque.unlock();
 
     // Copy the data into the destination buffer
-    uint32_t nToCopy = min(BUFLEN(data), len);
+    size_t nToCopy = min(BUFLEN(data), len);
     copy(BUFFER(data).get(), BUFFER(data).get() + nToCopy, static_cast<uint8_t*>(buf) + nOffset);
     m_atInBytes -= nToCopy;
     strFrom = ADDRESS(data);
@@ -1645,7 +1645,7 @@ uint32_t UdpSocketImpl::Read(void* buf, uint32_t len, string& strFrom)
 
     if (nToCopy < BUFLEN(data))
     {   // Put the Rest of the Data back to the Que
-        uint32_t nRest = BUFLEN(data) - nToCopy;
+        size_t nRest = BUFLEN(data) - nToCopy;
         shared_ptr<uint8_t[]> tmp(new uint8_t[nRest]);
         copy(BUFFER(data).get() + nToCopy, BUFFER(data).get() + nToCopy + nRest, tmp.get());
         m_mxInDeque.lock();
@@ -1668,16 +1668,16 @@ size_t UdpSocketImpl::Write(const void* buf, size_t len, const string& strTo)
         return 0;
 
     int iRet = 0;
-    if (m_fnSslEncode == nullptr || (iRet = m_fnSslEncode(buf, static_cast<uint32_t>(len), strTo), iRet == 0))
+    if (m_fnSslEncode == nullptr || (iRet = m_fnSslEncode(buf, len, strTo), iRet == 0))
     {
         shared_ptr<uint8_t[]> tmp(new uint8_t[len]);
         copy(static_cast<const uint8_t*>(buf), static_cast<const uint8_t*>(buf) + len, tmp.get());
         m_mxOutDeque.lock();
-        m_quOutData.emplace_back(tmp, static_cast<uint32_t>(len), strTo);
-        m_atOutBytes += static_cast<uint32_t>(len);
+        m_quOutData.emplace_back(tmp, len, strTo);
+        m_atOutBytes += len;
         m_mxOutDeque.unlock();
 
-        iRet = static_cast<int>(len);
+        iRet = 1;   // Trigger WriteThread
     }
 
     if (iRet > 0)
@@ -1756,7 +1756,7 @@ void UdpSocketImpl::WriteThread()
                     break;    // we return 0, because of a wrong address
             }
 
-            uint32_t transferred = ::sendto(m_fSock, reinterpret_cast<const char*>(BUFFER(data).get()), BUFLEN(data), 0, lstAddr->ai_addr, static_cast<int>(lstAddr->ai_addrlen));
+            uint32_t transferred = ::sendto(m_fSock, reinterpret_cast<const char*>(BUFFER(data).get()), static_cast<int>(BUFLEN(data)), 0, lstAddr->ai_addr, static_cast<int>(lstAddr->ai_addrlen));
             ::freeaddrinfo(lstAddr);
             if (static_cast<int32_t>(transferred) <= 0)
             {
@@ -1828,12 +1828,12 @@ void UdpSocketImpl::Close() noexcept
     m_bStop = true; // Stops the listening thread
 }
 
-uint32_t UdpSocketImpl::GetBytesAvailible() const noexcept
+size_t UdpSocketImpl::GetBytesAvailible() const noexcept
 {
     return m_atInBytes;
 }
 
-uint32_t UdpSocketImpl::GetOutBytesInQue() const noexcept
+size_t UdpSocketImpl::GetOutBytesInQue() const noexcept
 {
     return m_atOutBytes;
 }

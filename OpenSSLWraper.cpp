@@ -124,7 +124,7 @@ namespace OpenSSLWrapper
             nPos = strCommenName.find("/");
             if (nPos != string::npos)
                 strCommenName.erase(nPos, string::npos);
-            transform(begin(strCommenName), end(strCommenName), begin(strCommenName), ::tolower);
+            transform(begin(strCommenName), end(strCommenName), begin(strCommenName), [](char c) { return static_cast<char>(::tolower(c)); });
 
             if (strCommenName[0] == '*' && strCommenName[1] == '.')
                 strCommenName = "^(.+\\.)?" + strCommenName.substr(2) + "$";
@@ -145,7 +145,7 @@ namespace OpenSSLWrapper
                     ASN1_STRING_to_UTF8(&utf8, entry->d.dNSName);
 
                     string strTmp(reinterpret_cast<char*>(utf8));
-                    transform(begin(strTmp), end(strTmp), begin(strTmp), ::tolower);
+                    transform(begin(strTmp), end(strTmp), begin(strTmp), [](char c) { return static_cast<char>(::tolower(c)); });
                     if (strCommenName.compare(strTmp) != 0)
                     {
                         if (strTmp[0] == '*' && strTmp[1] == '.')
@@ -172,7 +172,7 @@ namespace OpenSSLWrapper
                         if (::getnameinfo((struct sockaddr*) & addr, sizeof(struct sockaddr_storage), caAddrClient, sizeof(caAddrClient), servInfoClient, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
                         {
                             string strTmp(reinterpret_cast<char*>(caAddrClient));
-                            transform(begin(strTmp), end(strTmp), begin(strTmp), ::tolower);
+                            transform(begin(strTmp), end(strTmp), begin(strTmp), [](char c) { return static_cast<char>(::tolower(c)); });
                             if (strCommenName.compare(strTmp) != 0)
                                 vstrAltNames.push_back(strTmp);
                         }
@@ -374,7 +374,7 @@ namespace OpenSSLWrapper
         SSL_CTX_set_alpn_select_cb(m_ctx, ALPN_CB, this);
     }
 
-    int SslServerContext::ALPN_CB(SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in, unsigned int inlen, void *arg)
+    int SslServerContext::ALPN_CB(SSL* /*ssl*/, const unsigned char **out, unsigned char *outlen, const unsigned char *in, unsigned int inlen, void *arg)
     {
         SslServerContext* pSslCtx = static_cast<SslServerContext*>(arg);
         if (pSslCtx == nullptr)
@@ -382,12 +382,12 @@ namespace OpenSSLWrapper
 
         for (auto& strProt : pSslCtx->m_vstrAlpnProtoList)
         {
-            const unsigned char* inTmp = in;
+            const uint8_t* inTmp = in;
             for (unsigned int i = 0; i < inlen;)
             {
-                int nLen = *inTmp++;
-                string strProtokoll(reinterpret_cast<const char*>(inTmp), nLen);
-                transform(begin(strProtokoll), end(strProtokoll), begin(strProtokoll), ::tolower);
+                uint8_t nLen = *inTmp++;
+                string strProtokoll(reinterpret_cast<const char*>(inTmp), static_cast<size_t>(nLen));
+                transform(begin(strProtokoll), end(strProtokoll), begin(strProtokoll), [](char c) { return static_cast<char>(::tolower(c)); });
 
                 if (strProtokoll == strProt)
                 {
@@ -426,7 +426,7 @@ namespace OpenSSLWrapper
         return 1;
     }
     */
-    int SslServerContext::SNI_CB(SSL *ssl, char iCmd, void* arg)
+    int SslServerContext::SNI_CB(SSL* ssl, char /*iCmd*/, void* arg)
     {
         vector<SslServerContext>* pSslCtx = static_cast<vector<SslServerContext>*>(arg);
 
@@ -443,7 +443,7 @@ namespace OpenSSLWrapper
         if (pSslCtx != nullptr && szHostName != nullptr)
         {
             string strHostName(szHostName);
-            transform(begin(strHostName), end(strHostName), begin(strHostName), ::tolower);
+            transform(begin(strHostName), end(strHostName), begin(strHostName), [](char c) { return static_cast<char>(::tolower(c)); });
 
             function<bool(string&)> fnDomainCompare = [strHostName](string& it) -> bool
             {
@@ -478,7 +478,7 @@ namespace OpenSSLWrapper
         SSL_CTX_set_cipher_list(m_ctx, "EECDH+AESGCM:EDH+AESGCM:ECDHE-RSA-AES128-GCM-SHA256:AES256+EECDH:DHE-RSA-AES128-GCM-SHA256:AES256+EDH:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4");
     }
 
-    int SslUdpContext::verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
+    int SslUdpContext::verify_callback(int /*preverify_ok*/, X509_STORE_CTX* /*ctx*/)
     {
         return 1;
     }
@@ -531,13 +531,12 @@ namespace OpenSSLWrapper
         SSL_set_ex_data(m_ssl, iIndex, pVoid);
     }
 
-    uint32_t SslConnetion::SslGetOutDataSize()
+    size_t SslConnetion::SslGetOutDataSize()
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
 
-        uint32_t nTmp = BIO_ctrl(m_rbio, BIO_CTRL_PENDING, 0, NULL);
-        return nTmp;
+        return BIO_ctrl_pending(m_rbio);
     }
     /*
     size_t SslConnetion::SslGetOutwDataSize()
@@ -564,22 +563,30 @@ namespace OpenSSLWrapper
         return BIO_ctrl_wpending(m_wbio);
     }
     */
-    uint32_t SslConnetion::SslGetOutData(uint8_t* szBuffer, uint32_t nBufLen)
+    size_t SslConnetion::SslGetOutData(uint8_t* szBuffer, size_t nBufLen)
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
 
         m_iWantState &= ~2;
-        return BIO_read(m_rbio, szBuffer, nBufLen);
+        size_t nRead = 0;
+        int iResult = BIO_read_ex(m_rbio, szBuffer, nBufLen, &nRead);
+        if (iResult <= 0)
+            return 0;
+        return nRead;
     }
 
-    uint32_t SslConnetion::SslPutInData(uint8_t* szBuffer, uint32_t nWriteLen)
+    size_t SslConnetion::SslPutInData(uint8_t* szBuffer, size_t nWriteLen)
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
 
         m_iWantState &= ~1;
-        return BIO_write(m_wbio, szBuffer, nWriteLen);
+        size_t nWritten = 0;
+        int iResult = BIO_write_ex(m_wbio, szBuffer, nWriteLen, &nWritten);
+        if (iResult <= 0)
+            return 0;
+        return nWritten;
     }
 
     int SslConnetion::GetShutDownFlag() noexcept
@@ -587,7 +594,7 @@ namespace OpenSSLWrapper
         return m_iShutDownFlag;
     }
 
-    uint32_t SslConnetion::SslRead(uint8_t* szBuffer, uint32_t nBufLen, int* iErrorHint/* = nullptr*/)
+    size_t SslConnetion::SslRead(uint8_t* szBuffer, size_t nBufLen, int* iErrorHint/* = nullptr*/)
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
@@ -597,15 +604,16 @@ namespace OpenSSLWrapper
         //    OutputDebugString(wstring(L"SSL invalid state: " + to_wstring(hsState) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>(m_ssl)) + L"\r\n").c_str());
 
         ERR_clear_error();
-        int iRead = SSL_read(m_ssl, szBuffer, nBufLen);
-        if (iRead <= 0)
+        size_t nRead = 0;
+        int iResult = SSL_read_ex(m_ssl, szBuffer, nBufLen, &nRead);
+        if (iResult <= 0)
         {
-            iRead = SSL_get_error(m_ssl, iRead);
+            iResult = SSL_get_error(m_ssl, iResult);
             if (iErrorHint != nullptr)
-                *iErrorHint = iRead;
-if (iRead != SSL_ERROR_WANT_READ && iRead != SSL_ERROR_ZERO_RETURN)
-    OutputDebugString(wstring(L"SSL_read error code: " + to_wstring(iRead) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>(m_ssl)) + L"\r\n").c_str());
-            switch (iRead)
+                *iErrorHint = iResult;
+if (iResult != SSL_ERROR_WANT_READ && iResult != SSL_ERROR_ZERO_RETURN)
+    OutputDebugString(wstring(L"SSL_read_ex error code: " + to_wstring(iResult) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>(m_ssl)) + L"\r\n").c_str());
+            switch (iResult)
             {
             case SSL_ERROR_WANT_READ:
                 m_iWantState |= 1; break;
@@ -619,11 +627,11 @@ if (iRead != SSL_ERROR_WANT_READ && iRead != SSL_ERROR_ZERO_RETURN)
 #endif
                 break;
             case SSL_ERROR_SYSCALL:
-                iRead = errno;
-                if (iRead == 0 && ERR_peek_error() == 0)    // if errno and ERR_peack_error are both 0, we not having really an error, and give it a other shoot
+                iResult = errno;
+                if (iResult == 0 && ERR_peek_error() == 0)    // if errno and ERR_peack_error are both 0, we not having really an error, and give it a other shoot
                     break;
             default:
-OutputDebugStringA(string(GetSslErrAsString() + "\r\nerrno = " + to_string(iRead) + "\r\n").c_str());
+OutputDebugStringA(string(GetSslErrAsString() + "\r\nerrno = " + to_string(iResult) + "\r\n").c_str());
                 m_iShutDownFlag = 1;
                 if (m_fError)
                     m_fError();
@@ -636,10 +644,10 @@ OutputDebugStringA(string(GetSslErrAsString() + "\r\nerrno = " + to_string(iRead
             return 0;
         }
 
-        return iRead;
+        return nRead;
     }
 
-    uint32_t SslConnetion::SslWrite(const uint8_t* szBuffer, uint32_t nWriteLen, int* iErrorHint/* = nullptr*/)
+    size_t SslConnetion::SslWrite(const uint8_t* szBuffer, size_t nWriteLen, int* iErrorHint/* = nullptr*/)
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
@@ -649,15 +657,16 @@ OutputDebugStringA(string(GetSslErrAsString() + "\r\nerrno = " + to_string(iRead
         //    OutputDebugString(wstring(L"SSL invalid state: " + to_wstring(hsState) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>(m_ssl)) + L"\r\n").c_str());
 
         ERR_clear_error();
-        int iWrite = SSL_write(m_ssl, szBuffer, nWriteLen);
-        if (iWrite <= 0)
+        size_t nWritten = 0;
+        int iResult = SSL_write_ex(m_ssl, szBuffer, nWriteLen, &nWritten);
+        if (iResult <= 0)
         {
-            iWrite = SSL_get_error(m_ssl, iWrite);
+            iResult = SSL_get_error(m_ssl, iResult);
             if (iErrorHint != nullptr)
-                *iErrorHint = iWrite;
-if (iWrite != SSL_ERROR_WANT_WRITE)
-    OutputDebugString(wstring(L"SSL_write error code: " + to_wstring(iWrite) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>(m_ssl)) + L" trying to write " + to_wstring(nWriteLen) + L" bytes\r\n").c_str());
-            switch (iWrite)
+                *iErrorHint = iResult;
+if (iResult != SSL_ERROR_WANT_WRITE)
+    OutputDebugString(wstring(L"SSL_write error code: " + to_wstring(iResult) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>(m_ssl)) + L" trying to write " + to_wstring(nWriteLen) + L" bytes\r\n").c_str());
+            switch (iResult)
             {
             case SSL_ERROR_WANT_READ:
                 m_iWantState |= 1; break;
@@ -671,9 +680,9 @@ if (iWrite != SSL_ERROR_WANT_WRITE)
 #endif
                 break;
             case SSL_ERROR_SYSCALL:
-                iWrite = errno;
+                iResult = errno;
             default:
-OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iWrite) + "\r\n").c_str());
+OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iResult) + "\r\n").c_str());
                 m_iShutDownFlag = 1;
                 if (m_fError)
                     m_fError();
@@ -686,7 +695,7 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iWrite) +
             return 0;
         }
 
-        return iWrite;
+        return nWritten;
     }
 
     int SslConnetion::ShutDownConnection(int* iErrorHint/* = nullptr*/)

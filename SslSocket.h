@@ -47,8 +47,8 @@ private:
     friend SslTcpServerImpl;    // The Server class needs access to the private constructor in the next line
     explicit SslTcpSocketImpl(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket);
     void ConEstablished(const TcpSocketImpl* const pTcpSocket);
-    int DatenEncode(const void* buffer, uint32_t nAnzahl);
-    int DatenDecode(const char* buffer, uint32_t nAnzahl);
+    int DatenEncode(const void* buffer, size_t nAnzahl);
+    int DatenDecode(const char* buffer, size_t nAnzahl);
 
     static const string& fnFoarwarder(void* obj) { return static_cast<SslTcpSocketImpl*>(obj)->GetInterfaceAddr(); }
 
@@ -94,8 +94,8 @@ public:
     function<void(UdpSocket*, void*)> BindFuncSslInitDone(function<void(UdpSocket*, void*)> fSllInitDone) noexcept;
 
 private:
-    int DatenEncode(const void* buf, uint32_t nAnzahl, const string& strAddress);
-    int DatenDecode(const char* buffer, uint32_t nAnzahl, const string& strAddress);
+    int DatenEncode(const void* buf, size_t nAnzahl, const string& strAddress);
+    int DatenDecode(const char* buffer, size_t nAnzahl, const string& strAddress);
 
 //    static void ssl_info_callbackServer(const SSL* ssl, int where, int ret);
 //    static void ssl_info_callbackClient(const SSL* ssl, int where, int ret);

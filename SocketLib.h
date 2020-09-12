@@ -50,7 +50,7 @@ public:
     static int EnumIpAddresses(function<int(int, const string&, int, void*)> fnCallBack, void* vpUser);
     static void SetAddrNotifyCallback(function<void(bool, const string&, int, int)>& fnCbAddrNotify);
 
-    static void SetTraficDebugCallback(function<void(const uint16_t, const char*, uint32_t, bool)> fnCbTraficDbg);
+    static void SetTraficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTraficDbg);
 
 protected:
     explicit BaseSocket(BaseSocketImpl* pImpl);
@@ -70,15 +70,15 @@ public:
     //TcpSocket& operator=(TcpSocket &&) noexcept;
 
     virtual bool Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint = 0);
-    virtual uint32_t Read(void* buf, uint32_t len);
-    virtual uint32_t PutBackRead(void* buf, uint32_t len);
+    virtual size_t Read(void* buf, size_t len);
+    virtual size_t PutBackRead(void* buf, size_t len);
     virtual size_t Write(const void* buf, size_t len);
     void StartReceiving();
     virtual void Close() noexcept;
     virtual void SelfDestroy() noexcept override;
     virtual void Delete() noexcept;
-    virtual uint32_t GetBytesAvailible() const noexcept;
-    virtual uint32_t GetOutBytesInQue() const noexcept;
+    virtual size_t GetBytesAvailible() const noexcept;
+    virtual size_t GetOutBytesInQue() const noexcept;
     virtual function<void(TcpSocket*)> BindFuncBytesReceived(function<void(TcpSocket*)> fBytesReceived) noexcept;
     virtual function<void(TcpSocket*, void*)> BindFuncBytesReceived(function<void(TcpSocket*, void*)> fBytesReceived) noexcept;
     virtual function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept;
@@ -127,11 +127,11 @@ public:
     virtual bool EnableBroadCast(bool bEnable = true);
     virtual bool AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
     virtual bool RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
-    virtual uint32_t Read(void* buf, uint32_t len, string& strFrom);
+    virtual size_t Read(void* buf, size_t len, string& strFrom);
     virtual size_t Write(const void* buf, size_t len, const string& strTo);
     virtual void Close() noexcept;
-    virtual uint32_t GetBytesAvailible() const noexcept;
-    virtual uint32_t GetOutBytesInQue() const noexcept;
+    virtual size_t GetBytesAvailible() const noexcept;
+    virtual size_t GetOutBytesInQue() const noexcept;
     virtual function<void(UdpSocket*)> BindFuncBytesReceived(function<void(UdpSocket*)> fBytesReceived) noexcept;
     virtual function<void(UdpSocket*, void*)> BindFuncBytesReceived(function<void(UdpSocket*, void*)> fBytesReceived) noexcept;
 protected:
