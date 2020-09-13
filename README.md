@@ -1,5 +1,6 @@
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/024193057d334308801315a2209dc134)](https://app.codacy.com/manual/Tomenz/SocketLib?utm_source=github.com&utm_medium=referral&utm_content=Tomenz/SocketLib&utm_campaign=Badge_Grade_Dashboard)
 [![Build Status](https://travis-ci.org/Tomenz/SocketLib.svg?branch=master)](https://travis-ci.org/Tomenz/SocketLib)
+[![Build status](https://ci.appveyor.com/api/projects/status/ed2el9dnaua20hqj?svg=true)](https://ci.appveyor.com/project/Tomenz/socketlib)
 
 [![Total alerts](https://img.shields.io/lgtm/alerts/g/Tomenz/SocketLib.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/Tomenz/SocketLib/alerts/)
 [![Language grade: C/C++](https://img.shields.io/lgtm/grade/cpp/g/Tomenz/SocketLib.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/Tomenz/SocketLib/context:cpp)
