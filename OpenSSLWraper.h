@@ -1,9 +1,9 @@
-/* Copyright (C) 2016-2019 Thomas Hauck - All Rights Reserved.
-   
+/* Copyright (C) 2016-2020 Thomas Hauck - All Rights Reserved.
+
    Distributed under MIT license.
    See file LICENSE for detail or copy at https://opensource.org/licenses/MIT
-   
-   The author would be happy if changes and 
+
+   The author would be happy if changes and
    improvements were reported back to him.
 
    Author:  Thomas Hauck
