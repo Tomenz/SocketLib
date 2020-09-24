@@ -641,7 +641,7 @@ namespace OpenSSLWrapper
         //if (hsState != TLS_ST_OK)
         //    OutputDebugString(wstring(L"SSL invalid state: " + to_wstring(hsState) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>(m_ssl)) + L"\r\n").c_str());
 
-        lock_guard<mutex> lk(m_mxSsl);
+        m_mxSsl.lock();
 
         ERR_clear_error();
         size_t nRead = 0;
@@ -651,6 +651,7 @@ namespace OpenSSLWrapper
             iResult = SSL_get_error(m_ssl, iResult);
             if (iErrorHint != nullptr)
                 *iErrorHint = iResult;
+            m_mxSsl.unlock();
 
             switch (iResult)
             {
@@ -673,6 +674,7 @@ namespace OpenSSLWrapper
 
             return 0;
         }
+        m_mxSsl.unlock();
 
         return nRead;
     }
@@ -686,7 +688,7 @@ namespace OpenSSLWrapper
         //if (hsState != TLS_ST_OK)
         //    OutputDebugString(wstring(L"SSL invalid state: " + to_wstring(hsState) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>(m_ssl)) + L"\r\n").c_str());
 
-        lock_guard<mutex> lk(m_mxSsl);
+        m_mxSsl.lock();
 
         ERR_clear_error();
         size_t nWritten = 0;
@@ -696,6 +698,7 @@ namespace OpenSSLWrapper
             iResult = SSL_get_error(m_ssl, iResult);
             if (iErrorHint != nullptr)
                 *iErrorHint = iResult;
+            m_mxSsl.unlock();
 
             switch (iResult)
             {
@@ -717,6 +720,7 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iResult) 
 
             return 0;
         }
+        m_mxSsl.unlock();
 
         return nWritten;
     }
