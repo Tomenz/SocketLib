@@ -64,7 +64,7 @@ private:
     vector<string>   m_vProtoList;
     string           m_strTrustRootCert;
 
-    mutex            m_mxEencode;
+    mutex            m_mxEnDecode;
 };
 
 class SslTcpServerImpl : public TcpServerImpl
@@ -110,6 +110,7 @@ private:
     bool             m_bCloseReq;
     string           m_strDestAddr;
 
+    mutex            m_mxEnDecode;
 //    static mutex     s_mxSslInfo;
 };
 

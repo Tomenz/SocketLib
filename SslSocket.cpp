@@ -69,13 +69,13 @@ SslTcpSocketImpl::SslTcpSocketImpl(SslConnetion* pSslCon, const SOCKET fSock, co
     m_fnSslEncode = bind(&SslTcpSocketImpl::DatenEncode, this, _1, _2);
     m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, this, _1, _2);
 
-    SSL_set_accept_state((*m_pSslCon)());
+    m_pSslCon->SSLSetAcceptState();
 }
 
 SslTcpSocketImpl::~SslTcpSocketImpl()
 {
     if (m_iSslInit == 1 && m_pSslCon->GetShutDownFlag() < 1)
-        SSL_set_shutdown((*m_pSslCon)(), SSL_SENT_SHUTDOWN | SSL_RECEIVED_SHUTDOWN);
+        m_pSslCon->SSLSetShutdown(SSL_SENT_SHUTDOWN | SSL_RECEIVED_SHUTDOWN);
 
     if (m_pSslCon != nullptr)
         delete m_pSslCon;
@@ -117,7 +117,7 @@ bool SslTcpSocketImpl::SetAcceptState()
     m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnFoarwarder));
     m_pSslCon->SetUserData(1, this);
 
-    SSL_set_accept_state((*m_pSslCon)());
+    m_pSslCon->SSLSetAcceptState();
 
     m_mxInDeque.lock();
     while (m_quInData.size() != 0)
@@ -170,19 +170,17 @@ int SslTcpSocketImpl::DatenEncode(const void* buf, size_t nAnzahl)
 {
     if (m_bCloseReq == true)
         return -1;
-    if (SSL_get_shutdown((*m_pSslCon)()) >= SSL_SENT_SHUTDOWN)
+    if (m_pSslCon->SSLGetShutdown() >= SSL_SENT_SHUTDOWN)
         return -1;
 
-    unique_lock<mutex> lock(m_mxEencode);
-    //OutputDebugString(wstring(L"Bytes written soll: " + to_wstring(len) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
-    int iSslInit = SSL_is_init_finished((*m_pSslCon)());
+    int iSslInit = m_pSslCon->SslInitFinished();
     if (iSslInit == 1)
     {
         int iErrorHint = 0;
         size_t nWritten = m_pSslCon->SslWrite(static_cast<const uint8_t*>(buf), nAnzahl, &iErrorHint);
-        while (nWritten != nAnzahl && (iErrorHint == SSL_ERROR_WANT_READ || iErrorHint == SSL_ERROR_WANT_WRITE))
+        while (nWritten < nAnzahl && (iErrorHint == 0 || iErrorHint == SSL_ERROR_WANT_READ || iErrorHint == SSL_ERROR_WANT_WRITE) && m_pSslCon->GetShutDownFlag() == INT32_MIN)
         {
-OutputDebugString(wstring(L"Bytes written part: " + to_wstring(nWritten) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
+            m_mxEnDecode.lock();
             // Get the out Que of the openssl bio, the buffer is already encrypted
             size_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
             while (nOutDataSize > 0)
@@ -190,7 +188,6 @@ OutputDebugString(wstring(L"Bytes written part: " + to_wstring(nWritten) + L" on
                 auto temp = shared_ptr<uint8_t[]>(new uint8_t[nOutDataSize]);
                 size_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
                 // Schreibt Daten in die SOCKET
-                //OutputDebugString(wstring(L"    SSL Bytes written: " + to_wstring(len) + L"\r\n").c_str());
                 if (len > 0)
                 {
                     m_mxOutDeque.lock();
@@ -201,9 +198,11 @@ OutputDebugString(wstring(L"Bytes written part: " + to_wstring(nWritten) + L" on
 
                 nOutDataSize = m_pSslCon->SslGetOutDataSize();
             }
+            m_mxEnDecode.unlock();
             nWritten += m_pSslCon->SslWrite(static_cast<const uint8_t*>(buf) + nWritten, nAnzahl - nWritten, &iErrorHint);
         }
-        //OutputDebugString(wstring(L"Bytes written ist : " + to_wstring(nWritten) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
+
+        m_mxEnDecode.lock();
         // Get the out Que of the openssl bio, the buffer is already encrypted
         size_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
         while (nOutDataSize > 0)
@@ -220,6 +219,7 @@ OutputDebugString(wstring(L"Bytes written part: " + to_wstring(nWritten) + L" on
             }
             nOutDataSize = m_pSslCon->SslGetOutDataSize();
         }
+        m_mxEnDecode.unlock();
         return 1;
     }
     else
@@ -237,11 +237,10 @@ void SslTcpSocketImpl::Close() noexcept
 
     if (GetErrorNo() == 0)  // We get here not because of an error
     {
-        if (m_pSslCon != nullptr && SSL_get_shutdown((*m_pSslCon)()) < SSL_SENT_SHUTDOWN)
+        if (m_pSslCon != nullptr && m_pSslCon->SSLGetShutdown() < SSL_SENT_SHUTDOWN)
         {
-            unique_lock<mutex> lock(m_mxOutDeque);
             bool bNewData = false;
-
+            m_mxEnDecode.lock();
             size_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
             while (nOutDataSize > 0)
             {
@@ -251,12 +250,15 @@ void SslTcpSocketImpl::Close() noexcept
                 // Schreibt Daten in die SOCKET
                 if (len > 0)
                 {
+                    m_mxOutDeque.lock();
                     m_atOutBytes += len;
                     m_quOutData.emplace_back(temp, len);
+                    m_mxOutDeque.unlock();
                     bNewData = true;
                 }
                 nOutDataSize = m_pSslCon->SslGetOutDataSize();
             }
+            m_mxEnDecode.unlock();
 
             if (m_iSslInit == 1)
             {
@@ -277,8 +279,6 @@ void SslTcpSocketImpl::Close() noexcept
                     nOutDataSize = m_pSslCon->SslGetOutDataSize();
                 }
             }
-
-            lock.unlock();
 
             if (bNewData == true)
                 TriggerWriteThread();
@@ -302,12 +302,12 @@ function<void(TcpSocket*, void*)> SslTcpSocketImpl::BindFuncConEstablished(funct
 
 void SslTcpSocketImpl::ConEstablished(const TcpSocketImpl* const /*pTcpSocket*/)
 {
-    SSL_set_connect_state((*m_pSslCon)());
+    m_pSslCon->SSLSetConnectState();
 
-    m_iSslInit = SSL_do_handshake((*m_pSslCon)());
+    m_iSslInit = m_pSslCon->SSLDoHandshake();
     if (m_iSslInit <= 0)
     {
-        int iError = SSL_get_error((*m_pSslCon)(), m_iSslInit);
+        int iError = m_pSslCon->SSLGetError(m_iSslInit);
         if (iError != SSL_ERROR_WANT_READ)
         {
             m_iError = 0x80000000 | iError;
@@ -318,9 +318,8 @@ void SslTcpSocketImpl::ConEstablished(const TcpSocketImpl* const /*pTcpSocket*/)
         }
     }
 
-    unique_lock<mutex> lock(m_mxOutDeque);
     bool bNewData = false;
-
+    m_mxEnDecode.lock();
     size_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
     while (nOutDataSize > 0)
     {
@@ -329,14 +328,15 @@ void SslTcpSocketImpl::ConEstablished(const TcpSocketImpl* const /*pTcpSocket*/)
         // Schreibt Daten in die SOCKET
         if (len > 0)
         {
+            m_mxOutDeque.lock();
             m_atOutBytes += len;
             m_quOutData.emplace_back(temp, len);
+            m_mxOutDeque.unlock();
             bNewData = true;
         }
         nOutDataSize = m_pSslCon->SslGetOutDataSize();
     }
-
-    lock.unlock();
+    m_mxEnDecode.unlock();
 
     if (bNewData == true)
         TriggerWriteThread();
@@ -347,30 +347,27 @@ int SslTcpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl)
     if (buffer == nullptr || nAnzahl == 0)
         return 0;
 
+    m_mxEnDecode.lock();
     size_t nPut = m_pSslCon->SslPutInData(reinterpret_cast<uint8_t*>(const_cast<char*>(buffer)), nAnzahl);
+    m_mxEnDecode.unlock();
 
     if (m_bCloseReq == true)
         return -1;
 
-    if (SSL_get_shutdown((*m_pSslCon)()) >= SSL_RECEIVED_SHUTDOWN)
+    if (m_pSslCon->SSLGetShutdown() >= SSL_RECEIVED_SHUTDOWN)
     {
-        OutputDebugString(wstring(L"SSL_RECEIVED_SHUTDOWN on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
         m_pSslCon->ShutDownConnection();
         Close();
         return -1;
     }
 
-    //if (SSL_renegotiate_pending((*m_pSslCon)()) == 1)
-    //    OutputDebugString(wstring(L"SSL_renegotiate on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
-
-    m_iSslInit = SSL_is_init_finished((*m_pSslCon)());
+    m_iSslInit = m_pSslCon->SslInitFinished();
     if (m_iSslInit == 0)
     {
-        m_iSslInit = SSL_do_handshake((*m_pSslCon)());
+        m_iSslInit = m_pSslCon->SSLDoHandshake();
 
-        unique_lock<mutex> lock(m_mxOutDeque);
         bool bNewData = false;
-
+        m_mxEnDecode.lock();
         // Get the out Que of the openssl bio, the buffer is already encrypted
         size_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
         while (nOutDataSize > 0)
@@ -380,21 +377,22 @@ int SslTcpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl)
             // Schreibt Daten in die SOCKET
             if (len > 0)
             {
+                m_mxOutDeque.lock();
                 m_atOutBytes += len;
                 m_quOutData.emplace_back(temp, len);
+                m_mxOutDeque.unlock();
                 bNewData = true;
             }
             nOutDataSize = m_pSslCon->SslGetOutDataSize();
         }
-
-        lock.unlock();
+        m_mxEnDecode.unlock();
 
         if (bNewData == true)
             TriggerWriteThread();
 
         if (m_iSslInit <= 0)
         {
-            int iError = SSL_get_error((*m_pSslCon)(), m_iSslInit);
+            int iError = m_pSslCon->SSLGetError(m_iSslInit);
             if (iError != SSL_ERROR_WANT_READ)
             {
                 m_iError = 0x80000000 | iError;
@@ -410,10 +408,6 @@ int SslTcpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl)
         }
         else
         {
-            //int iEarlyData = SSL_get_early_data_status((*m_pSslCon)());
-            //if (iEarlyData != SSL_EARLY_DATA_NOT_SENT)
-            //    OutputDebugString(wstring(L"SSL_get_early_data_status: " + to_wstring(iEarlyData) + L"\r\n").c_str());
-
             if (m_fClientConnetedParam)
                 m_fClientConnetedParam(reinterpret_cast<SslTcpSocket*>(m_pBkRef), m_pvUserData);
             if (m_fClientConneted)
@@ -440,9 +434,8 @@ int SslTcpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl)
             len = m_pSslCon->SslRead(Buffer.get(), 0x0000ffff, &iErrorHint); // get receive data from the SSL layer, and put it into the unencrypted receive Que
         }
 
-        unique_lock<mutex> lock(m_mxOutDeque);
         bool bNewData = false;
-
+        m_mxEnDecode.lock();
         // Get the out Que of the openssl bio, the buffer is already encrypted
         size_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
         while (nOutDataSize > 0)
@@ -452,20 +445,18 @@ int SslTcpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl)
             // Schreibt Daten in die SOCKET
             if (anz > 0)
             {
+                m_mxOutDeque.lock();
                 m_atOutBytes += anz;
                 m_quOutData.emplace_back(temp, anz);
+                m_mxOutDeque.unlock();
                 bNewData = true;
             }
             nOutDataSize = m_pSslCon->SslGetOutDataSize();
         }
-
-        lock.unlock();
+        m_mxEnDecode.unlock();
 
         if (bNewData == true)
             TriggerWriteThread();
-
-        //if (SSL_renegotiate_pending((*m_pSslCon)()) == 1)
-        //    OutputDebugString(wstring(L"SSL_renegotiate on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
     }
 
     if (nPut != 0 && nPut != nAnzahl)
@@ -598,7 +589,7 @@ bool SslUdpSocketImpl::CreateServerSide(const char* const szIpToWhere, const uin
 
         //SSL_set_info_callback((*m_pSslCon)(), ssl_info_callbackServer);
 
-        SSL_set_accept_state((*m_pSslCon)());
+        m_pSslCon->SSLSetAcceptState();
     }
     return bRet;
 }
@@ -614,12 +605,12 @@ bool SslUdpSocketImpl::CreateClientSide(const char* const szIpToWhere, const uin
 
         //SSL_set_info_callback((*m_pSslCon)(), ssl_info_callbackClient);
 
-        SSL_set_connect_state((*m_pSslCon)());
+        m_pSslCon->SSLSetConnectState();
 
-        int iSslInit = SSL_do_handshake((*m_pSslCon)());
+        int iSslInit = m_pSslCon->SSLDoHandshake();
         if (iSslInit <= 0)
         {
-            int iError = SSL_get_error((*m_pSslCon)(), iSslInit);
+            int iError = m_pSslCon->SSLGetError(iSslInit);
             if (iError != SSL_ERROR_WANT_READ)
             {
                 m_iError = 0x80000000 | iError;
@@ -704,19 +695,17 @@ int SslUdpSocketImpl::DatenEncode(const void* buf, size_t nAnzahl, const string&
 {
     if (m_bCloseReq == true)
         return -1;
-    if (SSL_get_shutdown((*m_pSslCon)()) >= SSL_SENT_SHUTDOWN)
+    if (m_pSslCon->SSLGetShutdown() >= SSL_SENT_SHUTDOWN)
         return -1;
 
-    unique_lock<mutex> lock(m_mxOutDeque);
-    //OutputDebugString(wstring(L"Bytes written soll: " + to_wstring(len) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
-    int iSslInit = SSL_is_init_finished((*m_pSslCon)());
+    int iSslInit = m_pSslCon->SslInitFinished();
     if (iSslInit == 1)
     {
         int iErrorHint = 0;
         size_t nWritten = m_pSslCon->SslWrite(static_cast<const uint8_t*>(buf), nAnzahl, &iErrorHint);
-        while (nWritten != nAnzahl && (iErrorHint == SSL_ERROR_WANT_READ || iErrorHint == SSL_ERROR_WANT_WRITE))
+        while (nWritten < nAnzahl && (iErrorHint == 0 || iErrorHint == SSL_ERROR_WANT_READ || iErrorHint == SSL_ERROR_WANT_WRITE) && m_pSslCon->GetShutDownFlag() == INT32_MIN)
         {
-            OutputDebugString(wstring(L"Bytes written part: " + to_wstring(nWritten) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
+            m_mxEnDecode.lock();
             // Get the out Que of the openssl bio, the buffer is already encrypted
             size_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
             while (nOutDataSize > 0)
@@ -724,18 +713,21 @@ int SslUdpSocketImpl::DatenEncode(const void* buf, size_t nAnzahl, const string&
                 auto temp = shared_ptr<uint8_t[]>(new uint8_t[nOutDataSize]);
                 size_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
                 // Schreibt Daten in die SOCKET
-                //OutputDebugString(wstring(L"    SSL Bytes written: " + to_wstring(len) + L"\r\n").c_str());
                 if (len > 0)
                 {
+                    m_mxOutDeque.lock();
                     m_atOutBytes += len;
                     m_quOutData.emplace_back(temp, len, strAddress);
+                    m_mxOutDeque.unlock();
                 }
 
                 nOutDataSize = m_pSslCon->SslGetOutDataSize();
             }
+            m_mxEnDecode.unlock();
             nWritten += m_pSslCon->SslWrite(static_cast<const uint8_t*>(buf) + nWritten, nAnzahl - nWritten, &iErrorHint);
         }
-        //OutputDebugString(wstring(L"Bytes written ist : " + to_wstring(nWritten) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
+
+        m_mxEnDecode.lock();
         // Get the out Que of the openssl bio, the buffer is already encrypted
         size_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
         while (nOutDataSize > 0)
@@ -745,11 +737,14 @@ int SslUdpSocketImpl::DatenEncode(const void* buf, size_t nAnzahl, const string&
             // Schreibt Daten in die SOCKET
             if (len > 0)
             {
+                m_mxOutDeque.lock();
                 m_atOutBytes += len;
                 m_quOutData.emplace_back(temp, len, strAddress);
+                m_mxOutDeque.unlock();
             }
             nOutDataSize = m_pSslCon->SslGetOutDataSize();
         }
+        m_mxEnDecode.unlock();
         return 1;
     }
     else
@@ -767,7 +762,7 @@ void SslUdpSocketImpl::Close() noexcept
 
     if (GetErrorNo() == 0)  // We get here not because of an error
     {
-        if (SSL_get_shutdown((*m_pSslCon)()) < SSL_SENT_SHUTDOWN)
+        if (m_pSslCon->SSLGetShutdown() < SSL_SENT_SHUTDOWN)
         {
             unique_lock<mutex> lock(m_mxOutDeque);
             bool bNewData = false;
@@ -832,30 +827,27 @@ int SslUdpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl, const stri
     if (buffer == nullptr || nAnzahl == 0)
         return 0;
 
+    m_mxEnDecode.lock();
     size_t nPut = m_pSslCon->SslPutInData(reinterpret_cast<uint8_t*>(const_cast<char*>(buffer)), nAnzahl);
+    m_mxEnDecode.unlock();
 
     if (m_bCloseReq == true)
         return -1;
 
-    if (SSL_get_shutdown((*m_pSslCon)()) >= SSL_RECEIVED_SHUTDOWN)
+    if (m_pSslCon->SSLGetShutdown() >= SSL_RECEIVED_SHUTDOWN)
     {
-        OutputDebugString(wstring(L"SSL_RECEIVED_SHUTDOWN on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
         m_pSslCon->ShutDownConnection();
         Close();
         return -1;
     }
 
-    //if (SSL_renegotiate_pending((*m_pSslCon)()) == 1)
-    //    OutputDebugString(wstring(L"SSL_renegotiate on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
-
-    int iSslInit = SSL_is_init_finished((*m_pSslCon)());
+    int iSslInit = m_pSslCon->SslInitFinished();
     if (iSslInit == 0)
     {
-        iSslInit = SSL_do_handshake((*m_pSslCon)());
+        iSslInit = m_pSslCon->SSLDoHandshake();
 
-        unique_lock<mutex> lock(m_mxOutDeque);
         bool bNewData = false;
-
+        m_mxEnDecode.lock();
         // Get the out Que of the openssl bio, the buffer is already encrypted
         size_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
         while (nOutDataSize > 0)
@@ -865,21 +857,22 @@ int SslUdpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl, const stri
             // Schreibt Daten in die SOCKET
             if (len > 0)
             {
+                m_mxOutDeque.lock();
                 m_atOutBytes += len;
                 m_quOutData.emplace_back(temp, len, strAddress);
+                m_mxOutDeque.unlock();
                 bNewData = true;
             }
             nOutDataSize = m_pSslCon->SslGetOutDataSize();
         }
-
-        lock.unlock();
+        m_mxEnDecode.unlock();
 
         if (bNewData == true)
             TriggerWriteThread();
 
         if (iSslInit <= 0)
         {
-            int iError = SSL_get_error((*m_pSslCon)(), iSslInit);
+            int iError = m_pSslCon->SSLGetError(iSslInit);
             if (iError != SSL_ERROR_WANT_READ)
             {
                 m_iError = 0x80000000 | iError;
@@ -921,9 +914,8 @@ int SslUdpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl, const stri
         }
         iReturn = 1;
 
-        unique_lock<mutex> lock(m_mxOutDeque);
         bool bNewData = false;
-
+        m_mxEnDecode.lock();
         // Get the out Que of the openssl bio, the buffer is already encrypted
         size_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
         while (nOutDataSize > 0)
@@ -933,20 +925,18 @@ int SslUdpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl, const stri
             // Schreibt Daten in die SOCKET
             if (anz > 0)
             {
+                m_mxOutDeque.lock();
                 m_atOutBytes += anz;
                 m_quOutData.emplace_back(temp, anz, strAddress);
+                m_mxOutDeque.unlock();
                 bNewData = true;
             }
             nOutDataSize = m_pSslCon->SslGetOutDataSize();
         }
-
-        lock.unlock();
+        m_mxEnDecode.unlock();
 
         if (bNewData == true)
             TriggerWriteThread();
-
-        //if (SSL_renegotiate_pending((*m_pSslCon)()) == 1)
-        //    OutputDebugString(wstring(L"SSL_renegotiate on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
     }
 
     if (nPut != 0 && nPut != nAnzahl)

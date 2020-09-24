@@ -190,10 +190,6 @@ namespace OpenSSLWrapper
 
     SslContext::SslContext(const SSL_METHOD* sslMethod) : m_ctx(SSL_CTX_new(sslMethod))
     {
-#ifdef _DEBUG
-        //SSL_CTX_set_info_callback(m_ctx, SSLInfo);
-        //SSL_CTX_set_msg_callback(m_ctx, SSLMsgCB);
-#endif
     }
 
     SslContext::~SslContext()
@@ -531,6 +527,48 @@ namespace OpenSSLWrapper
         SSL_set_ex_data(m_ssl, iIndex, pVoid);
     }
 
+    void SslConnetion::SSLSetAcceptState()
+    {
+        lock_guard<mutex> lk(m_mxSsl);
+        SSL_set_accept_state(m_ssl);
+    }
+
+    void SslConnetion::SSLSetConnectState()
+    {
+        lock_guard<mutex> lk(m_mxSsl);
+        SSL_set_connect_state(m_ssl);
+    }
+
+    int SslConnetion::SSLDoHandshake()
+    {
+        lock_guard<mutex> lk(m_mxSsl);
+        return SSL_do_handshake(m_ssl);
+    }
+
+    int SslConnetion::SslInitFinished()
+    {
+        lock_guard<mutex> lk(m_mxSsl);
+        return SSL_is_init_finished(m_ssl);
+    }
+
+    void SslConnetion::SSLSetShutdown(int iState)
+    {
+        lock_guard<mutex> lk(m_mxSsl);
+        SSL_set_shutdown(m_ssl, iState);
+    }
+
+    int SslConnetion::SSLGetShutdown()
+    {
+        lock_guard<mutex> lk(m_mxSsl);
+        return SSL_get_shutdown(m_ssl);
+    }
+
+    int SslConnetion::SSLGetError(int iResult)
+    {
+        lock_guard<mutex> lk(m_mxSsl);
+        return SSL_get_error(m_ssl, iResult);
+    }
+
     size_t SslConnetion::SslGetOutDataSize()
     {
         if (nullptr == m_ssl)
@@ -603,6 +641,8 @@ namespace OpenSSLWrapper
         //if (hsState != TLS_ST_OK)
         //    OutputDebugString(wstring(L"SSL invalid state: " + to_wstring(hsState) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>(m_ssl)) + L"\r\n").c_str());
 
+        lock_guard<mutex> lk(m_mxSsl);
+
         ERR_clear_error();
         size_t nRead = 0;
         int iResult = SSL_read_ex(m_ssl, szBuffer, nBufLen, &nRead);
@@ -611,8 +651,7 @@ namespace OpenSSLWrapper
             iResult = SSL_get_error(m_ssl, iResult);
             if (iErrorHint != nullptr)
                 *iErrorHint = iResult;
-if (iResult != SSL_ERROR_WANT_READ && iResult != SSL_ERROR_ZERO_RETURN)
-    OutputDebugString(wstring(L"SSL_read_ex error code: " + to_wstring(iResult) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>(m_ssl)) + L"\r\n").c_str());
+
             switch (iResult)
             {
             case SSL_ERROR_WANT_READ:
@@ -621,24 +660,15 @@ if (iResult != SSL_ERROR_WANT_READ && iResult != SSL_ERROR_ZERO_RETURN)
                 m_iWantState |= 2; break;
             case SSL_ERROR_ZERO_RETURN:
                 ShutDownConnection();
-#ifdef _DEBUG
-                //if (m_szName)
-                //    wcout << m_szName << ": received close notify" << endl;
-#endif
                 break;
             case SSL_ERROR_SYSCALL:
                 iResult = errno;
                 if (iResult == 0 && ERR_peek_error() == 0)    // if errno and ERR_peack_error are both 0, we not having really an error, and give it a other shoot
                     break;
             default:
-OutputDebugStringA(string(GetSslErrAsString() + "\r\nerrno = " + to_string(iResult) + "\r\n").c_str());
                 m_iShutDownFlag = 1;
                 if (m_fError)
                     m_fError();
-#ifdef _DEBUG
-                //if (m_szName)
-                //    wcout << m_szName << ": error after SSL_read: " << iRead << endl;
-#endif
             }
 
             return 0;
@@ -656,6 +686,8 @@ OutputDebugStringA(string(GetSslErrAsString() + "\r\nerrno = " + to_string(iResu
         //if (hsState != TLS_ST_OK)
         //    OutputDebugString(wstring(L"SSL invalid state: " + to_wstring(hsState) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>(m_ssl)) + L"\r\n").c_str());
 
+        lock_guard<mutex> lk(m_mxSsl);
+
         ERR_clear_error();
         size_t nWritten = 0;
         int iResult = SSL_write_ex(m_ssl, szBuffer, nWriteLen, &nWritten);
@@ -664,8 +696,7 @@ OutputDebugStringA(string(GetSslErrAsString() + "\r\nerrno = " + to_string(iResu
             iResult = SSL_get_error(m_ssl, iResult);
             if (iErrorHint != nullptr)
                 *iErrorHint = iResult;
-if (iResult != SSL_ERROR_WANT_WRITE)
-    OutputDebugString(wstring(L"SSL_write error code: " + to_wstring(iResult) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>(m_ssl)) + L" trying to write " + to_wstring(nWriteLen) + L" bytes\r\n").c_str());
+
             switch (iResult)
             {
             case SSL_ERROR_WANT_READ:
@@ -674,10 +705,6 @@ if (iResult != SSL_ERROR_WANT_WRITE)
                 m_iWantState |= 2; break;
             case SSL_ERROR_ZERO_RETURN:
                 ShutDownConnection();
-#ifdef _DEBUG
-                //if (m_szName)
-                //    wcout << m_szName << ": received close notify" << endl;
-#endif
                 break;
             case SSL_ERROR_SYSCALL:
                 iResult = errno;
@@ -686,10 +713,6 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iResult) 
                 m_iShutDownFlag = 1;
                 if (m_fError)
                     m_fError();
-#ifdef _DEBUG
-                //if (m_szName)
-                //    wcout << m_szName << ": error after SSL_write: " << iRet << endl;
-#endif
             }
 
             return 0;
@@ -705,6 +728,8 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iResult) 
 
         if (m_iShutDownFlag < 1)
         {
+            lock_guard<mutex> lk(m_mxSsl);
+
             m_iShutDownFlag = SSL_shutdown(m_ssl);
             if (m_iShutDownFlag < 0)
             {

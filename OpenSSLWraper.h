@@ -30,6 +30,8 @@
 #include <openssl/ssl.h>
 #include <openssl/engine.h>
 
+#include <mutex>
+
 namespace OpenSSLWrapper
 {
     using namespace std;
@@ -140,6 +142,13 @@ namespace OpenSSLWrapper
         SSL* operator() ();
         void SetErrorCb(const function<void()>& fError) noexcept;
         void SetUserData(int iIndex, void* pVoid) noexcept;
+        void SSLSetAcceptState();
+        void SSLSetConnectState();
+        int SSLDoHandshake();
+        int SslInitFinished();
+        void SSLSetShutdown(int iState);
+        int SSLGetShutdown();
+        int SSLGetError(int iResult);
         size_t SslGetOutDataSize();
 //      size_t SslGetOutwDataSize();
 //      size_t SslGetInrDataSize();
@@ -164,6 +173,7 @@ namespace OpenSSLWrapper
         int  m_iShutDownFlag;
         function<void()> m_fError;
         int m_iWantState;
+        mutex m_mxSsl;
     };
 }
 
