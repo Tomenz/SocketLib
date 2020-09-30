@@ -660,7 +660,7 @@ namespace OpenSSLWrapper
             case SSL_ERROR_WANT_WRITE:
                 m_iWantState |= 2; break;
             case SSL_ERROR_ZERO_RETURN:
-                ShutDownConnection();
+                ShutDownConnection(iErrorHint);
                 break;
             case SSL_ERROR_SYSCALL:
                 iResult = errno;
@@ -707,7 +707,7 @@ namespace OpenSSLWrapper
             case SSL_ERROR_WANT_WRITE:
                 m_iWantState |= 2; break;
             case SSL_ERROR_ZERO_RETURN:
-                ShutDownConnection();
+                ShutDownConnection(iErrorHint);
                 break;
             case SSL_ERROR_SYSCALL:
                 iResult = errno;

@@ -22,8 +22,6 @@ BaseSocket::BaseSocket(BaseSocketImpl* pImpl) : Impl_(pImpl)
 
 }
 BaseSocket::~BaseSocket() = default;
-//BaseSocket::BaseSocket(BaseSocket &&) noexcept = default;
-//BaseSocket& BaseSocket::operator=(BaseSocket &&) noexcept = default;
 
 void BaseSocket::SetImpl(BaseSocketImpl* pImpl)
 {
@@ -107,8 +105,6 @@ TcpSocket::TcpSocket(TcpSocketImpl* const impl) : BaseSocket(impl)
 }
 
 TcpSocket::~TcpSocket() = default;
-//TcpSocket::TcpSocket(TcpSocket &&) noexcept = default;
-//TcpSocket& TcpSocket::operator=(TcpSocket &&) noexcept = default;
 
 bool TcpSocket::Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint/* = AF_UNSPEC*/)
 {
@@ -206,8 +202,6 @@ TcpServer::TcpServer(TcpServerImpl* const impl) : BaseSocket(impl)
 }
 
 TcpServer::~TcpServer() = default;
-//TcpServer::TcpServer(TcpServer &&) noexcept = default;
-//TcpServer& TcpServer::operator=(TcpServer &&) noexcept = default;
 
 bool TcpServer::Start(const char* const szIpAddr, const uint16_t sPort)
 {
@@ -242,8 +236,6 @@ UdpSocket::UdpSocket(UdpSocketImpl* const impl) : BaseSocket(impl)
 }
 
 UdpSocket::~UdpSocket() = default;
-//UdpSocket::UdpSocket(UdpSocket && src) noexcept = default;
-//UdpSocket& UdpSocket::operator=(UdpSocket && src) noexcept = default;
 
 bool UdpSocket::Create(const char* const szIpToWhere, const uint16_t sPort, const char* const szIpToBind/* = nullptr*/)
 {
@@ -320,8 +312,6 @@ SslTcpSocket::~SslTcpSocket()
 {
 
 }
-//SslTcpSocket::SslTcpSocket(SslTcpSocket &&) noexcept = default;
-//SslTcpSocket& SslTcpSocket::operator=(SslTcpSocket &&) noexcept = default;
 
 bool SslTcpSocket::AddServerCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName)
 {

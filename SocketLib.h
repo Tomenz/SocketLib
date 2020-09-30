@@ -32,9 +32,6 @@ class BaseSocket
 {
 public:
     virtual ~BaseSocket();
-    //BaseSocket(BaseSocket &&) noexcept;
-    //BaseSocket& operator=(BaseSocket &&) noexcept;
-
     virtual void Close() = 0;
     virtual void SelfDestroy() noexcept { static_assert(true, "class has no self destroy function"); }
     virtual int GetErrorNo() const  noexcept;
@@ -66,9 +63,6 @@ class TcpSocket : public BaseSocket
 public:
     explicit TcpSocket();
     virtual ~TcpSocket();
-    //TcpSocket(TcpSocket &&) noexcept;
-    //TcpSocket& operator=(TcpSocket &&) noexcept;
-
     virtual bool Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint = 0);
     virtual size_t Read(void* buf, size_t len);
     virtual size_t PutBackRead(void* buf, size_t len);
@@ -102,8 +96,6 @@ class TcpServer : public BaseSocket
 public:
     explicit TcpServer();
     virtual ~TcpServer();
-    //TcpServer(TcpServer &&) noexcept;
-    //TcpServer& operator=(TcpServer &&) noexcept;
     bool Start(const char* const szIpAddr, const uint16_t sPort);
     uint16_t GetServerPort();
     virtual void BindNewConnection(function<void(const vector<TcpSocket*>&)>) noexcept;
@@ -120,9 +112,6 @@ public:
     virtual ~UdpSocket();
     UdpSocket(const UdpSocket &t) = delete;
     UdpSocket& operator=(const UdpSocket &t) = delete;
-    //UdpSocket(UdpSocket &&) noexcept;
-    //UdpSocket& operator=(UdpSocket &&) noexcept;
-
     virtual bool Create(const char* const szIpToWhere, const uint16_t sPort, const char* const szIpToBind = nullptr);
     virtual bool EnableBroadCast(bool bEnable = true);
     virtual bool AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
@@ -147,8 +136,6 @@ public:
     explicit SslTcpSocket();
     explicit SslTcpSocket(TcpSocket* pTcpSocket);
     virtual ~SslTcpSocket();
-    //SslTcpSocket(SslTcpSocket &&) noexcept;;
-    //SslTcpSocket& operator=(SslTcpSocket &&) noexcept;
     bool AddServerCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName);
     bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
     bool SetCipher(const char* const szCipher);

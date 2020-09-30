@@ -97,9 +97,6 @@ private:
     int DatenEncode(const void* buf, size_t nAnzahl, const string& strAddress);
     int DatenDecode(const char* buffer, size_t nAnzahl, const string& strAddress);
 
-//    static void ssl_info_callbackServer(const SSL* ssl, int where, int ret);
-//    static void ssl_info_callbackClient(const SSL* ssl, int where, int ret);
-
 private:
     SslUdpContext    m_pUdpCtx;
     SslConnetion*    m_pSslCon;
@@ -111,7 +108,6 @@ private:
     string           m_strDestAddr;
 
     mutex            m_mxEnDecode;
-//    static mutex     s_mxSslInfo;
 };
 
 #endif  // WITHOUT_OPENSSL
