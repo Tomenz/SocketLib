@@ -31,9 +31,14 @@ class SslTcpServerImpl;
 class BaseSocket
 {
 public:
+    BaseSocket() = default;
     virtual ~BaseSocket();
+    BaseSocket(const BaseSocket&) = delete;
+    BaseSocket(BaseSocket&&) = delete;
+    BaseSocket& operator=(const BaseSocket&) = delete;
+    BaseSocket& operator=(BaseSocket&&) = delete;
+
     virtual void Close() = 0;
-    virtual void SelfDestroy() noexcept { static_assert(true, "class has no self destroy function"); }
     virtual int GetErrorNo() const  noexcept;
     virtual int GetErrorLoc() const  noexcept;
 
@@ -45,7 +50,7 @@ public:
     virtual void SetErrorNo(int iErrNo) noexcept;
     virtual uint16_t GetSocketPort();
     static int EnumIpAddresses(function<int(int, const string&, int, void*)> fnCallBack, void* vpUser);
-    static void SetAddrNotifyCallback(function<void(bool, const string&, int, int)>& fnCbAddrNotify);
+    static void SetAddrNotifyCallback(const function<void(bool, const string&, int, int)>& fnCbAddrNotify);
 
     static void SetTraficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTraficDbg);
 
@@ -62,15 +67,20 @@ class TcpSocket : public BaseSocket
     friend class SslTcpSocket;
 public:
     explicit TcpSocket();
-    virtual ~TcpSocket();
+    ~TcpSocket() = default;
+    TcpSocket(const TcpSocket&) = delete;
+    TcpSocket(TcpSocket&&) = delete;
+    TcpSocket& operator=(const TcpSocket&) = delete;
+    TcpSocket& operator=(TcpSocket&&) = delete;
+
     virtual bool Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint = 0);
     virtual size_t Read(void* buf, size_t len);
     virtual size_t PutBackRead(void* buf, size_t len);
     virtual size_t Write(const void* buf, size_t len);
     void StartReceiving();
-    virtual void Close() noexcept;
-    virtual void SelfDestroy() noexcept override;
-    virtual void Delete() noexcept;
+    void Close() override;
+    virtual void SelfDestroy();
+    virtual void Delete();
     virtual size_t GetBytesAvailible() const noexcept;
     virtual size_t GetOutBytesInQue() const noexcept;
     virtual function<void(TcpSocket*)> BindFuncBytesReceived(function<void(TcpSocket*)> fBytesReceived) noexcept;
@@ -95,12 +105,17 @@ class TcpServer : public BaseSocket
     friend class TcpSocket;
 public:
     explicit TcpServer();
-    virtual ~TcpServer();
+    ~TcpServer() = default;
+    TcpServer(const TcpServer&) = delete;
+    TcpServer(TcpServer&&) = delete;
+    TcpServer& operator=(const TcpServer&) = delete;
+    TcpServer& operator=(TcpServer&&) = delete;
+
     bool Start(const char* const szIpAddr, const uint16_t sPort);
     uint16_t GetServerPort();
     virtual void BindNewConnection(function<void(const vector<TcpSocket*>&)>) noexcept;
     virtual void BindNewConnection(function<void(const vector<TcpSocket*>&, void*)>) noexcept;
-    virtual void Close() noexcept;
+    void Close() noexcept override;
 protected:
     explicit TcpServer(TcpServerImpl* const);
 };
@@ -109,16 +124,19 @@ class UdpSocket : public BaseSocket
 {
 public:
     explicit UdpSocket();
-    virtual ~UdpSocket();
+    ~UdpSocket() = default;
     UdpSocket(const UdpSocket &t) = delete;
-    UdpSocket& operator=(const UdpSocket &t) = delete;
+    UdpSocket(UdpSocket&&) = delete;
+    UdpSocket& operator=(const UdpSocket&) = delete;
+    UdpSocket& operator=(UdpSocket&&) = delete;
+
     virtual bool Create(const char* const szIpToWhere, const uint16_t sPort, const char* const szIpToBind = nullptr);
-    virtual bool EnableBroadCast(bool bEnable = true);
-    virtual bool AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
-    virtual bool RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
+    virtual bool EnableBroadCast(bool bEnable = true) noexcept;
+    virtual bool AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex) noexcept;
+    virtual bool RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex) noexcept;
     virtual size_t Read(void* buf, size_t len, string& strFrom);
     virtual size_t Write(const void* buf, size_t len, const string& strTo);
-    virtual void Close() noexcept;
+    void Close() override;
     virtual size_t GetBytesAvailible() const noexcept;
     virtual size_t GetOutBytesInQue() const noexcept;
     virtual function<void(UdpSocket*)> BindFuncBytesReceived(function<void(UdpSocket*)> fBytesReceived) noexcept;
@@ -136,13 +154,18 @@ public:
     explicit SslTcpSocket();
     explicit SslTcpSocket(TcpSocket* pTcpSocket);
     virtual ~SslTcpSocket();
+    SslTcpSocket(const SslTcpSocket&) = delete;
+    SslTcpSocket(SslTcpSocket&&) = delete;
+    SslTcpSocket& operator=(const SslTcpSocket&) = delete;
+    SslTcpSocket& operator=(SslTcpSocket&&) = delete;
+
     bool AddServerCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName);
     bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
-    bool SetCipher(const char* const szCipher);
+    bool SetCipher(const char* const szCipher) noexcept;
     bool SetAcceptState();
     bool SetConnectState();
     bool Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint = 0) override;
-    void Close() noexcept override;
+    void Close() override;
     virtual function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept;
     virtual function<void(TcpSocket*, void*)> BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted) noexcept;
     bool IsSslConnection() const noexcept override;
@@ -160,10 +183,15 @@ class SslTcpServer : public TcpServer
 {
 public:
     explicit SslTcpServer();
-    virtual ~SslTcpServer();
+    ~SslTcpServer() = default;
+    SslTcpServer(const SslTcpServer&) = delete;
+    SslTcpServer(SslTcpServer&&) = delete;
+    SslTcpServer& operator=(const SslTcpServer&) = delete;
+    SslTcpServer& operator=(SslTcpServer&&) = delete;
+
     bool AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey);
     bool SetDHParameter(const char* const szDhParamFileName);
-    bool SetCipher(const char* const szCipher);
+    bool SetCipher(const char* const szCipher) noexcept;
     void SetAlpnProtokollNames(vector<string>& vProtoList);
 };
 
@@ -171,12 +199,18 @@ class SslUdpSocket : public UdpSocket
 {
 public:
     explicit SslUdpSocket();
+    ~SslUdpSocket() = default;
+    SslUdpSocket(const SslUdpSocket&) = delete;
+    SslUdpSocket(SslUdpSocket&&) = delete;
+    SslUdpSocket& operator=(const SslUdpSocket&) = delete;
+    SslUdpSocket& operator=(SslUdpSocket&&) = delete;
+
     bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
     bool CreateServerSide(const char* const szIpToWhere, const uint16_t uint16_t, const char* const szIpToBind = nullptr);
     bool CreateClientSide(const char* const szIpToWhere, const uint16_t uint16_t, const char* const szDestAddr, const char* const szIpToBind = nullptr);
-    void Close() noexcept override;
-    function<void(UdpSocket*)> BindFuncSslInitDone(function<void(UdpSocket*)> fSllInitDone) noexcept;
-    function<void(UdpSocket*, void*)> BindFuncSslInitDone(function<void(UdpSocket*, void*)> fSllInitDone) noexcept;
+    void Close() override;
+    function<void(UdpSocket*)> BindFuncSslInitDone(function<void(UdpSocket*)> fSllInitDone);
+    function<void(UdpSocket*, void*)> BindFuncSslInitDone(function<void(UdpSocket*, void*)> fSllInitDone);
 };
 
 #endif // WITHOUT_OPENSSL

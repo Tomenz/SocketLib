@@ -26,16 +26,22 @@ class SslTcpSocketImpl : public TcpSocketImpl
 public:
     explicit SslTcpSocketImpl(BaseSocket*);
     explicit SslTcpSocketImpl(BaseSocket* pBkref, TcpSocketImpl* pTcpSocket);
-    virtual ~SslTcpSocketImpl();
+    ~SslTcpSocketImpl();
+    SslTcpSocketImpl() = delete;
+    SslTcpSocketImpl(const SslTcpSocketImpl&) = delete;
+    SslTcpSocketImpl(SslTcpSocketImpl&&) = delete;
+    SslTcpSocketImpl& operator=(const SslTcpSocketImpl&) = delete;
+    SslTcpSocketImpl& operator=(SslTcpSocketImpl&&) = delete;
+
     bool AddServerCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName);
     bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
-    bool SetCipher(const char* const szCipher);
+    bool SetCipher(const char* const szCipher) noexcept;
     bool SetAcceptState();
     bool SetConnectState();
     bool Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint = AF_UNSPEC) override;
-    void Close() noexcept override;
-    function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept;
-    function<void(TcpSocket*, void*)> BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted) noexcept;
+    void Close() override;
+    function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept override;
+    function<void(TcpSocket*, void*)> BindFuncConEstablished( function<void(TcpSocket*, void*)> fClientConneted) noexcept override;
     bool IsSslConnection() const noexcept override { return true; }
 
     void SetAlpnProtokollNames(vector<string>& vProtoList);
@@ -44,13 +50,13 @@ public:
     long CheckServerCertificate(const char* const szHostName);
 
 private:
-    friend SslTcpServerImpl;    // The Server class needs access to the private constructor in the next line
+    friend class SslTcpServerImpl;    // The Server class needs access to the private constructor in the next line
     explicit SslTcpSocketImpl(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket);
     void ConEstablished(const TcpSocketImpl* const pTcpSocket);
     int DatenEncode(const void* buffer, size_t nAnzahl);
     int DatenDecode(const char* buffer, size_t nAnzahl);
 
-    static const string& fnFoarwarder(void* obj) { return static_cast<SslTcpSocketImpl*>(obj)->GetInterfaceAddr(); }
+    static const string& fnForwarder(void* obj) noexcept { return static_cast<SslTcpSocketImpl*>(obj)->GetInterfaceAddr(); }
 
 private:
     SslClientContext m_pClientCtx;
@@ -70,11 +76,18 @@ private:
 class SslTcpServerImpl : public TcpServerImpl
 {
 public:
-    SslTcpServerImpl(BaseSocket*);
-    SslTcpSocket* MakeClientConnection(const SOCKET&);
+    SslTcpServerImpl(BaseSocket*) noexcept;
+    ~SslTcpServerImpl() = default;
+    SslTcpServerImpl() = delete;
+    SslTcpServerImpl(const SslTcpServerImpl&) = delete;
+    SslTcpServerImpl(SslTcpServerImpl&&) = delete;
+    SslTcpServerImpl& operator=(const SslTcpServerImpl&) = delete;
+    SslTcpServerImpl& operator=(SslTcpServerImpl&&) = delete;
+
+    SslTcpSocket* MakeClientConnection(const SOCKET&) override;
     bool AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey);
     bool SetDHParameter(const char* const szDhParamFileName);
-    bool SetCipher(const char* const szCipher);
+    bool SetCipher(const char* const szCipher) noexcept;
     void SetAlpnProtokollNames(vector<string>& vStrProtoNames);
 
 private:
@@ -85,11 +98,17 @@ class SslUdpSocketImpl : public UdpSocketImpl
 {
 public:
     explicit SslUdpSocketImpl(BaseSocket* pBkRef);
-    virtual ~SslUdpSocketImpl();
+    ~SslUdpSocketImpl();
+    SslUdpSocketImpl() = delete;
+    SslUdpSocketImpl(const SslUdpSocketImpl&) = delete;
+    SslUdpSocketImpl(SslUdpSocketImpl&&) = delete;
+    SslUdpSocketImpl& operator=(const SslUdpSocketImpl&) = delete;
+    SslUdpSocketImpl& operator=(SslUdpSocketImpl&&) = delete;
+
     bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
     bool CreateServerSide(const char* const szIpToWhere, const uint16_t sPort, const char* const szIpToBind = nullptr);
     bool CreateClientSide(const char* const szIpToWhere, const uint16_t sPort, const char* const szDestAddr, const char* const szIpToBind = nullptr);
-    void Close() noexcept override;
+    void Close() override;
     function<void(UdpSocket*)> BindFuncSslInitDone(function<void(UdpSocket*)> fSllInitDone) noexcept;
     function<void(UdpSocket*, void*)> BindFuncSslInitDone(function<void(UdpSocket*, void*)> fSllInitDone) noexcept;
 

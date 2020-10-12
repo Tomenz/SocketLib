@@ -64,7 +64,7 @@ SslTcpSocketImpl::SslTcpSocketImpl(BaseSocket* pBkref, TcpSocketImpl* pTcpSocket
 SslTcpSocketImpl::SslTcpSocketImpl(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket) : TcpSocketImpl(fSock, pRefServSocket), m_pSslCon(pSslCon), m_bCloseReq(false), m_iSslInit(0)
 {
     m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
-    m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnFoarwarder));
+    m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnForwarder));
     m_pSslCon->SetUserData(1, this);
     m_fnSslEncode = bind(&SslTcpSocketImpl::DatenEncode, this, _1, _2);
     m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, this, _1, _2);
@@ -102,7 +102,7 @@ bool SslTcpSocketImpl::AddCertificat(const char* const szHostCertificate, const 
     return (m_pClientCtx.SetCertificates(szHostCertificate, szHostKey) < 0) ? false : true;
 }
 
-bool SslTcpSocketImpl::SetCipher(const char* const szCipher)
+bool SslTcpSocketImpl::SetCipher(const char* const szCipher) noexcept
 {
     return m_pServerCtx.back().SetCipher(szCipher);
 }
@@ -114,7 +114,7 @@ bool SslTcpSocketImpl::SetAcceptState()
 
     m_pSslCon = new SslConnetion(m_pServerCtx.front());
     m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
-    m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnFoarwarder));
+    m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnForwarder));
     m_pSslCon->SetUserData(1, this);
 
     m_pSslCon->SSLSetAcceptState();
@@ -125,7 +125,7 @@ bool SslTcpSocketImpl::SetAcceptState()
         DATA data = move(m_quInData.front());
         m_quInData.pop_front();
 
-        size_t nToCopy = BUFLEN(data);
+        const size_t nToCopy = BUFLEN(data);
         m_atInBytes -= nToCopy;
         DatenDecode(reinterpret_cast<char*>(BUFFER(data).get()), nToCopy);
     }
@@ -138,7 +138,7 @@ bool SslTcpSocketImpl::SetConnectState()
 {
     m_pSslCon = new SslConnetion(m_pClientCtx);
     m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
-    m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnFoarwarder));
+    m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnForwarder));
     m_pSslCon->SetUserData(1, this);
 
     if (m_strTrustRootCert.size() > 0)
@@ -152,7 +152,7 @@ bool SslTcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPo
 {
     m_pSslCon = new SslConnetion(m_pClientCtx);
     m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
-    m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnFoarwarder));
+    m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnForwarder));
     m_pSslCon->SetUserData(1, this);
     
     m_pSslCon->SetSniName(szIpToWhere);
@@ -173,7 +173,10 @@ int SslTcpSocketImpl::DatenEncode(const void* buf, size_t nAnzahl)
     if (m_pSslCon->SSLGetShutdown() >= SSL_SENT_SHUTDOWN)
         return -1;
 
-    int iSslInit = m_pSslCon->SslInitFinished();
+    if (buf == nullptr || nAnzahl == 0)
+        return 0;
+
+    const int iSslInit = m_pSslCon->SslInitFinished();
     if (iSslInit == 1)
     {
         int iErrorHint = 0;
@@ -185,14 +188,14 @@ int SslTcpSocketImpl::DatenEncode(const void* buf, size_t nAnzahl)
             size_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
             while (nOutDataSize > 0)
             {
-                auto temp = shared_ptr<uint8_t[]>(new uint8_t[nOutDataSize]);
+                auto temp = make_unique<uint8_t[]>(nOutDataSize);
                 size_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
                 // Schreibt Daten in die SOCKET
                 if (len > 0)
                 {
                     m_mxOutDeque.lock();
                     m_atOutBytes += len;
-                    m_quOutData.emplace_back(temp, len);
+                    m_quOutData.emplace_back(move(temp), len);
                     m_mxOutDeque.unlock();
                 }
 
@@ -207,14 +210,14 @@ int SslTcpSocketImpl::DatenEncode(const void* buf, size_t nAnzahl)
         size_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
         while (nOutDataSize > 0)
         {
-            auto temp = shared_ptr<uint8_t[]>(new uint8_t[nOutDataSize]);
+            auto temp = make_unique<uint8_t[]>(nOutDataSize);
             size_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
             // Schreibt Daten in die SOCKET
             if (len > 0)
             {
                 m_mxOutDeque.lock();
                 m_atOutBytes += len;
-                m_quOutData.emplace_back(temp, len);
+                m_quOutData.emplace_back(move(temp), len);
                 m_mxOutDeque.unlock();
             }
             nOutDataSize = m_pSslCon->SslGetOutDataSize();
@@ -230,7 +233,7 @@ int SslTcpSocketImpl::DatenEncode(const void* buf, size_t nAnzahl)
     return 0;
 }
 
-void SslTcpSocketImpl::Close() noexcept
+void SslTcpSocketImpl::Close()
 {
     //OutputDebugString(L"SslTcpSocketImpl::Close\r\n");
     m_bCloseReq = true;
@@ -245,14 +248,14 @@ void SslTcpSocketImpl::Close() noexcept
             while (nOutDataSize > 0)
             {
                 OutputDebugString(wstring(L"SslGetOutDataSize unexpected full: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
-                auto temp = shared_ptr<uint8_t[]>(new uint8_t[nOutDataSize]);
+                auto temp = make_unique<uint8_t[]>(nOutDataSize);
                 size_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
                 // Schreibt Daten in die SOCKET
                 if (len > 0)
                 {
                     m_mxOutDeque.lock();
                     m_atOutBytes += len;
-                    m_quOutData.emplace_back(temp, len);
+                    m_quOutData.emplace_back(move(temp), len);
                     m_mxOutDeque.unlock();
                     bNewData = true;
                 }
@@ -267,13 +270,13 @@ void SslTcpSocketImpl::Close() noexcept
                 nOutDataSize = m_pSslCon->SslGetOutDataSize();
                 while (nOutDataSize > 0)
                 {
-                    auto temp = shared_ptr<uint8_t[]>(new uint8_t[nOutDataSize]);
+                    auto temp = make_unique<uint8_t[]>(nOutDataSize);
                     size_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
                     // Schreibt Daten in die SOCKET
                     if (len > 0)
                     {
                         m_atOutBytes += len;
-                        m_quOutData.emplace_back(temp, len);
+                        m_quOutData.emplace_back(move(temp), len);
                         bNewData = true;
                     }
                     nOutDataSize = m_pSslCon->SslGetOutDataSize();
@@ -307,7 +310,7 @@ void SslTcpSocketImpl::ConEstablished(const TcpSocketImpl* const /*pTcpSocket*/)
     m_iSslInit = m_pSslCon->SSLDoHandshake();
     if (m_iSslInit <= 0)
     {
-        int iError = m_pSslCon->SSLGetError(m_iSslInit);
+        const int iError = m_pSslCon->SSLGetError(m_iSslInit);
         if (iError != SSL_ERROR_WANT_READ)
         {
             m_iError = 0x80000000 | iError;
@@ -323,14 +326,14 @@ void SslTcpSocketImpl::ConEstablished(const TcpSocketImpl* const /*pTcpSocket*/)
     size_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
     while (nOutDataSize > 0)
     {
-        auto temp = shared_ptr<uint8_t[]>(new uint8_t[nOutDataSize]);
+        auto temp = make_unique<uint8_t[]>(nOutDataSize);
         size_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
         // Schreibt Daten in die SOCKET
         if (len > 0)
         {
             m_mxOutDeque.lock();
             m_atOutBytes += len;
-            m_quOutData.emplace_back(temp, len);
+            m_quOutData.emplace_back(move(temp), len);
             m_mxOutDeque.unlock();
             bNewData = true;
         }
@@ -348,7 +351,7 @@ int SslTcpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl)
         return 0;
 
     m_mxEnDecode.lock();
-    size_t nPut = m_pSslCon->SslPutInData(reinterpret_cast<uint8_t*>(const_cast<char*>(buffer)), nAnzahl);
+    const size_t nPut = m_pSslCon->SslPutInData(reinterpret_cast<const uint8_t*>(buffer), nAnzahl);
     m_mxEnDecode.unlock();
 
     if (m_bCloseReq == true)
@@ -372,14 +375,14 @@ int SslTcpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl)
         size_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
         while (nOutDataSize > 0)
         {
-            auto temp = shared_ptr<uint8_t[]>(new uint8_t[nOutDataSize]);
+            auto temp = make_unique<uint8_t[]>(nOutDataSize);
             size_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
             // Schreibt Daten in die SOCKET
             if (len > 0)
             {
                 m_mxOutDeque.lock();
                 m_atOutBytes += len;
-                m_quOutData.emplace_back(temp, len);
+                m_quOutData.emplace_back(move(temp), len);
                 m_mxOutDeque.unlock();
                 bNewData = true;
             }
@@ -392,7 +395,7 @@ int SslTcpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl)
 
         if (m_iSslInit <= 0)
         {
-            int iError = m_pSslCon->SSLGetError(m_iSslInit);
+            const int iError = m_pSslCon->SSLGetError(m_iSslInit);
             if (iError != SSL_ERROR_WANT_READ)
             {
                 m_iError = 0x80000000 | iError;
@@ -418,15 +421,15 @@ int SslTcpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl)
     int iReturn = -1;
     if (m_iSslInit == 1)
     {
-        unique_ptr<uint8_t[]> Buffer(new uint8_t[0x0000ffff]);
+        auto Buffer = make_unique<uint8_t[]>(0x0000ffff);
         int iErrorHint = 0;
         size_t len = m_pSslCon->SslRead(Buffer.get(), 0x0000ffff, &iErrorHint); // get receive data from the SSL layer, and put it into the unencrypted receive Que
         while (len > 0)
         {
-            shared_ptr<uint8_t[]> tmp(new uint8_t[len]);
-            copy(Buffer.get(), Buffer.get() + len, tmp.get());
+            auto tmp = make_unique<uint8_t[]>(len);
+            copy(&Buffer.get()[0], &Buffer.get()[len], &tmp.get()[0]);
             m_mxInDeque.lock();
-            m_quInData.emplace_back(tmp, len);
+            m_quInData.emplace_back(move(tmp), len);
             m_atInBytes += len;
             m_mxInDeque.unlock();
             iReturn = 1;
@@ -440,14 +443,14 @@ int SslTcpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl)
         size_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
         while (nOutDataSize > 0)
         {
-            auto temp = shared_ptr<uint8_t[]>(new uint8_t[nOutDataSize]);
+            auto temp = make_unique<uint8_t[]>(nOutDataSize);
             size_t anz = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
             // Schreibt Daten in die SOCKET
             if (anz > 0)
             {
                 m_mxOutDeque.lock();
                 m_atOutBytes += anz;
-                m_quOutData.emplace_back(temp, anz);
+                m_quOutData.emplace_back(move(temp), anz);
                 m_mxOutDeque.unlock();
                 bNewData = true;
             }
@@ -462,7 +465,7 @@ int SslTcpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl)
     if (nPut != 0 && nPut != nAnzahl)
     {
         OutputDebugString(wstring(L"SslPutInData konnte nicht alles fassen on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
-        return DatenDecode(buffer + nPut, nAnzahl - nPut);
+        return DatenDecode(&buffer[nPut], nAnzahl - nPut);
     }
 
     return iReturn;
@@ -494,7 +497,7 @@ long SslTcpSocketImpl::CheckServerCertificate(const char* const szHostName)
 
 //************************************************************************************
 
-SslTcpServerImpl::SslTcpServerImpl(BaseSocket* pBkref) : TcpServerImpl(pBkref)
+SslTcpServerImpl::SslTcpServerImpl(BaseSocket* pBkref) noexcept : TcpServerImpl(pBkref)
 {
 }
 
@@ -509,7 +512,7 @@ SslTcpSocket* SslTcpServerImpl::MakeClientConnection(const SOCKET& fSock)
         pImpl->GetConnectionInfo();
     }
 
-    catch (int iErrNo)
+    catch (const int iErrNo)
     {
         pImpl->SetErrorNo(iErrNo);
     }
@@ -522,7 +525,7 @@ SslTcpSocket* SslTcpServerImpl::MakeClientConnection(const SOCKET& fSock)
 bool SslTcpServerImpl::AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey)
 {
     m_SslCtx.emplace_back(SslServerContext());
-    int iRet = m_SslCtx.back().SetCertificates(szCAcertificate, szHostCertificate, szHostKey);
+    const int iRet = m_SslCtx.back().SetCertificates(szCAcertificate, szHostCertificate, szHostKey);
     if (iRet != 1)
     {
         OutputDebugString(wstring(L"Certification could not be loaded, error: " + to_wstring(iRet) + L"\r\n").c_str());
@@ -537,7 +540,7 @@ bool SslTcpServerImpl::SetDHParameter(const char* const szDhParamFileName)
 {
     if (m_SslCtx.size() == 0)
         return false;
-    bool bRet = m_SslCtx.back().SetDhParamFile(szDhParamFileName);
+    const bool bRet = m_SslCtx.back().SetDhParamFile(szDhParamFileName);
     if (bRet == false)
     {
         OutputDebugString(wstring(L"DH File could not be loaded\r\n").c_str());
@@ -546,7 +549,7 @@ bool SslTcpServerImpl::SetDHParameter(const char* const szDhParamFileName)
     return bRet;
 }
 
-bool SslTcpServerImpl::SetCipher(const char* const szCipher)
+bool SslTcpServerImpl::SetCipher(const char* const szCipher) noexcept
 {
     if (m_SslCtx.size() == 0)
         return false;
@@ -581,7 +584,7 @@ bool SslUdpSocketImpl::AddCertificat(const char* const szHostCertificate, const 
 
 bool SslUdpSocketImpl::CreateServerSide(const char* const szIpToWhere, const uint16_t sPort, const char* const szIpToBind/* = nullptr*/)
 {
-    bool bRet = UdpSocketImpl::Create(szIpToWhere, sPort, szIpToBind);
+    const bool bRet = UdpSocketImpl::Create(szIpToWhere, sPort, szIpToBind);
     if (bRet == true)
     {
         m_pSslCon = new SslConnetion(m_pUdpCtx);
@@ -597,7 +600,7 @@ bool SslUdpSocketImpl::CreateServerSide(const char* const szIpToWhere, const uin
 bool SslUdpSocketImpl::CreateClientSide(const char* const szIpToWhere, const uint16_t sPort, const char* const szDestAddr, const char* const szIpToBind/* = nullptr*/)
 {
     m_strDestAddr = szDestAddr;
-    bool bRet = UdpSocketImpl::Create(szIpToWhere, sPort, szIpToBind);
+    const bool bRet = UdpSocketImpl::Create(szIpToWhere, sPort, szIpToBind);
     if (bRet == true)
     {
         m_pSslCon = new SslConnetion(m_pUdpCtx);
@@ -607,10 +610,10 @@ bool SslUdpSocketImpl::CreateClientSide(const char* const szIpToWhere, const uin
 
         m_pSslCon->SSLSetConnectState();
 
-        int iSslInit = m_pSslCon->SSLDoHandshake();
+        const int iSslInit = m_pSslCon->SSLDoHandshake();
         if (iSslInit <= 0)
         {
-            int iError = m_pSslCon->SSLGetError(iSslInit);
+            const int iError = m_pSslCon->SSLGetError(iSslInit);
             if (iError != SSL_ERROR_WANT_READ)
             {
                 m_iError = 0x80000000 | iError;
@@ -627,13 +630,13 @@ bool SslUdpSocketImpl::CreateClientSide(const char* const szIpToWhere, const uin
         size_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
         while (nOutDataSize > 0)
         {
-            auto temp = shared_ptr<uint8_t[]>(new uint8_t[nOutDataSize]);
+            auto temp = make_unique<uint8_t[]>(nOutDataSize);
             size_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
             // Schreibt Daten in die SOCKET
             if (len > 0)
             {
                 m_atOutBytes += len;
-                m_quOutData.emplace_back(temp, len, m_strDestAddr);
+                m_quOutData.emplace_back(move(temp), len, m_strDestAddr);
                 bNewData = true;
             }
             nOutDataSize = m_pSslCon->SslGetOutDataSize();
@@ -698,7 +701,10 @@ int SslUdpSocketImpl::DatenEncode(const void* buf, size_t nAnzahl, const string&
     if (m_pSslCon->SSLGetShutdown() >= SSL_SENT_SHUTDOWN)
         return -1;
 
-    int iSslInit = m_pSslCon->SslInitFinished();
+    if (buf == nullptr || nAnzahl == 0)
+        return 0;
+
+    const int iSslInit = m_pSslCon->SslInitFinished();
     if (iSslInit == 1)
     {
         int iErrorHint = 0;
@@ -710,21 +716,21 @@ int SslUdpSocketImpl::DatenEncode(const void* buf, size_t nAnzahl, const string&
             size_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
             while (nOutDataSize > 0)
             {
-                auto temp = shared_ptr<uint8_t[]>(new uint8_t[nOutDataSize]);
+                auto temp = make_unique<uint8_t[]>(nOutDataSize);
                 size_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
                 // Schreibt Daten in die SOCKET
                 if (len > 0)
                 {
                     m_mxOutDeque.lock();
                     m_atOutBytes += len;
-                    m_quOutData.emplace_back(temp, len, strAddress);
+                    m_quOutData.emplace_back(move(temp), len, strAddress);
                     m_mxOutDeque.unlock();
                 }
 
                 nOutDataSize = m_pSslCon->SslGetOutDataSize();
             }
             m_mxEnDecode.unlock();
-            nWritten += m_pSslCon->SslWrite(static_cast<const uint8_t*>(buf) + nWritten, nAnzahl - nWritten, &iErrorHint);
+            nWritten += m_pSslCon->SslWrite(&static_cast<const uint8_t*>(buf)[nWritten], nAnzahl - nWritten, &iErrorHint);
         }
 
         m_mxEnDecode.lock();
@@ -732,14 +738,14 @@ int SslUdpSocketImpl::DatenEncode(const void* buf, size_t nAnzahl, const string&
         size_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
         while (nOutDataSize > 0)
         {
-            auto temp = shared_ptr<uint8_t[]>(new uint8_t[nOutDataSize]);
+            auto temp = make_unique<uint8_t[]>(nOutDataSize);
             size_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
             // Schreibt Daten in die SOCKET
             if (len > 0)
             {
                 m_mxOutDeque.lock();
                 m_atOutBytes += len;
-                m_quOutData.emplace_back(temp, len, strAddress);
+                m_quOutData.emplace_back(move(temp), len, strAddress);
                 m_mxOutDeque.unlock();
             }
             nOutDataSize = m_pSslCon->SslGetOutDataSize();
@@ -755,7 +761,7 @@ int SslUdpSocketImpl::DatenEncode(const void* buf, size_t nAnzahl, const string&
     return 0;
 }
 
-void SslUdpSocketImpl::Close() noexcept
+void SslUdpSocketImpl::Close()
 {
     //OutputDebugString(L"SslTcpSocketImpl::Close\r\n");
     m_bCloseReq = true;
@@ -771,13 +777,13 @@ void SslUdpSocketImpl::Close() noexcept
             while (nOutDataSize > 0)
             {
                 OutputDebugString(wstring(L"SslGetOutDataSize unexpected full: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
-                auto temp = shared_ptr<uint8_t[]>(new uint8_t[nOutDataSize]);
+                auto temp = make_unique<uint8_t[]>(nOutDataSize);
                 size_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
                 // Schreibt Daten in die SOCKET
                 if (len > 0)
                 {
                     m_atOutBytes += len;
-                    m_quOutData.emplace_back(temp, len, m_strDestAddr);
+                    m_quOutData.emplace_back(move(temp), len, m_strDestAddr);
                     bNewData = true;
                 }
                 nOutDataSize = m_pSslCon->SslGetOutDataSize();
@@ -788,13 +794,13 @@ void SslUdpSocketImpl::Close() noexcept
             nOutDataSize = m_pSslCon->SslGetOutDataSize();
             while (nOutDataSize > 0)
             {
-                auto temp = shared_ptr<uint8_t[]>(new uint8_t[nOutDataSize]);
+                auto temp = make_unique<uint8_t[]>(nOutDataSize);
                 size_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
                 // Schreibt Daten in die SOCKET
                 if (len > 0)
                 {
                     m_atOutBytes += len;
-                    m_quOutData.emplace_back(temp, len, m_strDestAddr);
+                    m_quOutData.emplace_back(move(temp), len, m_strDestAddr);
                     bNewData = true;
                 }
                 nOutDataSize = m_pSslCon->SslGetOutDataSize();
@@ -828,7 +834,7 @@ int SslUdpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl, const stri
         return 0;
 
     m_mxEnDecode.lock();
-    size_t nPut = m_pSslCon->SslPutInData(reinterpret_cast<uint8_t*>(const_cast<char*>(buffer)), nAnzahl);
+    const size_t nPut = m_pSslCon->SslPutInData(reinterpret_cast<const uint8_t*>(buffer), nAnzahl);
     m_mxEnDecode.unlock();
 
     if (m_bCloseReq == true)
@@ -852,14 +858,14 @@ int SslUdpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl, const stri
         size_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
         while (nOutDataSize > 0)
         {
-            auto temp = shared_ptr<uint8_t[]>(new uint8_t[nOutDataSize]);
+            auto temp = make_unique<uint8_t[]>(nOutDataSize);
             size_t len = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
             // Schreibt Daten in die SOCKET
             if (len > 0)
             {
                 m_mxOutDeque.lock();
                 m_atOutBytes += len;
-                m_quOutData.emplace_back(temp, len, strAddress);
+                m_quOutData.emplace_back(move(temp), len, strAddress);
                 m_mxOutDeque.unlock();
                 bNewData = true;
             }
@@ -872,7 +878,7 @@ int SslUdpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl, const stri
 
         if (iSslInit <= 0)
         {
-            int iError = m_pSslCon->SSLGetError(iSslInit);
+            const int iError = m_pSslCon->SSLGetError(iSslInit);
             if (iError != SSL_ERROR_WANT_READ)
             {
                 m_iError = 0x80000000 | iError;
@@ -889,28 +895,28 @@ int SslUdpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl, const stri
         else
         {
             if (m_fSllInitDoneParam != nullptr)
-                m_fSllInitDoneParam(reinterpret_cast<UdpSocket*>(m_pBkRef), m_pvUserData);
+                m_fSllInitDoneParam(dynamic_cast<UdpSocket*>(m_pBkRef), m_pvUserData);
             else if (m_fSllInitDone != nullptr)
-                m_fSllInitDone(reinterpret_cast<UdpSocket*>(m_pBkRef));
+                m_fSllInitDone(dynamic_cast<UdpSocket*>(m_pBkRef));
         }
     }
 
     int iReturn = -1;
     if (iSslInit == 1)
     {
-        unique_ptr<uint8_t[]> Buffer(new uint8_t[0x0000ffff]);
+        auto Buffer = make_unique<uint8_t[]>(0x0000ffff);
         int iErrorHint = 0;
         size_t len = m_pSslCon->SslRead(Buffer.get(), 0x0000ffff, &iErrorHint); // get receive data from the SSL layer, and put it into the unencrypted receive Que
         while (len > 0)
         {
-            shared_ptr<uint8_t[]> tmp(new uint8_t[len]);
-            copy(Buffer.get(), Buffer.get() + len, tmp.get());
+            auto tmp = make_unique<uint8_t[]>(len);
+            copy(&Buffer.get()[0], &Buffer.get()[len], &tmp.get()[0]);
             m_mxInDeque.lock();
-            m_quInData.emplace_back(tmp, len, strAddress);
+            m_quInData.emplace_back(move(tmp), len, strAddress);
             m_atInBytes += len;
             m_mxInDeque.unlock();
 
-            len = m_pSslCon->SslRead(Buffer.get(), 0x0000ffff, &iErrorHint); // get receive data from the SSL layer, and put it into the unencrypted receive Que
+            len = m_pSslCon->SslRead(&Buffer.get()[0], 0x0000ffff, &iErrorHint); // get receive data from the SSL layer, and put it into the unencrypted receive Que
         }
         iReturn = 1;
 
@@ -920,14 +926,14 @@ int SslUdpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl, const stri
         size_t nOutDataSize = m_pSslCon->SslGetOutDataSize();
         while (nOutDataSize > 0)
         {
-            auto temp = shared_ptr<uint8_t[]>(new uint8_t[nOutDataSize]);
+            auto temp = make_unique<uint8_t[]>(nOutDataSize);
             size_t anz = m_pSslCon->SslGetOutData(temp.get(), nOutDataSize);
             // Schreibt Daten in die SOCKET
             if (anz > 0)
             {
                 m_mxOutDeque.lock();
                 m_atOutBytes += anz;
-                m_quOutData.emplace_back(temp, anz, strAddress);
+                m_quOutData.emplace_back(move(temp), anz, strAddress);
                 m_mxOutDeque.unlock();
                 bNewData = true;
             }
@@ -942,7 +948,7 @@ int SslUdpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl, const stri
     if (nPut != 0 && nPut != nAnzahl)
     {
         OutputDebugString(wstring(L"SslPutInData konnte nicht alles fassen on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
-        return DatenDecode(buffer + nPut, nAnzahl - nPut, strAddress);
+        return DatenDecode(&buffer[nPut], nAnzahl - nPut, strAddress);
     }
 
     return iReturn;

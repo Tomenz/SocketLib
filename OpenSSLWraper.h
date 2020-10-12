@@ -39,8 +39,12 @@ namespace OpenSSLWrapper
     class InitOpenSSL
     {
     public:
-        static InitOpenSSL* GetInstance();
+        static const InitOpenSSL* GetInstance();
         ~InitOpenSSL();
+        InitOpenSSL(const InitOpenSSL&) = delete;
+        InitOpenSSL(InitOpenSSL&&) = delete;
+        InitOpenSSL& operator=(const InitOpenSSL&) = delete;
+        InitOpenSSL& operator=(InitOpenSSL&&) = delete;
 
     private:
         InitOpenSSL();
@@ -53,13 +57,15 @@ namespace OpenSSLWrapper
         string strVersion;
     };
 
-    bool GetCertInformation(X509* cert, string& strCommenName, vector<string>& vstrAltNames);
+    bool GetCertInformation(const X509* cert, string& strCommenName, vector<string>& vstrAltNames);
 
     class SslContext
     {
     public:
-        explicit SslContext(const SSL_METHOD* sslMethod);
+        SslContext() = delete;
+        explicit SslContext(const SSL_METHOD* sslMethod) noexcept;
         virtual ~SslContext();
+
         SSL_CTX* operator() ();
         SslContext(const SslContext&) = delete;
         explicit SslContext(SslContext&& src) noexcept
@@ -75,8 +81,8 @@ namespace OpenSSLWrapper
 
 #ifdef _DEBUG
     private:
-        static void SSLInfo(const SSL *ssl, int type, int val);
-        static void SSLMsgCB(int write_p, int version, int content_type, const void *buf, size_t len, SSL *ssl, void *arg);
+        static void SSLInfo(const SSL *ssl, int type, int val) noexcept;
+        static void SSLMsgCB(int write_p, int version, int content_type, const void *buf, size_t len, SSL *ssl, void *arg) noexcept;
 #endif
 
     protected:
@@ -88,9 +94,9 @@ namespace OpenSSLWrapper
     class SslClientContext : public SslContext
     {
     public:
-        SslClientContext();
-        void SetAlpnProtokollNames(vector<string>& vProtoList);
-        void SetTrustedRootCertificates(const char* szTrustRootCert);
+        SslClientContext() noexcept;
+        void SetAlpnProtokollNames(const vector<string>& vProtoList);
+        void SetTrustedRootCertificates(const char* szTrustRootCert) noexcept;
         SslClientContext(const SslClientContext&) = delete;
         SslClientContext(SslClientContext&&) = delete;
         SslClientContext& operator=(SslClientContext&&) = delete;
@@ -100,12 +106,12 @@ namespace OpenSSLWrapper
     class SslServerContext : public SslContext
     {
     public:
-        explicit SslServerContext();
+        explicit SslServerContext() noexcept;
         int SetCertificates(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey);
-        void AddVirtualHost(vector<SslServerContext>* pSslCtx);
+        void AddVirtualHost(vector<SslServerContext>* pSslCtx) noexcept;
         bool SetDhParamFile(const char* const szDhParamFile);
-        bool SetCipher(const char* const szChiper);
-        void SetAlpnProtokollNames(vector<string>& vStrList);
+        bool SetCipher(const char* const szChiper) noexcept;
+        void SetAlpnProtokollNames(const vector<string>& vStrList);
         SslServerContext(const SslServerContext& src) = delete;
         explicit SslServerContext(SslServerContext&& src) noexcept : SslContext(move(src))
         {
@@ -128,9 +134,14 @@ namespace OpenSSLWrapper
     class SslUdpContext : public SslContext
     {
     public:
-        SslUdpContext();
+        SslUdpContext() noexcept;
+        ~SslUdpContext() = default;
+        SslUdpContext(const SslUdpContext&) = delete;
+        SslUdpContext(SslUdpContext&&) = delete;
+        SslUdpContext& operator=(const SslUdpContext&) = delete;
+        SslUdpContext& operator=(SslUdpContext&&) = delete;
     private:
-        static int verify_callback(int preverify_ok, X509_STORE_CTX *ctx);
+        static int verify_callback(int preverify_ok, X509_STORE_CTX *ctx) noexcept;
     };
 
     class SslConnetion
@@ -138,9 +149,13 @@ namespace OpenSSLWrapper
     public:
         explicit SslConnetion(SslContext& ctx);
         ~SslConnetion();
+        SslConnetion(const SslConnetion&) = delete;
+        SslConnetion(SslConnetion&&) = delete;
+        SslConnetion& operator=(const SslConnetion&) = delete;
+        SslConnetion& operator=(SslConnetion&&) = delete;
 //      static long CbBioInfo(struct bio_st* pBioInfo, int iInt1, const char* cpBuf, int iInt2, long l1, long lRet);
         SSL* operator() ();
-        void SetErrorCb(const function<void()>& fError) noexcept;
+        void SetErrorCb(const function<void()>& fError);
         void SetUserData(int iIndex, void* pVoid) noexcept;
         void SSLSetAcceptState();
         void SSLSetConnectState();
@@ -154,17 +169,17 @@ namespace OpenSSLWrapper
 //      size_t SslGetInrDataSize();
 //      size_t SslGetInwDataSize();
         size_t SslGetOutData(uint8_t* szBuffer, size_t nBufLen);
-        size_t SslPutInData(uint8_t* szBuffer, size_t nWriteLen);
+        size_t SslPutInData(const uint8_t* szBuffer, size_t nWriteLen);
         int GetShutDownFlag() noexcept;
         size_t SslRead(uint8_t* szBuffer, size_t nBufLen, int* iErrorHint = nullptr);
         size_t SslWrite(const uint8_t* szBuffer, size_t nWriteLen, int* iErrorHint = nullptr);
         int ShutDownConnection(int* iErrorHint = nullptr);
-        void SetAlpnProtokollNames(vector<string>& vProtoList);
+        void SetAlpnProtokollNames(const vector<string>& vProtoList);
         string GetSelAlpnProtocol();
-        int SetTrustedRootCertificates(const char* szFileName);
-        long SetSniName(const char* szServerName);
+        int SetTrustedRootCertificates(const char* szFileName) noexcept;
+        long SetSniName(const char* szServerName) noexcept;
         long CheckServerCertificate(const char* szHostName);
-        string GetSslErrAsString() noexcept;
+        string GetSslErrAsString();
 
     private:
         SSL* m_ssl;

@@ -57,7 +57,7 @@ namespace OpenSSLWrapper
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     unique_ptr<mutex[]> InitOpenSSL::m_pmutLocks;
 #endif
-    InitOpenSSL* InitOpenSSL::GetInstance()
+    const InitOpenSSL* InitOpenSSL::GetInstance()
     {
         static InitOpenSSL iniOpenSsl;
         return &iniOpenSsl;
@@ -111,7 +111,7 @@ namespace OpenSSLWrapper
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    bool GetCertInformation(X509* cert, string& strCommenName, vector<string>& vstrAltNames)
+    bool GetCertInformation(const X509* cert, string& strCommenName, vector<string>& vstrAltNames)
     {
         char caBuf[256];
         X509_NAME_oneline(X509_get_subject_name(cert), caBuf, 256);
@@ -124,7 +124,7 @@ namespace OpenSSLWrapper
             nPos = strCommenName.find("/");
             if (nPos != string::npos)
                 strCommenName.erase(nPos, string::npos);
-            transform(begin(strCommenName), end(strCommenName), begin(strCommenName), [](char c) { return static_cast<char>(::tolower(c)); });
+            transform(begin(strCommenName), end(strCommenName), begin(strCommenName), [](char c) noexcept { return static_cast<char>(::tolower(c)); });
 
             if (strCommenName[0] == '*' && strCommenName[1] == '.')
                 strCommenName = "^(.+\\.)?" + strCommenName.substr(2) + "$";
@@ -133,19 +133,19 @@ namespace OpenSSLWrapper
         STACK_OF(GENERAL_NAME)* pSubAltNames = static_cast<STACK_OF(GENERAL_NAME)*>(X509_get_ext_d2i(cert, NID_subject_alt_name, nullptr, nullptr));
         if (pSubAltNames != nullptr)
         {
-            int iCountNames = sk_GENERAL_NAME_num(pSubAltNames);
+            const int iCountNames = sk_GENERAL_NAME_num(pSubAltNames);
             for (int i = 0; i < iCountNames; ++i)
             {
-                GENERAL_NAME* entry = sk_GENERAL_NAME_value(pSubAltNames, i);
+                const GENERAL_NAME* entry = sk_GENERAL_NAME_value(pSubAltNames, i);
                 if (!entry) continue;
 
                 if (entry->type == GEN_DNS)
                 {
-                    unsigned char* utf8 = NULL;
+                    unsigned char* utf8 = nullptr;
                     ASN1_STRING_to_UTF8(&utf8, entry->d.dNSName);
 
                     string strTmp(reinterpret_cast<char*>(utf8));
-                    transform(begin(strTmp), end(strTmp), begin(strTmp), [](char c) { return static_cast<char>(::tolower(c)); });
+                    transform(begin(strTmp), end(strTmp), begin(strTmp), [](char c) noexcept { return static_cast<char>(::tolower(c)); });
                     if (strCommenName.compare(strTmp) != 0)
                     {
                         if (strTmp[0] == '*' && strTmp[1] == '.')
@@ -158,7 +158,7 @@ namespace OpenSSLWrapper
                 else if (entry->type == GEN_IPADD)
                 {
                     const uint8_t* szIp = ASN1_STRING_get0_data(entry->d.iPAddress);
-                    int iStrLen = ASN1_STRING_length(entry->d.iPAddress);
+                    const int iStrLen = ASN1_STRING_length(entry->d.iPAddress);
                     if (szIp != nullptr)
                     {
                         struct sockaddr_storage addr = { 0 };
@@ -169,10 +169,10 @@ namespace OpenSSLWrapper
                             copy(szIp, szIp + iStrLen, reinterpret_cast<char*>(&addr.ss_family) + 4);
                         char caAddrClient[INET6_ADDRSTRLEN + 1] = { 0 };
                         char servInfoClient[NI_MAXSERV] = { 0 };
-                        if (::getnameinfo((struct sockaddr*) & addr, sizeof(struct sockaddr_storage), caAddrClient, sizeof(caAddrClient), servInfoClient, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
+                        if (::getnameinfo(reinterpret_cast<struct sockaddr*>(&addr), sizeof(struct sockaddr_storage), &caAddrClient[0], sizeof(caAddrClient), &servInfoClient[0], NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
                         {
                             string strTmp(reinterpret_cast<char*>(caAddrClient));
-                            transform(begin(strTmp), end(strTmp), begin(strTmp), [](char c) { return static_cast<char>(::tolower(c)); });
+                            transform(begin(strTmp), end(strTmp), begin(strTmp), [](char c) noexcept { return static_cast<char>(::tolower(c)); });
                             if (strCommenName.compare(strTmp) != 0)
                                 vstrAltNames.push_back(strTmp);
                         }
@@ -188,7 +188,7 @@ namespace OpenSSLWrapper
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    SslContext::SslContext(const SSL_METHOD* sslMethod) : m_ctx(SSL_CTX_new(sslMethod))
+    SslContext::SslContext(const SSL_METHOD* sslMethod) noexcept : m_ctx(SSL_CTX_new(sslMethod))
     {
     }
 
@@ -219,7 +219,7 @@ namespace OpenSSLWrapper
         if (SSL_CTX_check_private_key(m_ctx) != 1)
             return -4;//throw runtime_error("error key not matching certificate");
 
-        X509 *cert = SSL_CTX_get0_certificate(m_ctx);
+        const X509 *cert = SSL_CTX_get0_certificate(m_ctx);
         if (cert)
         {
             GetCertInformation(cert, m_strCertComName, m_vstrAltNames);
@@ -234,7 +234,7 @@ namespace OpenSSLWrapper
     }
 
 #ifdef _DEBUG
-    void SslContext::SSLInfo(const SSL *ssl, int type, int val)
+    void SslContext::SSLInfo(const SSL *ssl, int type, int val) noexcept
     {
         if (val == 0)
         {
@@ -251,14 +251,14 @@ namespace OpenSSLWrapper
 
     }
 
-    void SslContext::SSLMsgCB(int write_p, int version, int content_type, const void *buf, size_t len, SSL *ssl, void *arg)
+    void SslContext::SSLMsgCB(int write_p, int version, int content_type, const void *buf, size_t len, SSL *ssl, void *arg) noexcept
     {
         //wcout << "\tMessage callback with length: " << len << endl;
     }
 #endif
 
 
-    SslClientContext::SslClientContext() : SslContext(SSLv23_client_method())
+    SslClientContext::SslClientContext() noexcept : SslContext(SSLv23_client_method())
     {
         SSL_CTX_set_options(m_ctx, (SSL_OP_ALL & ~SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS) | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION | SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
         SSL_CTX_set_mode(m_ctx, SSL_MODE_AUTO_RETRY);
@@ -269,7 +269,7 @@ namespace OpenSSLWrapper
         SSL_CTX_set_cipher_list(m_ctx, "EECDH+AESGCM:EDH+AESGCM:ECDHE-RSA-AES128-GCM-SHA256:AES256+EECDH:DHE-RSA-AES128-GCM-SHA256:AES256+EDH:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4");
     }
 
-    void SslClientContext::SetAlpnProtokollNames(vector<string>& vProtoList)
+    void SslClientContext::SetAlpnProtokollNames(const vector<string>& vProtoList)
     {
         if (vProtoList.size() > 0)
         {
@@ -283,7 +283,7 @@ namespace OpenSSLWrapper
         }
     }
 
-    void SslClientContext::SetTrustedRootCertificates(const char* szTrustRootCert)
+    void SslClientContext::SetTrustedRootCertificates(const char* szTrustRootCert) noexcept
     {
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
         SSL_CTX_load_verify_locations(m_ctx, szTrustRootCert, nullptr);
@@ -293,7 +293,7 @@ namespace OpenSSLWrapper
     }
 
 
-    SslServerContext::SslServerContext() : SslContext(SSLv23_server_method())
+    SslServerContext::SslServerContext() noexcept : SslContext(SSLv23_server_method())
     {
         //SSL_CTX_set_options(m_ctx, (SSL_OP_ALL & ~SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS) | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION | SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
         SSL_CTX_set_options(m_ctx, (SSL_OP_ALL & ~SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS) | /*SSL_OP_NO_RENEGOTIATION |*/ SSL_OP_CIPHER_SERVER_PREFERENCE | SSL_OP_SINGLE_DH_USE | SSL_OP_SINGLE_ECDH_USE | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION | SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
@@ -328,7 +328,7 @@ namespace OpenSSLWrapper
         return SslContext::SetCertificates(szHostCertificate, szHostKey);
     }
 
-    void SslServerContext::AddVirtualHost(vector<SslServerContext>* pSslCtx)
+    void SslServerContext::AddVirtualHost(vector<SslServerContext>* pSslCtx) noexcept
     {
         SSL_CTX_set_tlsext_servername_arg(m_ctx, (void*)pSslCtx);
     }
@@ -339,15 +339,15 @@ namespace OpenSSLWrapper
         if (fin.is_open() == true)
         {
             fin.seekg(0, ios::end);
-            streamoff nFileSize = fin.tellg();
+            const streamoff nFileSize = fin.tellg();
             fin.seekg(0, ios::beg);
 
-            auto pFileBuf = make_unique<char[]>(static_cast<size_t>(nFileSize));
-            fin.read(pFileBuf.get(), nFileSize);
+            auto pFileBuf = vector<char>(nFileSize);
+            fin.read(&pFileBuf[0], nFileSize);
             fin.close();
 
             BIO* rbio = BIO_new(BIO_s_mem());
-            BIO_write(rbio, pFileBuf.get(), static_cast<int>(nFileSize));
+            BIO_write(rbio, &pFileBuf[0], static_cast<int>(nFileSize));
 
             DH* pDhParam = PEM_read_bio_DHparams(rbio, nullptr, nullptr, nullptr);
             BIO_free(rbio);
@@ -359,12 +359,12 @@ namespace OpenSSLWrapper
         return false;
     }
 
-    bool SslServerContext::SetCipher(const char* const szChiper)
+    bool SslServerContext::SetCipher(const char* const szChiper) noexcept
     {
         return SSL_CTX_set_cipher_list(m_ctx, szChiper) == 1 ? true : false;
     }
 
-    void SslServerContext::SetAlpnProtokollNames(vector<string>& vStrList)
+    void SslServerContext::SetAlpnProtokollNames(const vector<string>& vStrList)
     {
         m_vstrAlpnProtoList = vStrList;
         SSL_CTX_set_alpn_select_cb(m_ctx, ALPN_CB, this);
@@ -373,7 +373,7 @@ namespace OpenSSLWrapper
     int SslServerContext::ALPN_CB(SSL* /*ssl*/, const unsigned char **out, unsigned char *outlen, const unsigned char *in, unsigned int inlen, void *arg)
     {
         SslServerContext* pSslCtx = static_cast<SslServerContext*>(arg);
-        if (pSslCtx == nullptr)
+        if (pSslCtx == nullptr || in == nullptr || out == nullptr)
             return 1;
 
         for (auto& strProt : pSslCtx->m_vstrAlpnProtoList)
@@ -383,7 +383,7 @@ namespace OpenSSLWrapper
             {
                 uint8_t nLen = *inTmp++;
                 string strProtokoll(reinterpret_cast<const char*>(inTmp), static_cast<size_t>(nLen));
-                transform(begin(strProtokoll), end(strProtokoll), begin(strProtokoll), [](char c) { return static_cast<char>(::tolower(c)); });
+                transform(begin(strProtokoll), end(strProtokoll), begin(strProtokoll), [](char c) noexcept { return static_cast<char>(::tolower(c)); });
 
                 if (strProtokoll == strProt)
                 {
@@ -439,7 +439,7 @@ namespace OpenSSLWrapper
         if (pSslCtx != nullptr && szHostName != nullptr)
         {
             string strHostName(szHostName);
-            transform(begin(strHostName), end(strHostName), begin(strHostName), [](char c) { return static_cast<char>(::tolower(c)); });
+            transform(begin(strHostName), end(strHostName), begin(strHostName), [](char c) noexcept { return static_cast<char>(::tolower(c)); });
 
             function<bool(string&)> fnDomainCompare = [strHostName](string& it) -> bool
             {
@@ -462,7 +462,7 @@ namespace OpenSSLWrapper
         return SSL_TLSEXT_ERR_NOACK;
     }
 
-    SslUdpContext::SslUdpContext() : SslContext(DTLS_method())
+    SslUdpContext::SslUdpContext() noexcept : SslContext(DTLS_method())
     {
         SSL_CTX_set_options(m_ctx, SSL_OP_CIPHER_SERVER_PREFERENCE | SSL_OP_SINGLE_DH_USE | SSL_OP_SINGLE_ECDH_USE | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION | SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
         SSL_CTX_set_mode(m_ctx, SSL_MODE_AUTO_RETRY);
@@ -474,7 +474,7 @@ namespace OpenSSLWrapper
         SSL_CTX_set_cipher_list(m_ctx, "EECDH+AESGCM:EDH+AESGCM:ECDHE-RSA-AES128-GCM-SHA256:AES256+EECDH:DHE-RSA-AES128-GCM-SHA256:AES256+EDH:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4");
     }
 
-    int SslUdpContext::verify_callback(int /*preverify_ok*/, X509_STORE_CTX* /*ctx*/)
+    int SslUdpContext::verify_callback(int /*preverify_ok*/, X509_STORE_CTX* /*ctx*/) noexcept
     {
         return 1;
     }
@@ -517,7 +517,7 @@ namespace OpenSSLWrapper
         return m_ssl;
     }
 
-    void SslConnetion::SetErrorCb(const function<void()>& fError) noexcept
+    void SslConnetion::SetErrorCb(const function<void()>& fError)
     {
         m_fError = fError;
     }
@@ -608,20 +608,20 @@ namespace OpenSSLWrapper
 
         m_iWantState &= ~2;
         size_t nRead = 0;
-        int iResult = BIO_read_ex(m_rbio, szBuffer, nBufLen, &nRead);
+        const int iResult = BIO_read_ex(m_rbio, szBuffer, nBufLen, &nRead);
         if (iResult <= 0)
             return 0;
         return nRead;
     }
 
-    size_t SslConnetion::SslPutInData(uint8_t* szBuffer, size_t nWriteLen)
+    size_t SslConnetion::SslPutInData(const uint8_t* szBuffer, size_t nWriteLen)
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
 
         m_iWantState &= ~1;
         size_t nWritten = 0;
-        int iResult = BIO_write_ex(m_wbio, szBuffer, nWriteLen, &nWritten);
+        const int iResult = BIO_write_ex(m_wbio, szBuffer, nWriteLen, &nWritten);
         if (iResult <= 0)
             return 0;
         return nWritten;
@@ -750,7 +750,7 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iResult) 
         return m_iShutDownFlag;
     }
 
-    void SslConnetion::SetAlpnProtokollNames(vector<string>& vProtoList)
+    void SslConnetion::SetAlpnProtokollNames(const vector<string>& vProtoList)
     {
         if (vProtoList.size() > 0)
         {
@@ -760,7 +760,7 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iResult) 
                 proto_list.push_back(static_cast<char>(proto.size()));
                 copy_n(proto.c_str(), proto.size(), back_inserter(proto_list));
             }
-            SSL_set_alpn_protos(m_ssl, proto_list.data(), static_cast<int>(proto_list.size()));
+            SSL_set_alpn_protos(m_ssl, proto_list.data(), static_cast<unsigned int>(proto_list.size()));
         }
     }
 
@@ -775,7 +775,7 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iResult) 
         return string();
     }
 
-    int SslConnetion::SetTrustedRootCertificates(const char* szFileName)
+    int SslConnetion::SetTrustedRootCertificates(const char* szFileName) noexcept
     {
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
         return SSL_CTX_load_verify_locations(SSL_get_SSL_CTX(m_ssl), szFileName, nullptr);
@@ -784,7 +784,7 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iResult) 
 #endif
     }
 
-    long SslConnetion::SetSniName(const char* szServerName)
+    long SslConnetion::SetSniName(const char* szServerName) noexcept
     {
         return SSL_set_tlsext_host_name(m_ssl, szServerName);
     }
@@ -823,7 +823,7 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iResult) 
         return lResult;
     }
 
-    string SslConnetion::GetSslErrAsString() noexcept
+    string SslConnetion::GetSslErrAsString()
     {
         /*BIO *bio = BIO_new(BIO_s_mem());
         ERR_print_errors(bio);

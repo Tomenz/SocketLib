@@ -49,9 +49,9 @@ typedef int SOCKOPT;
 #endif
 
 // Initialize the Socket Library
-const InitSocket* SocketInit = InitSocket::GetInstance();
+InitSocket* const SocketInit = InitSocket::GetInstance();
 
-InitSocket* InitSocket::GetInstance()
+InitSocket* const InitSocket::GetInstance() noexcept
 {
     static InitSocket iniSocket;
     return &iniSocket;
@@ -70,7 +70,7 @@ InitSocket::~InitSocket()
 #endif
 }
 
-void InitSocket::SetAddrNotifyCallback(function<void(bool, const string&, int, int)>& fnCbAddrNotify)
+void InitSocket::SetAddrNotifyCallback(const function<void(bool, const string&, int, int)>& fnCbAddrNotify)
 {
     m_fnCbAddrNotify = fnCbAddrNotify;
     if (m_fnCbAddrNotify)
@@ -88,7 +88,7 @@ void InitSocket::SetAddrNotifyCallback(function<void(bool, const string&, int, i
 #endif
 }
 
-InitSocket::InitSocket()
+InitSocket::InitSocket() noexcept
 {
 #if defined(_WIN32) || defined(_WIN64)
     WSADATA wsaData;
@@ -108,7 +108,9 @@ InitSocket::InitSocket()
 #if defined (_WIN32) || defined (_WIN64)
 VOID __stdcall InitSocket::IpIfaceChanged(PVOID CallerContext, PMIB_IPINTERFACE_ROW /*pRow*/, MIB_NOTIFICATION_TYPE NotificationType)
 {
-    InitSocket* pThis = static_cast<InitSocket*>(CallerContext);
+    InitSocket* const pThis = static_cast<InitSocket*>(CallerContext);
+    if (pThis == nullptr)
+        return;
 
     function<int(int, const string&, int, void*)> fnCb = bind(&InitSocket::CbEnumIpAdressen, pThis, placeholders::_1, placeholders::_2, placeholders::_3, placeholders::_4);
     vector<tuple<string, int, int>> vNewIPAddr;
@@ -219,7 +221,9 @@ int InitSocket::CbEnumIpAdressen(int iFamiely, const string& strIp, int nInterFa
     if (vpUserParam == nullptr)
         return 1;   // Stop enumeration, doesn't make sense
 
-    vector<tuple<const string, int, int>>* pmaStrIps = reinterpret_cast<vector<tuple<const string, int, int>>*>(vpUserParam);
+    vector<tuple<const string, int, int>>* pmaStrIps = static_cast<vector<tuple<const string, int, int>>*>(vpUserParam);
+    if (pmaStrIps == nullptr)
+        return -1;
     pmaStrIps->push_back(make_tuple(strIp, iFamiely, nInterFaceId));
     return 0;
 }
@@ -263,7 +267,7 @@ void InitSocket::NotifyOnAddressChanges(vector<tuple<string, int, int>>& vNewLis
 atomic_uint BaseSocketImpl::s_atRefCount(0);
 function<void(const uint16_t, const char*, size_t, bool)> BaseSocketImpl::s_fTraficDebug(nullptr);
 
-BaseSocketImpl::BaseSocketImpl() : m_fSock(INVALID_SOCKET), m_bStop(false), m_iError(0), m_iErrLoc(0), m_iShutDownState(0), m_fError(bind(&BaseSocketImpl::OnError, this)), m_pvUserData(nullptr), m_pBkRef(nullptr)
+BaseSocketImpl::BaseSocketImpl() noexcept : m_fSock(INVALID_SOCKET), m_bStop(false), m_iError(0), m_iErrLoc(0), m_iShutDownState(0), m_fError(bind(&BaseSocketImpl::OnError, this)), m_pvUserData(nullptr), m_pBkRef(nullptr)
 {
     ++s_atRefCount;
 }
@@ -321,8 +325,8 @@ void BaseSocketImpl::SetCallbackUserData(void* pUserData)
 
 void BaseSocketImpl::SetSocketOption(const SOCKET& fd)
 {
-    SOCKOPT rc = 1;
-    if (::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &rc, static_cast<int>(sizeof(rc))) != 0)
+    constexpr SOCKOPT rc = 1;
+    if (::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &rc, sizeof(rc)) != 0)
         throw WSAGetLastError();
 #if defined(_WIN32) || defined(_WIN64)
     unsigned long rl = 1;
@@ -364,15 +368,15 @@ void BaseSocketImpl::StartCloseingCB()
 
 uint16_t BaseSocketImpl::GetSocketPort()
 {
-    struct sockaddr_storage addrPe;
+    struct sockaddr_storage addrPe = { 0 };
     socklen_t addLen = sizeof(addrPe);
-    if (::getsockname(m_fSock, (struct sockaddr*)&addrPe, &addLen) == 0)  // Get our IP where the connection was established
+    if (::getsockname(m_fSock, reinterpret_cast<struct sockaddr*>(&addrPe), &addLen) == 0)  // Get our IP where the connection was established
     {
         char caAddrPeer[INET6_ADDRSTRLEN + 1] = { 0 };
         char servInfoPeer[NI_MAXSERV] = { 0 };
-        if (::getnameinfo((struct sockaddr*)&addrPe, sizeof(struct sockaddr_storage), caAddrPeer, sizeof(caAddrPeer), servInfoPeer, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
+        if (::getnameinfo(reinterpret_cast<struct sockaddr*>(&addrPe), sizeof(struct sockaddr_storage), &caAddrPeer[0], sizeof(caAddrPeer), &servInfoPeer[0], NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
         {
-            return static_cast<uint16_t>(stoi(servInfoPeer));
+            return static_cast<uint16_t>(stoi(&servInfoPeer[0]));
         }
     }
 
@@ -382,24 +386,23 @@ uint16_t BaseSocketImpl::GetSocketPort()
 int BaseSocketImpl::EnumIpAddresses(function<int(int, const string&, int, void*)> fnCallBack, void* vpUser)
 {
 #if defined(_WIN32) || defined(_WIN64)
-    ULONG outBufLen = 16384;
-    PIP_ADAPTER_ADDRESSES pAddressList = reinterpret_cast<PIP_ADAPTER_ADDRESSES>(new char[outBufLen]);
+    ULONG outBufLen = sizeof(IP_ADAPTER_ADDRESSES_LH) * 255;
+    auto pAddressList = make_unique<IP_ADAPTER_ADDRESSES_LH[]>(255);
     if (pAddressList == nullptr)
         return ERROR_OUTOFMEMORY;
-    DWORD ret = GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER, nullptr, pAddressList, &outBufLen);
+    DWORD ret = GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER, nullptr, &pAddressList[0], &outBufLen);
 
     if (ret == ERROR_BUFFER_OVERFLOW)
     {
-        delete reinterpret_cast<char*>(pAddressList);
-        pAddressList = reinterpret_cast<PIP_ADAPTER_ADDRESSES>(new char[outBufLen]);
+        pAddressList = make_unique<IP_ADAPTER_ADDRESSES_LH[]>(outBufLen / sizeof(IP_ADAPTER_ADDRESSES_LH) + 1);
         if (pAddressList == nullptr)
             return ERROR_OUTOFMEMORY;
-        ret = GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER, nullptr, pAddressList, &outBufLen);
+        ret = GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER, nullptr, &pAddressList[0], &outBufLen);
     }
 
     if (ret == ERROR_SUCCESS)
     {
-        for (PIP_ADAPTER_ADDRESSES pCurrentAddresses = pAddressList; pCurrentAddresses != nullptr; pCurrentAddresses = pCurrentAddresses->Next)
+        for (PIP_ADAPTER_ADDRESSES pCurrentAddresses = &pAddressList[0]; pCurrentAddresses != nullptr; pCurrentAddresses = pCurrentAddresses->Next)
         {
             if (pCurrentAddresses->IfType == IF_TYPE_SOFTWARE_LOOPBACK || pCurrentAddresses->OperStatus != IfOperStatusUp)
                 continue;
@@ -411,19 +414,17 @@ int BaseSocketImpl::EnumIpAddresses(function<int(int, const string&, int, void*)
 
                 string strTmp(255, 0);
                 if (pUnicast->Address.lpSockaddr->sa_family == AF_INET6)
-                    strTmp = inet_ntop(AF_INET6, &((struct sockaddr_in6*)pUnicast->Address.lpSockaddr)->sin6_addr, &strTmp[0], strTmp.size());
+                    strTmp = inet_ntop(AF_INET6, &reinterpret_cast<struct sockaddr_in6*>(pUnicast->Address.lpSockaddr)->sin6_addr, &strTmp[0], strTmp.size());
                 else
-                    strTmp = inet_ntop(AF_INET, &((struct sockaddr_in*)pUnicast->Address.lpSockaddr)->sin_addr, &strTmp[0], strTmp.size());
+                    strTmp = inet_ntop(AF_INET, &reinterpret_cast<struct sockaddr_in*>(pUnicast->Address.lpSockaddr)->sin_addr, &strTmp[0], strTmp.size());
                 if (fnCallBack(pUnicast->Address.lpSockaddr->sa_family, strTmp, pCurrentAddresses->IfIndex, vpUser) != 0)
                 {
-                    delete reinterpret_cast<char*>(pAddressList);
                     return ERROR_CANCELLED;
                 }
             }
         }
     }
 
-    delete reinterpret_cast<char*>(pAddressList);
 #else
     int ret = 0;
     struct ifaddrs* lstAddr;
@@ -454,7 +455,7 @@ int BaseSocketImpl::EnumIpAddresses(function<int(int, const string&, int, void*)
     return ret;
 }
 
-void BaseSocketImpl::SetAddrNotifyCallback(function<void(bool, const string&, int, int)>& fnCbAddrNotify)
+void BaseSocketImpl::SetAddrNotifyCallback(const function<void(bool, const string&, int, int)>& fnCbAddrNotify)
 {
     InitSocket::GetInstance()->SetAddrNotifyCallback(fnCbAddrNotify);
 }
@@ -481,7 +482,7 @@ TcpSocketImpl::TcpSocketImpl(const SOCKET fSock, const TcpServer* pRefServSocket
 
 TcpSocketImpl::TcpSocketImpl(BaseSocket* pBkRef, TcpSocketImpl* pTcpSocketImpl) : BaseSocketImpl(pTcpSocketImpl), m_bCloseReq(pTcpSocketImpl->m_bCloseReq), m_pRefServSocket(pTcpSocketImpl->m_pRefServSocket), m_bSelfDelete(pTcpSocketImpl->m_bSelfDelete)
 {
-    pTcpSocketImpl->m_pRefServSocket = 0;
+    pTcpSocketImpl->m_pRefServSocket = nullptr;
 
     swap(m_quInData, pTcpSocketImpl->m_quInData);
     m_atInBytes.exchange(pTcpSocketImpl->m_atInBytes);
@@ -510,7 +511,7 @@ TcpSocketImpl::~TcpSocketImpl()
 {
     //OutputDebugString(L"TcpSocketImpl::~TcpSocketImpl\r\n");
     m_bStop = true; // Stops the listening thread
-    bool bIsLocked = m_mxWrite.try_lock();
+    const bool bIsLocked = m_mxWrite.try_lock();
     m_bCloseReq = true;
     m_atOutBytes = 0;
     m_cv.notify_all();
@@ -541,7 +542,7 @@ bool TcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort,
         m_fSock = INVALID_SOCKET;
     }
 
-    struct addrinfo *lstAddr, hint = { 0 };
+    struct addrinfo* lstAddr = nullptr, hint = { 0 };
     hint.ai_family = AddrHint;
     hint.ai_socktype = SOCK_STREAM;
 
@@ -560,12 +561,12 @@ bool TcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort,
 
         if (lstAddr->ai_family == AF_INET6)
         {
-            uint32_t on = 0;
-            if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<char*>(&on), sizeof(on)) == -1)
+            constexpr uint32_t on = 0;
+            if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<const char*>(&on), sizeof(on)) == -1)
                 throw WSAGetLastError();
         }
 
-        int rc = ::connect(m_fSock, lstAddr->ai_addr, static_cast<int>(lstAddr->ai_addrlen));
+        const int rc = ::connect(m_fSock, lstAddr->ai_addr, static_cast<int>(lstAddr->ai_addrlen));
         if (rc == SOCKET_ERROR)
         {
             m_iError = WSAGetLastError();
@@ -587,16 +588,16 @@ bool TcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort,
             m_thWrite = thread(&TcpSocketImpl::WriteThread, this);
 
             if (m_fClientConnetedParam)
-                m_fClientConnetedParam(reinterpret_cast<TcpSocket*>(m_pBkRef), m_pvUserData);
+                m_fClientConnetedParam(dynamic_cast<TcpSocket*>(m_pBkRef), m_pvUserData);
             else if (m_fClientConneted)
-                m_fClientConneted(reinterpret_cast<TcpSocket*>(m_pBkRef));
+                m_fClientConneted(dynamic_cast<TcpSocket*>(m_pBkRef));
 
             if (m_fClientConnetedSsl)
                 m_fClientConnetedSsl(nullptr);
         }
     }
 
-    catch (int iSocketErr)
+    catch (const int iSocketErr)
     {
         m_iError = iSocketErr;
         m_iErrLoc = 1;
@@ -616,14 +617,14 @@ void TcpSocketImpl::SetSocketOption(const SOCKET& fd)
 {
     BaseSocketImpl::SetSocketOption(fd);
 
-    SOCKOPT rc = 1;
+    constexpr SOCKOPT rc = 1;
     if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &rc, sizeof(rc)) == -1)
         throw WSAGetLastError();
 }
 
 size_t TcpSocketImpl::Read(void* buf, size_t len)
 {
-    if (m_atInBytes == 0)
+    if (m_atInBytes == 0 || buf == nullptr || len == 0)
         return 0;
 
     size_t nOffset = 0;
@@ -644,10 +645,10 @@ size_t TcpSocketImpl::Read(void* buf, size_t len)
     if (nToCopy < BUFLEN(data))
     {   // Put the Rest of the Data back to the Que
         size_t nRest = BUFLEN(data) - nToCopy;
-        shared_ptr<uint8_t[]> tmp(new uint8_t[nRest]);
+        auto tmp = make_unique<uint8_t[]>(nRest);
         copy(BUFFER(data).get() + nToCopy, BUFFER(data).get() + nToCopy + nRest, tmp.get());
         m_mxInDeque.lock();
-        m_quInData.emplace_front(tmp, nRest);
+        m_quInData.emplace_front(move(tmp), nRest);
         m_mxInDeque.unlock();
     }
     else if (m_quInData.size() > 0 && len > nToCopy)
@@ -662,10 +663,13 @@ size_t TcpSocketImpl::Read(void* buf, size_t len)
 
 size_t TcpSocketImpl::PutBackRead(void* buf, size_t len)
 {
-    shared_ptr<uint8_t[]> tmp(new uint8_t[len]);
-    copy(static_cast<const uint8_t*>(buf), static_cast<const uint8_t*>(buf) + len, tmp.get());
+    if (buf == nullptr || len == 0)
+        return 0;
+
+    auto tmp = make_unique<uint8_t[]>(len);
+    copy(&static_cast<const uint8_t*>(buf)[0], &static_cast<const uint8_t*>(buf)[len], &tmp.get()[0]);
     m_mxInDeque.lock();
-    m_quInData.emplace_front(tmp, len);
+    m_quInData.emplace_front(move(tmp), len);
     m_atInBytes += len;
     m_mxInDeque.unlock();
 
@@ -684,16 +688,16 @@ size_t TcpSocketImpl::Write(const void* buf, size_t len)
         return 0;
 
     if (s_fTraficDebug != nullptr)
-        s_fTraficDebug(static_cast<uint16_t>(m_fSock), reinterpret_cast<const char*>(buf), len, true);
+        s_fTraficDebug(static_cast<uint16_t>(m_fSock), static_cast<const char*>(buf), len, true);
 
     int iRet = 0;
     if (m_fnSslEncode == nullptr || (iRet = m_fnSslEncode(buf, len), iRet == 0))
     {
-        shared_ptr<uint8_t[]> tmp(new uint8_t[len]);
-        copy(static_cast<const uint8_t*>(buf), static_cast<const uint8_t*>(buf) + len, tmp.get());
+        auto tmp = make_unique<uint8_t[]>(len);
+        copy(&static_cast<const uint8_t*>(buf)[0], &static_cast<const uint8_t*>(buf)[len], &tmp.get()[0]);
         m_mxOutDeque.lock();
         m_atOutBytes += len;
-        m_quOutData.emplace_back(tmp, len);
+        m_quOutData.emplace_back(move(tmp), len);
         m_mxOutDeque.unlock();
 
         iRet = 1;   // Trigger WriteThread
@@ -714,12 +718,12 @@ void TcpSocketImpl::WriteThread()
     while (m_bCloseReq == false || m_atOutBytes != 0)
     {
         if (m_bCloseReq == false && m_atOutBytes == 0)
-            m_cv.wait(lock, [&]() { return m_atOutBytes == 0 ? m_bCloseReq : true; });
+            m_cv.wait(lock, [&]() noexcept { return m_atOutBytes == 0 ? m_bCloseReq : true; });
 
         if (m_atOutBytes != 0)
         {
-            fd_set writefd, errorfd;
-            struct timeval timeout;
+            fd_set writefd = { 0 }, errorfd = { 0 };
+            struct timeval timeout = { 0 };
 
             timeout.tv_sec = 1;
             timeout.tv_usec = 0;
@@ -761,7 +765,7 @@ void TcpSocketImpl::WriteThread()
             uint32_t transferred = ::send(m_fSock, reinterpret_cast<char*>(BUFFER(data).get()), static_cast<int>(BUFLEN(data)), 0);
             if (static_cast<int32_t>(transferred) <= 0)
             {
-                int iError = WSAGetLastError();
+                const int iError = WSAGetLastError();
                 if (iError != WSAEWOULDBLOCK)
                 {
                     m_iError = iError;
@@ -775,19 +779,19 @@ void TcpSocketImpl::WriteThread()
                     break;
                 }
                 // Put the not send bytes back into the que if it is not a SSL connection. A SSL connection has the bytes still available
-                shared_ptr<uint8_t[]> tmp(new uint8_t[BUFLEN(data)]);
-                copy(BUFFER(data).get(), BUFFER(data).get() + BUFLEN(data), tmp.get());
+                auto tmp = make_unique<uint8_t[]>(BUFLEN(data));
+                copy(&BUFFER(data).get()[0], &BUFFER(data).get()[BUFLEN(data)], &tmp.get()[0]);
                 m_mxOutDeque.lock();
-                m_quOutData.emplace_front(tmp, BUFLEN(data));
+                m_quOutData.emplace_front(move(tmp), BUFLEN(data));
                 m_mxOutDeque.unlock();
                 m_atOutBytes += BUFLEN(data);
             }
             else if (transferred < BUFLEN(data)) // Less bytes send as buffer size, we put the rast back in your que
             {
-                shared_ptr<uint8_t[]> tmp(new uint8_t[BUFLEN(data) - transferred]);
-                copy(BUFFER(data).get() + transferred, BUFFER(data).get() + transferred + (BUFLEN(data) - transferred), tmp.get());
+                auto tmp = make_unique<uint8_t[]>(BUFLEN(data) - transferred);
+                copy(&BUFFER(data).get()[transferred], &BUFFER(data).get()[transferred + (BUFLEN(data) - transferred)], &tmp.get()[0]);
                 m_mxOutDeque.lock();
-                m_quOutData.emplace_front(tmp, (BUFLEN(data) - transferred));
+                m_quOutData.emplace_front(move(tmp), (BUFLEN(data) - transferred));
                 m_mxOutDeque.unlock();
                 m_atOutBytes += (BUFLEN(data) - transferred);
             }
@@ -829,13 +833,13 @@ void TcpSocketImpl::StartReceiving()
     m_thListen = thread(&TcpSocketImpl::SelectThread, this);
 }
 
-void TcpSocketImpl::Close() noexcept
+void TcpSocketImpl::Close()
 {
     //OutputDebugString(L"TcpSocketImpl::Close\r\n");
     m_bCloseReq = true; // Stops the write thread after the last byte was send
     do
     {
-        bool bIsLocked = m_mxWrite.try_lock();
+        const bool bIsLocked = m_mxWrite.try_lock();
         m_cv.notify_all();
         if (bIsLocked == true)
             m_mxWrite.unlock();
@@ -846,13 +850,13 @@ void TcpSocketImpl::Close() noexcept
         thread([&]() { StartCloseingCB(); }).detach();
 }
 
-void TcpSocketImpl::SelfDestroy() noexcept
+void TcpSocketImpl::SelfDestroy()
 {
     m_bSelfDelete = true;
     Close();
 }
 
-void TcpSocketImpl::Delete() noexcept
+void TcpSocketImpl::Delete()
 {
     thread([&]() { delete m_pBkRef; }).detach();
 }
@@ -911,8 +915,8 @@ void TcpSocketImpl::SelectThread()
             continue;
         }
 
-        fd_set readfd, errorfd;
-        struct timeval timeout;
+        fd_set readfd = { 0 }, errorfd = { 0 };
+        struct timeval timeout = { 0 };
 
         timeout.tv_sec = 2;
         timeout.tv_usec = 0;
@@ -957,14 +961,14 @@ void TcpSocketImpl::SelectThread()
                             this_thread::sleep_for(chrono::milliseconds(10));
 
                         if (m_fBytesReceivedParam)
-                            m_fBytesReceivedParam(reinterpret_cast<TcpSocket*>(m_pBkRef), m_pvUserData);
+                            m_fBytesReceivedParam(dynamic_cast<TcpSocket*>(m_pBkRef), m_pvUserData);
                         else if (m_fBytesReceived)
-                            m_fBytesReceived(reinterpret_cast<TcpSocket*>(m_pBkRef));
+                            m_fBytesReceived(dynamic_cast<TcpSocket*>(m_pBkRef));
                         break;
                     }
                     else
                     {
-                        int iError = WSAGetLastError();
+                        const int iError = WSAGetLastError();
                         if (iError != WSAEWOULDBLOCK)
                         {
                             m_iError = iError;
@@ -985,10 +989,10 @@ void TcpSocketImpl::SelectThread()
                         if (s_fTraficDebug != nullptr)
                             s_fTraficDebug(static_cast<uint16_t>(m_fSock), buf.get(), transferred, false);
 
-                        shared_ptr<uint8_t[]> tmp(new uint8_t[transferred]);
-                        copy(buf.get(), buf.get() + transferred, tmp.get());
+                        auto tmp = make_unique<uint8_t[]>(transferred);
+                        copy(&buf.get()[0], &buf.get()[transferred], &tmp.get()[0]);
                         lock_guard<mutex> lock(m_mxInDeque);
-                        m_quInData.emplace_back(tmp, transferred);
+                        m_quInData.emplace_back(move(tmp), transferred);
                         m_atInBytes += transferred;
                     }
 
@@ -1005,9 +1009,9 @@ void TcpSocketImpl::SelectThread()
                                 {
                                     mxNotify.unlock();
                                     if (m_fBytesReceivedParam != nullptr)
-                                        m_fBytesReceivedParam(reinterpret_cast<TcpSocket*>(m_pBkRef), m_pvUserData);
+                                        m_fBytesReceivedParam(dynamic_cast<TcpSocket*>(m_pBkRef), m_pvUserData);
                                     else 
-                                        m_fBytesReceived(reinterpret_cast<TcpSocket*>(m_pBkRef));
+                                        m_fBytesReceived(dynamic_cast<TcpSocket*>(m_pBkRef));
                                     mxNotify.lock();
                                 }
                                 bReadCall = false;
@@ -1060,8 +1064,8 @@ void TcpSocketImpl::ConnectThread()
 
     while (m_bStop == false)
     {
-        fd_set writefd, errorfd;
-        struct timeval timeout;
+        fd_set writefd = { 0 }, errorfd = { 0 };
+        struct timeval timeout = { 0 };
 
         timeout.tv_sec = 2;
         timeout.tv_usec = 0;
@@ -1094,9 +1098,9 @@ void TcpSocketImpl::ConnectThread()
                 m_thWrite = thread(&TcpSocketImpl::WriteThread, this);
 
                 if (m_fClientConnetedParam)
-                    m_fClientConnetedParam(reinterpret_cast<TcpSocket*>(m_pBkRef), m_pvUserData);
+                    m_fClientConnetedParam(dynamic_cast<TcpSocket*>(m_pBkRef), m_pvUserData);
                 else if (m_fClientConneted)
-                    m_fClientConneted(reinterpret_cast<TcpSocket*>(m_pBkRef));
+                    m_fClientConneted(dynamic_cast<TcpSocket*>(m_pBkRef));
 
                 if (m_fClientConnetedSsl)
                     m_fClientConnetedSsl(nullptr);
@@ -1125,18 +1129,18 @@ void TcpSocketImpl::ConnectThread()
 
 bool TcpSocketImpl::GetConnectionInfo()
 {
-    struct sockaddr_storage addrCl;
+    struct sockaddr_storage addrCl = { 0 };
     socklen_t addLen = sizeof(addrCl);
-    if (::getpeername(m_fSock, (struct sockaddr*)&addrCl, &addLen) != 0)  // Get the IP to where the connection was established
+    if (::getpeername(m_fSock, reinterpret_cast<struct sockaddr*>(&addrCl), &addLen) != 0)  // Get the IP to where the connection was established
     {
         m_iError = WSAGetLastError();
         m_iErrLoc = 10;
         return false;
     }
 
-    struct sockaddr_storage addrPe;
+    struct sockaddr_storage addrPe = { 0 };
     addLen = sizeof(addrPe);
-    if (::getsockname(m_fSock, (struct sockaddr*)&addrPe, &addLen) != 0)  // Get our IP where the connection was established
+    if (::getsockname(m_fSock, reinterpret_cast<struct sockaddr*>(&addrPe), &addLen) != 0)  // Get our IP where the connection was established
     {
         m_iError = WSAGetLastError();
         m_iErrLoc = 11;
@@ -1145,10 +1149,10 @@ bool TcpSocketImpl::GetConnectionInfo()
 
     char caAddrClient[INET6_ADDRSTRLEN + 1] = { 0 };
     char servInfoClient[NI_MAXSERV] = { 0 };
-    if (::getnameinfo((struct sockaddr*)&addrCl, sizeof(struct sockaddr_storage), caAddrClient, sizeof(caAddrClient), servInfoClient, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
+    if (::getnameinfo(reinterpret_cast<struct sockaddr*>(&addrCl), sizeof(struct sockaddr_storage), &caAddrClient[0], sizeof(caAddrClient), &servInfoClient[0], NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
     {
-        m_strClientAddr = caAddrClient;
-        m_sClientPort = static_cast<uint16_t>(stoi(servInfoClient));
+        m_strClientAddr = &caAddrClient[0];
+        m_sClientPort = static_cast<uint16_t>(stoi(&servInfoClient[0]));
     }
     else
     {
@@ -1159,10 +1163,10 @@ bool TcpSocketImpl::GetConnectionInfo()
 
     char caAddrPeer[INET6_ADDRSTRLEN + 1] = { 0 };
     char servInfoPeer[NI_MAXSERV] = { 0 };
-    if (::getnameinfo((struct sockaddr*)&addrPe, sizeof(struct sockaddr_storage), caAddrPeer, sizeof(caAddrPeer), servInfoPeer, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
+    if (::getnameinfo(reinterpret_cast<struct sockaddr*>(&addrPe), sizeof(struct sockaddr_storage), &caAddrPeer[0], sizeof(caAddrPeer), &servInfoPeer[0], NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
     {
-        m_strIFaceAddr = caAddrPeer;
-        m_sIFacePort = static_cast<uint16_t>(stoi(servInfoPeer));
+        m_strIFaceAddr = &caAddrPeer[0];
+        m_sIFacePort = static_cast<uint16_t>(stoi(&servInfoPeer[0]));
     }
     else
     {
@@ -1176,7 +1180,7 @@ bool TcpSocketImpl::GetConnectionInfo()
 
 //************************************************************************************
 
-TcpServerImpl::TcpServerImpl(BaseSocket* pBkRef)
+TcpServerImpl::TcpServerImpl(BaseSocket* pBkRef) noexcept
 {
     m_pBkRef = pBkRef;
 }
@@ -1193,7 +1197,7 @@ TcpServerImpl::~TcpServerImpl()
 
 bool TcpServerImpl::Start(const char* const szIpAddr, const uint16_t sPort)
 {
-    struct addrinfo *lstAddr, hint = { 0 };
+    struct addrinfo *lstAddr = nullptr, hint = { 0 };
     hint.ai_family = AF_UNSPEC;
     hint.ai_socktype = SOCK_STREAM;
     hint.ai_flags = AI_PASSIVE;
@@ -1207,7 +1211,7 @@ bool TcpServerImpl::Start(const char* const szIpAddr, const uint16_t sPort)
     {
         for (auto curAddr = lstAddr; curAddr != nullptr; curAddr = curAddr->ai_next)
         {
-            SOCKET fd = ::socket(curAddr->ai_family, curAddr->ai_socktype, curAddr->ai_protocol);
+            const SOCKET fd = ::socket(curAddr->ai_family, curAddr->ai_socktype, curAddr->ai_protocol);
             if (fd == INVALID_SOCKET)
                 throw WSAGetLastError();
 
@@ -1217,8 +1221,8 @@ bool TcpServerImpl::Start(const char* const szIpAddr, const uint16_t sPort)
 
             if (curAddr->ai_family == AF_INET6)
             {
-                uint32_t on = 0;
-                if (::setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<char*>(&on), sizeof(on)) == -1)
+                constexpr uint32_t on = 0;
+                if (::setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<const char*>(&on), sizeof(on)) == -1)
                     throw WSAGetLastError();
             }
 
@@ -1236,7 +1240,7 @@ bool TcpServerImpl::Start(const char* const szIpAddr, const uint16_t sPort)
         m_thListen = thread(&TcpServerImpl::SelectThread, this);
     }
 
-    catch (int iSocketErr)
+    catch (const int iSocketErr)
     {
         m_iError = iSocketErr;
         m_iErrLoc = 1;
@@ -1251,15 +1255,15 @@ bool TcpServerImpl::Start(const char* const szIpAddr, const uint16_t sPort)
 
 uint16_t TcpServerImpl::GetServerPort()
 {
-    struct sockaddr_storage addrPe;
+    struct sockaddr_storage addrPe = { 0 };
     socklen_t addLen = sizeof(addrPe);
-    if (::getsockname(m_vSock[0], (struct sockaddr*)&addrPe, &addLen) == 0)  // Get our IP where the connection was established
+    if (::getsockname(m_vSock[0], reinterpret_cast<struct sockaddr*>(&addrPe), &addLen) == 0)  // Get our IP where the connection was established
     {
         char caAddrPeer[INET6_ADDRSTRLEN + 1] = { 0 };
         char servInfoPeer[NI_MAXSERV] = { 0 };
-        if (::getnameinfo((struct sockaddr*)&addrPe, sizeof(struct sockaddr_storage), caAddrPeer, sizeof(caAddrPeer), servInfoPeer, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
+        if (::getnameinfo(reinterpret_cast<struct sockaddr*>(&addrPe), sizeof(struct sockaddr_storage), &caAddrPeer[0], sizeof(caAddrPeer), &servInfoPeer[0], NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
         {
-            return static_cast<uint16_t>(stoi(servInfoPeer));
+            return static_cast<uint16_t>(stoi(&servInfoPeer[0]));
         }
     }
 
@@ -1276,7 +1280,7 @@ void TcpServerImpl::SetSocketOption(const SOCKET& fd)
 {
     BaseSocketImpl::SetSocketOption(fd);
 
-    SOCKOPT rc = 1;
+    constexpr SOCKOPT rc = 1;
     if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &rc, sizeof(rc)) == -1)
         throw WSAGetLastError();
 }
@@ -1291,7 +1295,7 @@ TcpSocket* TcpServerImpl::MakeClientConnection(const SOCKET& fSock)
         pImpl->GetConnectionInfo();
     }
 
-    catch (int iErrNo)
+    catch (const int iErrNo)
     {
         pImpl->SetErrorNo(iErrNo);
     }
@@ -1334,8 +1338,8 @@ void TcpServerImpl::SelectThread()
 
     while (m_bStop == false)
     {
-        fd_set readfd;
-        struct timeval timeout;
+        fd_set readfd = { 0 };
+        struct timeval timeout = { 0 };
         SOCKET maxFd = 0;
 
         timeout.tv_sec = 2;
@@ -1349,7 +1353,7 @@ void TcpServerImpl::SelectThread()
                 maxFd = Sock;
         }
 
-        int iRes = ::select(static_cast<int>(maxFd + 1), &readfd, nullptr, nullptr, &timeout);
+        const int iRes = ::select(static_cast<int>(maxFd + 1), &readfd, nullptr, nullptr, &timeout);
         if (iRes > 0)
         {
             vector<SOCKET> vSockets;
@@ -1358,19 +1362,19 @@ void TcpServerImpl::SelectThread()
             {
                 if (FD_ISSET(Sock, &readfd))
                 {
-                    for (int n = 0; n < 16; ++n)            // The ACCEPT_QUEUE is an optimization mechanism that allows the server to
-                    {                                       // accept() up to this many connections before serving any of them.  The
-                        struct sockaddr_storage addrCl;     // reason is that the timeout waiting for the accept() is much shorter
-                        socklen_t addLen = sizeof(addrCl);  // than the timeout for the actual processing.
+                    for (int n = 0; n < 16; ++n)                // The ACCEPT_QUEUE is an optimization mechanism that allows the server to
+                    {                                           // accept() up to this many connections before serving any of them.  The
+                        struct sockaddr_storage addrCl = { 0 }; // reason is that the timeout waiting for the accept() is much shorter
+                        socklen_t addLen = sizeof(addrCl);      // than the timeout for the actual processing.
 
-                        SOCKET fdClient = ::accept(Sock, (struct sockaddr*)&addrCl, &addLen);
+                        const SOCKET fdClient = ::accept(Sock, reinterpret_cast<struct sockaddr*>(&addrCl), &addLen);
                         if (fdClient == INVALID_SOCKET)
                             break;
 
                         if (addrCl.ss_family == AF_INET6)
                         {
-                            uint32_t on = 0;
-                            ::setsockopt(fdClient, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<char*>(&on), sizeof(on));
+                            constexpr uint32_t on = 0;
+                            ::setsockopt(fdClient, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<const char*>(&on), sizeof(on));
                         }
 
                         vSockets.push_back(fdClient);
@@ -1385,9 +1389,11 @@ void TcpServerImpl::SelectThread()
                 thread([this, &nNewConCbCount](const vector<SOCKET> vNewSockets)
                 {
                     vector<TcpSocket*> vNewConnections;
-                    for (SOCKET sock : vNewSockets)
+                    for (const SOCKET sock : vNewSockets)
                     {
                         TcpSocket* pClient = MakeClientConnection(sock);
+                        if (pClient == nullptr)
+                            continue;
                         if (pClient->GetErrorNo() != 0)
                         {
                             if (m_fErrorParam)
@@ -1433,7 +1439,7 @@ UdpSocketImpl::UdpSocketImpl(BaseSocket* pBkRef) : m_bCloseReq(false)
 UdpSocketImpl::~UdpSocketImpl()
 {
     m_bStop = true; // Stops the listening thread
-    bool bIsLocked = m_mxWrite.try_lock();
+    const bool bIsLocked = m_mxWrite.try_lock();
     m_bCloseReq = true;
     m_atOutBytes = 0;
     m_cv.notify_all();
@@ -1453,7 +1459,7 @@ UdpSocketImpl::~UdpSocketImpl()
 
 bool UdpSocketImpl::Create(const char* const szIpToWhere, const uint16_t sPort, const char* const szIpToBind/* = nullptr*/)
 {
-    struct addrinfo *lstAddr, hint = { 0 };
+    struct addrinfo* lstAddr = nullptr, hint = { 0 };
     hint.ai_family = AF_UNSPEC;
     hint.ai_socktype = SOCK_DGRAM;
     hint.ai_flags = AI_PASSIVE;
@@ -1473,8 +1479,8 @@ bool UdpSocketImpl::Create(const char* const szIpToWhere, const uint16_t sPort, 
 
         if (lstAddr->ai_family == AF_INET6)
         {
-            uint32_t on = 0;
-            if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<char*>(&on), sizeof(on)) == -1)
+            constexpr uint32_t on = 0;
+            if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<const char*>(&on), sizeof(on)) == -1)
                 throw WSAGetLastError();
         }
 
@@ -1501,7 +1507,7 @@ bool UdpSocketImpl::Create(const char* const szIpToWhere, const uint16_t sPort, 
         m_thWrite = thread(&UdpSocketImpl::WriteThread, this);
     }
 
-    catch (int iSocketErr)
+    catch (const int iSocketErr)
     {
         m_iError = iSocketErr;
         m_iErrLoc = 1;
@@ -1517,24 +1523,24 @@ bool UdpSocketImpl::Create(const char* const szIpToWhere, const uint16_t sPort, 
     return bRet;
 }
 
-bool UdpSocketImpl::EnableBroadCast(bool bEnable/* = true*/)
+bool UdpSocketImpl::EnableBroadCast(bool bEnable/* = true*/) noexcept
 {
-    int iBroadcast = bEnable == true ? 1 : 0;
-    if (::setsockopt(m_fSock, SOL_SOCKET, SO_BROADCAST, (char *)&iBroadcast, sizeof(int)) == SOCKET_ERROR)
+    const int iBroadcast = bEnable == true ? 1 : 0;
+    if (::setsockopt(m_fSock, SOL_SOCKET, SO_BROADCAST, reinterpret_cast<const char*>(&iBroadcast), sizeof(int)) == SOCKET_ERROR)
         return false;
     return true;
 }
 
-bool UdpSocketImpl::AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex)
+bool UdpSocketImpl::AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex) noexcept
 {
     struct addrinfo *lstAddr;
     if (::getaddrinfo(szMulticastIp, nullptr, nullptr, &lstAddr) != 0)
         return false;
-    int iAddFamily = lstAddr->ai_family;
+    const int iAddFamily = lstAddr->ai_family;
     ::freeaddrinfo(lstAddr);
 
-    uint32_t hops = static_cast<uint8_t>('\xff');
-    uint32_t loop = 1;
+    constexpr uint32_t hops = static_cast<uint8_t>('\xff');
+    constexpr uint32_t loop = 1;
 
     if (iAddFamily == AF_INET6)
     {
@@ -1544,8 +1550,8 @@ bool UdpSocketImpl::AddToMulticastGroup(const char* const szMulticastIp, const c
 
         // http://www.tldp.org/HOWTO/Multicast-HOWTO-6.html
         if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, reinterpret_cast<char*>(&mreq), sizeof(mreq)) != 0
-        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, reinterpret_cast<char*>(&hops), sizeof(hops)) != 0
-        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, reinterpret_cast<char*>(&loop), sizeof(loop)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, reinterpret_cast<const char*>(&hops), sizeof(hops)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, reinterpret_cast<const char*>(&loop), sizeof(loop)) != 0
         || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_IF, reinterpret_cast<char*>(&mreq.ipv6mr_interface), sizeof(mreq.ipv6mr_interface)) != 0)
         {
             m_iError = WSAGetLastError();
@@ -1563,9 +1569,9 @@ bool UdpSocketImpl::AddToMulticastGroup(const char* const szMulticastIp, const c
         inet_pton(AF_INET, szInterfaceIp, &mreq.imr_interface.s_addr);
 #endif
 
-        if (::setsockopt(m_fSock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
-        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_TTL, reinterpret_cast<char*>(&hops), sizeof(hops)) != 0
-        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_LOOP, reinterpret_cast<char*>(&loop), sizeof(loop)) != 0
+        if (::setsockopt(m_fSock, IPPROTO_IP, IP_ADD_MEMBERSHIP, reinterpret_cast<char*>(&mreq), sizeof(mreq)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_TTL, reinterpret_cast<const char*>(&hops), sizeof(hops)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_LOOP, reinterpret_cast<const char*>(&loop), sizeof(loop)) != 0
         || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_IF, reinterpret_cast<char*>(&mreq.imr_interface), sizeof(mreq.imr_interface)) != 0)
         {
             m_iError = WSAGetLastError();
@@ -1577,15 +1583,15 @@ bool UdpSocketImpl::AddToMulticastGroup(const char* const szMulticastIp, const c
     return true;
 }
 
-bool UdpSocketImpl::RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex)
+bool UdpSocketImpl::RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex) noexcept
 {
     struct addrinfo *lstAddr;
     if (::getaddrinfo(szMulticastIp, nullptr, nullptr, &lstAddr) != 0)
         return false;
-    int iAddFamily = lstAddr->ai_family;
+    const int iAddFamily = lstAddr->ai_family;
     ::freeaddrinfo(lstAddr);
 
-    uint32_t AnyAddr = INADDR_ANY;
+    constexpr uint32_t AnyAddr = INADDR_ANY;
 
     if (iAddFamily == AF_INET6)
     {
@@ -1593,8 +1599,8 @@ bool UdpSocketImpl::RemoveFromMulticastGroup(const char* const szMulticastIp, co
         inet_pton(AF_INET6, szMulticastIp, &mreq.ipv6mr_multiaddr);
         mreq.ipv6mr_interface = nInterfaceIndex; // use default
 
-        if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
-        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_IF, reinterpret_cast<char*>(&AnyAddr), sizeof(uint32_t)) != 0)
+        if (::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP, reinterpret_cast<char*>(&mreq), sizeof(mreq)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IPV6, IPV6_MULTICAST_IF, reinterpret_cast<const char*>(&AnyAddr), sizeof(uint32_t)) != 0)
         {
             m_iError = WSAGetLastError();
             m_iErrLoc = 3;
@@ -1611,8 +1617,8 @@ bool UdpSocketImpl::RemoveFromMulticastGroup(const char* const szMulticastIp, co
         inet_pton(AF_INET, szInterfaceIp, &mreq.imr_interface.s_addr);
 #endif
 
-        if (setsockopt(m_fSock, IPPROTO_IP, IP_DROP_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) != 0
-        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_IF, reinterpret_cast<char*>(&AnyAddr), sizeof(uint32_t)) != 0)
+        if (setsockopt(m_fSock, IPPROTO_IP, IP_DROP_MEMBERSHIP, reinterpret_cast<char *>(&mreq), sizeof(mreq)) != 0
+        || ::setsockopt(m_fSock, IPPROTO_IP, IP_MULTICAST_IF, reinterpret_cast<const char*>(&AnyAddr), sizeof(uint32_t)) != 0)
         {
             m_iError = WSAGetLastError();
             m_iErrLoc = 3;
@@ -1625,7 +1631,7 @@ bool UdpSocketImpl::RemoveFromMulticastGroup(const char* const szMulticastIp, co
 
 size_t UdpSocketImpl::Read(void* buf, size_t len, string& strFrom)
 {
-    if (m_atInBytes == 0)
+    if (m_atInBytes == 0 || buf == nullptr || len == 0)
         return 0;
 
     size_t nOffset = 0;
@@ -1646,10 +1652,10 @@ size_t UdpSocketImpl::Read(void* buf, size_t len, string& strFrom)
     if (nToCopy < BUFLEN(data))
     {   // Put the Rest of the Data back to the Que
         size_t nRest = BUFLEN(data) - nToCopy;
-        shared_ptr<uint8_t[]> tmp(new uint8_t[nRest]);
+        auto tmp = make_unique<uint8_t[]>(nRest);
         copy(BUFFER(data).get() + nToCopy, BUFFER(data).get() + nToCopy + nRest, tmp.get());
         m_mxInDeque.lock();
-        m_quInData.emplace_front(tmp, nRest, ADDRESS(data));
+        m_quInData.emplace_front(move(tmp), nRest, ADDRESS(data));
         m_mxInDeque.unlock();
     }
 
@@ -1670,10 +1676,10 @@ size_t UdpSocketImpl::Write(const void* buf, size_t len, const string& strTo)
     int iRet = 0;
     if (m_fnSslEncode == nullptr || (iRet = m_fnSslEncode(buf, len, strTo), iRet == 0))
     {
-        shared_ptr<uint8_t[]> tmp(new uint8_t[len]);
+        auto tmp = make_unique<uint8_t[]>(len);
         copy(static_cast<const uint8_t*>(buf), static_cast<const uint8_t*>(buf) + len, tmp.get());
         m_mxOutDeque.lock();
-        m_quOutData.emplace_back(tmp, len, strTo);
+        m_quOutData.emplace_back(move(tmp), len, strTo);
         m_atOutBytes += len;
         m_mxOutDeque.unlock();
 
@@ -1694,12 +1700,12 @@ void UdpSocketImpl::WriteThread()
     while (m_bCloseReq == false || m_atOutBytes != 0)
     {
         if (m_bCloseReq == false && m_atOutBytes == 0)
-            m_cv.wait(lock, [&]() { return m_atOutBytes == 0 ? m_bCloseReq : true; });
+            m_cv.wait(lock, [&]() noexcept { return m_atOutBytes == 0 ? m_bCloseReq : true; });
 
         if (m_atOutBytes != 0)
         {
-            fd_set writefd, errorfd;
-            struct timeval timeout;
+            fd_set writefd = { 0 }, errorfd = { 0 };
+            struct timeval timeout = { 0 };
 
             timeout.tv_sec = 1;
             timeout.tv_usec = 0;
@@ -1737,8 +1743,8 @@ void UdpSocketImpl::WriteThread()
             m_atOutBytes -= BUFLEN(data);
 
             struct addrinfo *lstAddr = nullptr;
-            size_t nPosS = ADDRESS(data).find('[');
-            size_t nPosE = ADDRESS(data).find(']');
+            const size_t nPosS = ADDRESS(data).find('[');
+            const size_t nPosE = ADDRESS(data).find(']');
             if (nPosS != string::npos && nPosE != string::npos)
             {
                 if (::getaddrinfo(ADDRESS(data).substr(nPosS + 1, nPosE - 1).c_str(), ADDRESS(data).substr(nPosE + 2).c_str(), nullptr, &lstAddr) != 0)
@@ -1746,7 +1752,7 @@ void UdpSocketImpl::WriteThread()
             }
             else
             {
-                size_t nPos = ADDRESS(data).find(':');
+                const size_t nPos = ADDRESS(data).find(':');
                 if (nPos != string::npos)
                 {
                     if (::getaddrinfo(ADDRESS(data).substr(0, nPos).c_str(), ADDRESS(data).substr(nPos + 1).c_str(), nullptr, &lstAddr) != 0)
@@ -1771,19 +1777,19 @@ void UdpSocketImpl::WriteThread()
                     break;
                 }
                 // Put the not send bytes back into the que if it is not a SSL connection. A SSL connection has the bytes still available
-                shared_ptr<uint8_t[]> tmp(new uint8_t[BUFLEN(data)]);
+                auto tmp = make_unique<uint8_t[]>(BUFLEN(data));
                 copy(BUFFER(data).get(), BUFFER(data).get() + BUFLEN(data), tmp.get());
                 m_mxOutDeque.lock();
-                m_quOutData.emplace_front(tmp, BUFLEN(data), ADDRESS(data));
+                m_quOutData.emplace_front(move(tmp), BUFLEN(data), ADDRESS(data));
                 m_mxOutDeque.unlock();
                 m_atOutBytes += BUFLEN(data);
             }
             else if (transferred < BUFLEN(data)) // Less bytes send as buffer size, we put the rast back in your que
             {
-                shared_ptr<uint8_t[]> tmp(new uint8_t[BUFLEN(data) - transferred]);
+                auto tmp = make_unique<uint8_t[]>(BUFLEN(data) - transferred);
                 copy(BUFFER(data).get() + transferred, BUFFER(data).get() + transferred + (BUFLEN(data) - transferred), tmp.get());
                 m_mxOutDeque.lock();
-                m_quOutData.emplace_front(tmp, (BUFLEN(data) - transferred), ADDRESS(data));
+                m_quOutData.emplace_front(move(tmp), (BUFLEN(data) - transferred), ADDRESS(data));
                 m_mxOutDeque.unlock();
                 m_atOutBytes += (BUFLEN(data) - transferred);
             }
@@ -1815,12 +1821,12 @@ void UdpSocketImpl::WriteThread()
     }
 }
 
-void UdpSocketImpl::Close() noexcept
+void UdpSocketImpl::Close()
 {
     m_bCloseReq = true; // Stops the write thread after the last byte was send
     do
     {
-        bool bIsLocked = m_mxWrite.try_lock();
+        const bool bIsLocked = m_mxWrite.try_lock();
         m_cv.notify_all();
         if (bIsLocked == true)
             m_mxWrite.unlock();
@@ -1865,8 +1871,8 @@ void UdpSocketImpl::SelectThread()
             continue;
         }
 
-        fd_set readfd, errorfd;
-        struct timeval timeout;
+        fd_set readfd = { 0 }, errorfd = { 0 };
+        struct timeval timeout = { 0 };
 
         timeout.tv_sec = 2;
         timeout.tv_usec = 0;
@@ -1896,10 +1902,10 @@ void UdpSocketImpl::SelectThread()
                 {
                     sockaddr_in sin;
                     sockaddr_in6 sin6;
-                }SenderAddr;
+                }SenderAddr = { 0 };
                 socklen_t sinLen = sizeof(SenderAddr);
 
-                int32_t transferred = ::recvfrom(m_fSock, buf.get(), 0x0000ffff, 0, (sockaddr*)&SenderAddr, &sinLen);
+                int32_t transferred = ::recvfrom(m_fSock, buf.get(), 0x0000ffff, 0, reinterpret_cast<sockaddr*>(&SenderAddr), &sinLen);
 
                 if (transferred <= 0)
                 {
@@ -1942,22 +1948,22 @@ void UdpSocketImpl::SelectThread()
                     char caAddrBuf[INET6_ADDRSTRLEN + 1] = { 0 };
                     if (SenderAddr.sin6.sin6_family == AF_INET6)
                     {
-                        strAbsender << "[" << inet_ntop(SenderAddr.sin6.sin6_family, &SenderAddr.sin6.sin6_addr, caAddrBuf, sizeof(caAddrBuf));
+                        strAbsender << "[" << inet_ntop(SenderAddr.sin6.sin6_family, &SenderAddr.sin6.sin6_addr, &caAddrBuf[0], sizeof(caAddrBuf));
                         strAbsender << "]:" << ntohs(SenderAddr.sin6.sin6_port);
                     }
                     else
                     {
-                        strAbsender << inet_ntop(SenderAddr.sin.sin_family, &SenderAddr.sin.sin_addr, caAddrBuf, sizeof(caAddrBuf));
+                        strAbsender << inet_ntop(SenderAddr.sin.sin_family, &SenderAddr.sin.sin_addr, &caAddrBuf[0], sizeof(caAddrBuf));
                         strAbsender << ":" << ntohs(SenderAddr.sin.sin_port);
                     }
 
                     int iRet = 0;
                     if (m_fnSslDecode == nullptr || (iRet = m_fnSslDecode(buf.get(), transferred, strAbsender.str()), iRet == 0))
                     {
-                        shared_ptr<uint8_t[]> tmp(new uint8_t[transferred]);
-                        copy(buf.get(), buf.get() + transferred, tmp.get());
+                        auto tmp = make_unique<uint8_t[]>(transferred);
+                        copy(&buf.get()[0], &buf.get()[transferred], &tmp.get()[0]);
                         m_mxInDeque.lock();
-                        m_quInData.emplace_back(tmp, transferred, strAbsender.str());
+                        m_quInData.emplace_back(move(tmp), transferred, strAbsender.str());
                         m_atInBytes += transferred;
                         m_mxInDeque.unlock();
                     }
@@ -1975,9 +1981,9 @@ void UdpSocketImpl::SelectThread()
                                 {
                                     mxNotify.unlock();
                                     if (m_fBytesReceivedParam != nullptr)
-                                        m_fBytesReceivedParam(reinterpret_cast<UdpSocket*>(m_pBkRef), m_pvUserData);
+                                        m_fBytesReceivedParam(dynamic_cast<UdpSocket*>(m_pBkRef), m_pvUserData);
                                     else
-                                        m_fBytesReceived(reinterpret_cast<UdpSocket*>(m_pBkRef));
+                                        m_fBytesReceived(dynamic_cast<UdpSocket*>(m_pBkRef));
                                     mxNotify.lock();
                                 }
                                 bReadCall = false;

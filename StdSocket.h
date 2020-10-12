@@ -22,7 +22,6 @@
 
 #if defined (_WIN32) || defined (_WIN64)
 // https://support.microsoft.com/de-de/kb/257460
-//#include <winsock2.h>
 #include <Ws2tcpip.h>
 #include <Netioapi.h>
 #else
@@ -43,12 +42,16 @@ using namespace std;
 class InitSocket
 {
 public:
-    static InitSocket* GetInstance();
+    static InitSocket* const GetInstance() noexcept;
     ~InitSocket();
-    void SetAddrNotifyCallback(function<void(bool, const string&, int, int)>& fnCbAddrNotify);
+    InitSocket(const InitSocket&) = delete;
+    InitSocket(InitSocket&&) = delete;
+    InitSocket& operator=(const InitSocket&) = delete;
+    InitSocket& operator=(InitSocket&&) = delete;
+    void SetAddrNotifyCallback(const function<void(bool, const string&, int, int)>& fnCbAddrNotify);
 
 private:
-    InitSocket();
+    InitSocket() noexcept;
 #if defined (_WIN32) || defined (_WIN64)
     static VOID __stdcall IpIfaceChanged(PVOID CallerContext, PMIB_IPINTERFACE_ROW Row, MIB_NOTIFICATION_TYPE NotificationType);
     HANDLE m_hIFaceNotify;
@@ -68,10 +71,14 @@ private:
 class BaseSocketImpl
 {
 public:
-    explicit BaseSocketImpl();
+    explicit BaseSocketImpl() noexcept;
     virtual ~BaseSocketImpl();
+    BaseSocketImpl(const BaseSocketImpl&) = delete;
+    BaseSocketImpl(BaseSocketImpl&&) = delete;
+    BaseSocketImpl& operator=(const BaseSocketImpl&) = delete;
+    BaseSocketImpl& operator=(BaseSocketImpl&&) = delete;
+
     virtual void Close() = 0;
-    virtual void SelfDestroy() = 0;
     virtual function<void(BaseSocket*)> BindErrorFunction(function<void(BaseSocket*)> fError) noexcept;
     virtual function<void(BaseSocket*, void*)> BindErrorFunction(function<void(BaseSocket*, void*)> fError) noexcept;
     virtual function<void(BaseSocket*)> BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept;
@@ -82,7 +89,7 @@ public:
     virtual void SetErrorNo(int iErrNo) noexcept { m_iError = iErrNo; }
     virtual uint16_t GetSocketPort();
     static int EnumIpAddresses(function<int(int,const string&,int,void*)> fnCallBack, void* vpUser);
-    static void SetAddrNotifyCallback(function<void(bool, const string&, int, int)>& fnCbAddrNotify);
+    static void SetAddrNotifyCallback(const function<void(bool, const string&, int, int)>& fnCbAddrNotify);
 
     static void SetTraficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTraficDbg) { s_fTraficDebug = fnCbTraficDbg; }
 
@@ -117,19 +124,24 @@ private:
 class TcpSocketImpl : public BaseSocketImpl
 {
 protected:
-    typedef tuple<shared_ptr<uint8_t[]>, size_t> DATA;
+    typedef tuple<unique_ptr<uint8_t[]>, size_t> DATA;
 
 public:
     TcpSocketImpl(BaseSocket* pBkRef);
-    virtual ~TcpSocketImpl();
+    ~TcpSocketImpl();
+    TcpSocketImpl(const TcpSocketImpl&) = delete;
+    TcpSocketImpl(TcpSocketImpl&&) = delete;
+    TcpSocketImpl& operator=(const TcpSocketImpl&) = delete;
+    TcpSocketImpl& operator=(TcpSocketImpl&&) = delete;
+
     virtual bool Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint = AF_UNSPEC);
     virtual size_t Read(void* buf, size_t len);
     virtual size_t PutBackRead(void* buf, size_t len);
     virtual size_t Write(const void* buf, size_t len);
     void StartReceiving();
-    virtual void Close() noexcept;
-    virtual void SelfDestroy() noexcept;
-    virtual void Delete() noexcept;
+    void Close() override;
+    virtual void SelfDestroy();
+    virtual void Delete();
     virtual size_t GetBytesAvailible() const noexcept;
     virtual size_t GetOutBytesInQue() const noexcept;
     virtual function<void(TcpSocket*)> BindFuncBytesReceived(function<void(TcpSocket*)> fBytesReceived) noexcept;
@@ -146,10 +158,10 @@ public:
     const TcpServer* GetServerSocketRef() const noexcept { return m_pRefServSocket; }
 
 protected:
-    friend TcpServerImpl;   // The Server class needs access to the private constructor in the next line
+    friend class TcpServerImpl;       // The Server class needs access to the private constructor in the next line
     explicit TcpSocketImpl(const SOCKET, const TcpServer* pRefServSocket);
     explicit TcpSocketImpl(BaseSocket* pBkRef, TcpSocketImpl* pTcpSocketImpl);
-    virtual void SetSocketOption(const SOCKET& fd);
+    void SetSocketOption(const SOCKET& fd) override;
     void TriggerWriteThread();
     void BindFuncConEstablished(function<void(TcpSocketImpl*)> fClientConneted) noexcept;
     bool GetConnectionInfo();
@@ -163,12 +175,12 @@ protected:
     function<int(const char*, size_t)> m_fnSslDecode;
     mutex            m_mxInDeque;
     deque<DATA>      m_quInData;
-    atomic<size_t>  m_atInBytes;
+    atomic<size_t>   m_atInBytes;
 
     function<int(const void*, size_t)> m_fnSslEncode;
     mutex            m_mxOutDeque;
     deque<DATA>      m_quOutData;
-    atomic<size_t>  m_atOutBytes;
+    atomic<size_t>   m_atOutBytes;
 
     function<void(TcpSocket*)> m_fClientConneted;
     function<void(TcpSocket*, void*)> m_fClientConnetedParam;
@@ -196,18 +208,23 @@ private:
 class TcpServerImpl : public BaseSocketImpl
 {
 public:
-    TcpServerImpl(BaseSocket* pBkRef);
-    virtual ~TcpServerImpl();
+    TcpServerImpl(BaseSocket* pBkRef) noexcept;
+    ~TcpServerImpl();
+    TcpServerImpl() = delete;
+    TcpServerImpl(const TcpServerImpl&) = delete;
+    TcpServerImpl(TcpServerImpl&&) = delete;
+    TcpServerImpl& operator=(const TcpServerImpl&) = delete;
+    TcpServerImpl& operator=(TcpServerImpl&&) = delete;
+
     bool Start(const char* const szIpAddr, const uint16_t sPort);
     uint16_t GetServerPort();
     void BindNewConnection(const function<void(const vector<TcpSocket*>&)>&) noexcept;
     void BindNewConnection(const function<void(const vector<TcpSocket*>&, void*)>&) noexcept;
-    virtual void Close() noexcept;
-    virtual void SelfDestroy() noexcept override { static_assert(true, "class has no self destroy function"); }
+    void Close() noexcept override;
     virtual TcpSocket* MakeClientConnection(const SOCKET&);
 
 protected:
-    virtual void SetSocketOption(const SOCKET& fd);
+    void SetSocketOption(const SOCKET& fd) override;
 
 private:
     void Delete();
@@ -226,19 +243,24 @@ private:
 class UdpSocketImpl : public BaseSocketImpl
 {
 protected:
-    typedef tuple<shared_ptr<uint8_t[]>, size_t, string> DATA;
+    typedef tuple<unique_ptr<uint8_t[]>, size_t, string> DATA;
 
 public:
     explicit UdpSocketImpl(BaseSocket* pBkRef);
-    virtual ~UdpSocketImpl();
+    ~UdpSocketImpl();
+    UdpSocketImpl() = delete;
+    UdpSocketImpl(const UdpSocketImpl&) = delete;
+    UdpSocketImpl(UdpSocketImpl&&) = delete;
+    UdpSocketImpl& operator=(const UdpSocketImpl&) = delete;
+    UdpSocketImpl& operator=(UdpSocketImpl&&) = delete;
+
     virtual bool Create(const char* const szIpToWhere, const uint16_t uint16_t, const char* const szIpToBind = nullptr);
-    virtual bool EnableBroadCast(bool bEnable = true);
-    virtual bool AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
-    virtual bool RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex);
+    virtual bool EnableBroadCast(bool bEnable = true) noexcept;
+    virtual bool AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex) noexcept;
+    virtual bool RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex) noexcept;
     virtual size_t Read(void* buf, size_t len, string& strFrom);
     virtual size_t Write(const void* buf, size_t len, const string& strTo);
-    virtual void Close() noexcept;
-    virtual void SelfDestroy() noexcept override { static_assert(true, "class has no self destroy function"); }
+    void Close() override;
     virtual size_t GetBytesAvailible() const noexcept;
     virtual size_t GetOutBytesInQue() const noexcept;
     virtual function<void(UdpSocket*)> BindFuncBytesReceived(function<void(UdpSocket*)> fBytesReceived) noexcept;
