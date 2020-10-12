@@ -202,7 +202,7 @@ int SslTcpSocketImpl::DatenEncode(const void* buf, size_t nAnzahl)
                 nOutDataSize = m_pSslCon->SslGetOutDataSize();
             }
             m_mxEnDecode.unlock();
-            nWritten += m_pSslCon->SslWrite(static_cast<const uint8_t*>(buf) + nWritten, nAnzahl - nWritten, &iErrorHint);
+            nWritten += m_pSslCon->SslWrite(&static_cast<const uint8_t*>(buf)[nWritten], nAnzahl - nWritten, &iErrorHint);
         }
 
         m_mxEnDecode.lock();
@@ -427,7 +427,7 @@ int SslTcpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl)
         while (len > 0)
         {
             auto tmp = make_unique<uint8_t[]>(len);
-            copy(&Buffer.get()[0], &Buffer.get()[len], &tmp.get()[0]);
+            copy(&Buffer[0], &Buffer[len], &tmp[0]);
             m_mxInDeque.lock();
             m_quInData.emplace_back(move(tmp), len);
             m_atInBytes += len;
@@ -471,7 +471,7 @@ int SslTcpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl)
     return iReturn;
 }
 
-void SslTcpSocketImpl::SetAlpnProtokollNames(vector<string>& vProtoList)
+void SslTcpSocketImpl::SetAlpnProtokollNames(const vector<string>& vProtoList)
 {
     m_vProtoList = vProtoList;
 }
@@ -505,7 +505,7 @@ SslTcpSocket* SslTcpServerImpl::MakeClientConnection(const SOCKET& fSock)
 {
     if (m_SslCtx.size() == 0)
         m_SslCtx.emplace_back(SslServerContext());
-    auto pImpl = new SslTcpSocketImpl(new SslConnetion(m_SslCtx.front()), fSock, reinterpret_cast<SslTcpServer*>(this->m_pBkRef));
+    auto pImpl = new SslTcpSocketImpl(new SslConnetion(m_SslCtx.front()), fSock, dynamic_cast<SslTcpServer*>(this->m_pBkRef));
     try
     {
         pImpl->SetSocketOption(fSock);
@@ -556,7 +556,7 @@ bool SslTcpServerImpl::SetCipher(const char* const szCipher) noexcept
     return m_SslCtx.back().SetCipher(szCipher);
 }
 
-void SslTcpServerImpl::SetAlpnProtokollNames(vector<string>& vStrProtoNames)
+void SslTcpServerImpl::SetAlpnProtokollNames(const vector<string>& vStrProtoNames)
 {
     for (auto& ctx : m_SslCtx)
         ctx.SetAlpnProtokollNames(vStrProtoNames);
@@ -602,7 +602,7 @@ bool SslUdpSocketImpl::CreateClientSide(const char* const szIpToWhere, const uin
     m_strDestAddr = szDestAddr;
     const bool bRet = UdpSocketImpl::Create(szIpToWhere, sPort, szIpToBind);
     if (bRet == true)
-    {
+    {        
         m_pSslCon = new SslConnetion(m_pUdpCtx);
         m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
 
@@ -910,13 +910,13 @@ int SslUdpSocketImpl::DatenDecode(const char* buffer, size_t nAnzahl, const stri
         while (len > 0)
         {
             auto tmp = make_unique<uint8_t[]>(len);
-            copy(&Buffer.get()[0], &Buffer.get()[len], &tmp.get()[0]);
+            copy(&Buffer[0], &Buffer[len], &tmp[0]);
             m_mxInDeque.lock();
             m_quInData.emplace_back(move(tmp), len, strAddress);
             m_atInBytes += len;
             m_mxInDeque.unlock();
 
-            len = m_pSslCon->SslRead(&Buffer.get()[0], 0x0000ffff, &iErrorHint); // get receive data from the SSL layer, and put it into the unencrypted receive Que
+            len = m_pSslCon->SslRead(&Buffer[0], 0x0000ffff, &iErrorHint); // get receive data from the SSL layer, and put it into the unencrypted receive Que
         }
         iReturn = 1;
 

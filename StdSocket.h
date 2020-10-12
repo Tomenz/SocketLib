@@ -83,7 +83,7 @@ public:
     virtual function<void(BaseSocket*, void*)> BindErrorFunction(function<void(BaseSocket*, void*)> fError) noexcept;
     virtual function<void(BaseSocket*)> BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept;
     virtual function<void(BaseSocket*, void*)> BindCloseFunction(function<void(BaseSocket*, void*)> fCloseing) noexcept;
-    virtual void SetCallbackUserData(void*);
+    virtual void SetCallbackUserData(void*) noexcept;
     virtual int GetErrorNo() const  noexcept { return m_iError; }
     virtual int GetErrorLoc() const  noexcept { return m_iErrLoc; }
     virtual void SetErrorNo(int iErrNo) noexcept { m_iError = iErrNo; }
@@ -163,7 +163,7 @@ protected:
     explicit TcpSocketImpl(BaseSocket* pBkRef, TcpSocketImpl* pTcpSocketImpl);
     void SetSocketOption(const SOCKET& fd) override;
     void TriggerWriteThread();
-    void BindFuncConEstablished(function<void(TcpSocketImpl*)> fClientConneted) noexcept;
+    virtual void BindFuncConEstablished(function<void(TcpSocketImpl*)> fClientConneted) noexcept;
     bool GetConnectionInfo();
 
 private:
@@ -218,8 +218,8 @@ public:
 
     bool Start(const char* const szIpAddr, const uint16_t sPort);
     uint16_t GetServerPort();
-    void BindNewConnection(const function<void(const vector<TcpSocket*>&)>&) noexcept;
-    void BindNewConnection(const function<void(const vector<TcpSocket*>&, void*)>&) noexcept;
+    virtual void BindNewConnection(function<void(const vector<TcpSocket*>&)>) noexcept;
+    virtual void BindNewConnection(function<void(const vector<TcpSocket*>&, void*)>) noexcept;
     void Close() noexcept override;
     virtual TcpSocket* MakeClientConnection(const SOCKET&);
 

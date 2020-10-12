@@ -107,6 +107,7 @@ namespace OpenSSLWrapper
     {
     public:
         explicit SslServerContext() noexcept;
+        ~SslServerContext() = default;
         int SetCertificates(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey);
         void AddVirtualHost(vector<SslServerContext>* pSslCtx) noexcept;
         bool SetDhParamFile(const char* const szDhParamFile);

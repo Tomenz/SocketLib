@@ -43,27 +43,27 @@ int BaseSocket::GetErrorLoc() const  noexcept
     return Impl_->GetErrorLoc();
 }
 
-function<void(BaseSocket*)> BaseSocket::BindErrorFunction(function<void(BaseSocket*)> fError) noexcept
+function<void(BaseSocket*)> BaseSocket::BindErrorFunction(function<void(BaseSocket*)> fError)
 {
     return Impl_->BindErrorFunction(fError);
 }
 
-function<void(BaseSocket*, void*)> BaseSocket::BindErrorFunction(function<void(BaseSocket*, void*)> fError) noexcept
+function<void(BaseSocket*, void*)> BaseSocket::BindErrorFunction(function<void(BaseSocket*, void*)> fError)
 {
     return Impl_->BindErrorFunction(fError);
 }
 
-function<void(BaseSocket*)> BaseSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept
+function<void(BaseSocket*)> BaseSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing)
 {
     return Impl_->BindCloseFunction(fCloseing);
 }
 
-function<void(BaseSocket*, void*)> BaseSocket::BindCloseFunction(function<void(BaseSocket*, void*)> fCloseing) noexcept
+function<void(BaseSocket*, void*)> BaseSocket::BindCloseFunction(function<void(BaseSocket*, void*)> fCloseing)
 {
     return Impl_->BindCloseFunction(fCloseing);
 }
 
-void BaseSocket::SetCallbackUserData(void* pUserData)
+void BaseSocket::SetCallbackUserData(void* pUserData) noexcept
 {
     Impl_->SetCallbackUserData(pUserData);
 }
@@ -145,19 +145,19 @@ size_t TcpSocket::GetOutBytesInQue() const noexcept
     return dynamic_cast<TcpSocketImpl*>(Impl_.get())->GetOutBytesInQue();
 }
 
-function<void(TcpSocket*)> TcpSocket::BindFuncBytesReceived(function<void(TcpSocket*)> fBytesReceived) noexcept
+function<void(TcpSocket*)> TcpSocket::BindFuncBytesReceived(function<void(TcpSocket*)> fBytesReceived)
 {
     return dynamic_cast<TcpSocketImpl*>(Impl_.get())->BindFuncBytesReceived(fBytesReceived);
 }
-function<void(TcpSocket*, void*)> TcpSocket::BindFuncBytesReceived(function<void(TcpSocket*, void*)> fBytesReceived) noexcept
+function<void(TcpSocket*, void*)> TcpSocket::BindFuncBytesReceived(function<void(TcpSocket*, void*)> fBytesReceived)
 {
     return dynamic_cast<TcpSocketImpl*>(Impl_.get())->BindFuncBytesReceived(fBytesReceived);
 }
-function<void(TcpSocket*)> TcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
+function<void(TcpSocket*)> TcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted)
 {
     return dynamic_cast<TcpSocketImpl*>(Impl_.get())->BindFuncConEstablished(fClientConneted);
 }
-function<void(TcpSocket*, void*)> TcpSocket::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted) noexcept
+function<void(TcpSocket*, void*)> TcpSocket::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted)
 {
     return dynamic_cast<TcpSocketImpl*>(Impl_.get())->BindFuncConEstablished(fClientConneted);
 }
@@ -207,11 +207,11 @@ unsigned short TcpServer::GetServerPort()
 {
     return dynamic_cast<TcpServerImpl*>(Impl_.get())->GetServerPort();
 }
-void TcpServer::BindNewConnection(function<void(const vector<TcpSocket*>&)> fnNewConnection) noexcept
+void TcpServer::BindNewConnection(function<void(const vector<TcpSocket*>&)> fnNewConnection)
 {
     dynamic_cast<TcpServerImpl*>(Impl_.get())->BindNewConnection(fnNewConnection);
 }
-void TcpServer::BindNewConnection(function<void(const vector<TcpSocket*>&, void*)> fnNewConnection) noexcept
+void TcpServer::BindNewConnection(function<void(const vector<TcpSocket*>&, void*)> fnNewConnection)
 {
     dynamic_cast<TcpServerImpl*>(Impl_.get())->BindNewConnection(fnNewConnection);
 }
@@ -276,12 +276,12 @@ size_t UdpSocket::GetOutBytesInQue() const noexcept
     return dynamic_cast<UdpSocketImpl*>(Impl_.get())->GetBytesAvailible();
 }
 
-function<void(UdpSocket*)> UdpSocket::BindFuncBytesReceived(function<void(UdpSocket*)> fBytesReceived) noexcept
+function<void(UdpSocket*)> UdpSocket::BindFuncBytesReceived(function<void(UdpSocket*)> fBytesReceived)
 {
     return dynamic_cast<UdpSocketImpl*>(Impl_.get())->BindFuncBytesReceived(fBytesReceived);
 }
 
-function<void(UdpSocket*, void*)> UdpSocket::BindFuncBytesReceived(function<void(UdpSocket*, void*)> fBytesReceived) noexcept
+function<void(UdpSocket*, void*)> UdpSocket::BindFuncBytesReceived(function<void(UdpSocket*, void*)> fBytesReceived)
 {
     return dynamic_cast<UdpSocketImpl*>(Impl_.get())->BindFuncBytesReceived(fBytesReceived);
 }
@@ -342,12 +342,12 @@ void SslTcpSocket::Close()
     dynamic_cast<SslTcpSocketImpl*>(Impl_.get())->Close();
 }
 
-function<void(TcpSocket*)> SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
+function<void(TcpSocket*)> SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted)
 {
     return dynamic_cast<SslTcpSocketImpl*>(Impl_.get())->BindFuncConEstablished(fClientConneted);
 }
 
-function<void(TcpSocket*, void*)> SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted) noexcept
+function<void(TcpSocket*, void*)> SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted)
 {
     return dynamic_cast<SslTcpSocketImpl*>(Impl_.get())->BindFuncConEstablished(fClientConneted);
 }
@@ -357,7 +357,7 @@ bool SslTcpSocket::IsSslConnection() const noexcept
     return true;
 }
 
-void SslTcpSocket::SetAlpnProtokollNames(vector<string>& vProtoList)
+void SslTcpSocket::SetAlpnProtokollNames(const vector<string>& vProtoList)
 {
     dynamic_cast<SslTcpSocketImpl*>(Impl_.get())->SetAlpnProtokollNames(vProtoList);
 }

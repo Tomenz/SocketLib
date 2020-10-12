@@ -103,9 +103,9 @@ namespace OpenSSLWrapper
     void InitOpenSSL::CbLocking(int iMode, int iType, const char*, int iLine)
     {
         if (iMode & CRYPTO_LOCK)
-            m_pmutLocks.get()[iType].lock();
+            m_pmutLocks[iType].lock();
         else
-            m_pmutLocks.get()[iType].unlock();
+            m_pmutLocks[iType].unlock();
     }
 #endif
 
@@ -113,10 +113,10 @@ namespace OpenSSLWrapper
 
     bool GetCertInformation(const X509* cert, string& strCommenName, vector<string>& vstrAltNames)
     {
-        char caBuf[256];
-        X509_NAME_oneline(X509_get_subject_name(cert), caBuf, 256);
+        string caBuf(256, 0);
+        X509_NAME_oneline(X509_get_subject_name(cert), &caBuf[0], static_cast<int>(caBuf.size()));
 
-        strCommenName = caBuf;
+        strCommenName = &caBuf[0];
         size_t nPos = strCommenName.find("/CN=");
         if (nPos != string::npos)
         {
@@ -164,14 +164,14 @@ namespace OpenSSLWrapper
                         struct sockaddr_storage addr = { 0 };
                         addr.ss_family = iStrLen > 4 ? AF_INET6 : AF_INET;
                         if (iStrLen > 4)
-                            copy(szIp, szIp + iStrLen, reinterpret_cast<char*>(&addr.__ss_align));
+                            copy(&szIp[0], &szIp[iStrLen], reinterpret_cast<uint8_t*>(&addr.__ss_align));
                         else
-                            copy(szIp, szIp + iStrLen, reinterpret_cast<char*>(&addr.ss_family) + 4);
-                        char caAddrClient[INET6_ADDRSTRLEN + 1] = { 0 };
-                        char servInfoClient[NI_MAXSERV] = { 0 };
+                            copy(&szIp[0], &szIp[iStrLen], reinterpret_cast<uint8_t*>(&addr.ss_family) + 4);
+                        string caAddrClient(INET6_ADDRSTRLEN + 1, 0);
+                        string servInfoClient(NI_MAXSERV, 0);
                         if (::getnameinfo(reinterpret_cast<struct sockaddr*>(&addr), sizeof(struct sockaddr_storage), &caAddrClient[0], sizeof(caAddrClient), &servInfoClient[0], NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
                         {
-                            string strTmp(reinterpret_cast<char*>(caAddrClient));
+                            string strTmp(&caAddrClient[0]);
                             transform(begin(strTmp), end(strTmp), begin(strTmp), [](char c) noexcept { return static_cast<char>(::tolower(c)); });
                             if (strCommenName.compare(strTmp) != 0)
                                 vstrAltNames.push_back(strTmp);
@@ -279,7 +279,7 @@ namespace OpenSSLWrapper
                 proto_list.push_back(static_cast<char>(proto.size()));
                 copy_n(proto.c_str(), proto.size(), back_inserter(proto_list));
             }
-            SSL_CTX_set_alpn_protos(m_ctx, proto_list.data(), static_cast<int>(proto_list.size()));
+            SSL_CTX_set_alpn_protos(m_ctx, proto_list.data(), static_cast<unsigned int>(proto_list.size()));
         }
     }
 
@@ -836,9 +836,9 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iResult) 
         uint32_t nError = ERR_get_error();
         while (nError != 0)
         {
-            char buf[512];
-            ERR_error_string_n(nError, buf, 512);
-            strTmp += buf;
+            string buf(512, 0);
+            ERR_error_string_n(nError, &buf[0], buf.size());
+            strTmp += &buf[0];
             strTmp += "\r\n";
             nError = ERR_get_error();
         }

@@ -184,8 +184,8 @@ void InitSocket::IpChangeThread()
 
             if (FD_ISSET(fSock, &readfd))
             {
-                char buf[4096];
-                int32_t transferred = ::recv(fSock, buf, sizeof(buf), 0);
+                string buf(4096, 0);
+                int32_t transferred = ::recv(fSock, &buf[0], buf.size(), 0);
 
                 if (transferred > 0)
                 {
@@ -318,7 +318,7 @@ function<void(BaseSocket*, void*)> BaseSocketImpl::BindCloseFunction(function<vo
     return fCloseing;
 }
 
-void BaseSocketImpl::SetCallbackUserData(void* pUserData)
+void BaseSocketImpl::SetCallbackUserData(void* pUserData) noexcept
 {
     m_pvUserData = pUserData;
 }
@@ -372,8 +372,8 @@ uint16_t BaseSocketImpl::GetSocketPort()
     socklen_t addLen = sizeof(addrPe);
     if (::getsockname(m_fSock, reinterpret_cast<struct sockaddr*>(&addrPe), &addLen) == 0)  // Get our IP where the connection was established
     {
-        char caAddrPeer[INET6_ADDRSTRLEN + 1] = { 0 };
-        char servInfoPeer[NI_MAXSERV] = { 0 };
+        string caAddrPeer(INET6_ADDRSTRLEN + 1, 0);
+        string servInfoPeer(NI_MAXSERV, 0);
         if (::getnameinfo(reinterpret_cast<struct sockaddr*>(&addrPe), sizeof(struct sockaddr_storage), &caAddrPeer[0], sizeof(caAddrPeer), &servInfoPeer[0], NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
         {
             return static_cast<uint16_t>(stoi(&servInfoPeer[0]));
@@ -637,8 +637,8 @@ size_t TcpSocketImpl::Read(void* buf, size_t len)
     m_mxInDeque.unlock();
 
     // Copy the data into the destination buffer
-    size_t nToCopy = min(BUFLEN(data), len);
-    copy(BUFFER(data).get(), BUFFER(data).get() + nToCopy, &static_cast<uint8_t*>(buf)[nOffset]);
+    const size_t nToCopy = min(BUFLEN(data), len);
+    copy(&BUFFER(data)[0], &BUFFER(data)[nToCopy], &static_cast<uint8_t*>(buf)[nOffset]);
     m_atInBytes -= nToCopy;
     nRet += nToCopy;
 
@@ -646,7 +646,7 @@ size_t TcpSocketImpl::Read(void* buf, size_t len)
     {   // Put the Rest of the Data back to the Que
         size_t nRest = BUFLEN(data) - nToCopy;
         auto tmp = make_unique<uint8_t[]>(nRest);
-        copy(BUFFER(data).get() + nToCopy, BUFFER(data).get() + nToCopy + nRest, tmp.get());
+        copy(&BUFFER(data)[nToCopy], &BUFFER(data)[nToCopy + nRest], &tmp[0]);
         m_mxInDeque.lock();
         m_quInData.emplace_front(move(tmp), nRest);
         m_mxInDeque.unlock();
@@ -667,7 +667,7 @@ size_t TcpSocketImpl::PutBackRead(void* buf, size_t len)
         return 0;
 
     auto tmp = make_unique<uint8_t[]>(len);
-    copy(&static_cast<const uint8_t*>(buf)[0], &static_cast<const uint8_t*>(buf)[len], &tmp.get()[0]);
+    copy(&static_cast<const uint8_t*>(buf)[0], &static_cast<const uint8_t*>(buf)[len], &tmp[0]);
     m_mxInDeque.lock();
     m_quInData.emplace_front(move(tmp), len);
     m_atInBytes += len;
@@ -694,7 +694,7 @@ size_t TcpSocketImpl::Write(const void* buf, size_t len)
     if (m_fnSslEncode == nullptr || (iRet = m_fnSslEncode(buf, len), iRet == 0))
     {
         auto tmp = make_unique<uint8_t[]>(len);
-        copy(&static_cast<const uint8_t*>(buf)[0], &static_cast<const uint8_t*>(buf)[len], &tmp.get()[0]);
+        copy(&static_cast<const uint8_t*>(buf)[0], &static_cast<const uint8_t*>(buf)[len], &tmp[0]);
         m_mxOutDeque.lock();
         m_atOutBytes += len;
         m_quOutData.emplace_back(move(tmp), len);
@@ -762,7 +762,7 @@ void TcpSocketImpl::WriteThread()
             m_atOutBytes -= BUFLEN(data);
             m_mxOutDeque.unlock();
 
-            uint32_t transferred = ::send(m_fSock, reinterpret_cast<char*>(BUFFER(data).get()), static_cast<int>(BUFLEN(data)), 0);
+            const uint32_t transferred = ::send(m_fSock, reinterpret_cast<char*>(BUFFER(data).get()), static_cast<int>(BUFLEN(data)), 0);
             if (static_cast<int32_t>(transferred) <= 0)
             {
                 const int iError = WSAGetLastError();
@@ -780,7 +780,7 @@ void TcpSocketImpl::WriteThread()
                 }
                 // Put the not send bytes back into the que if it is not a SSL connection. A SSL connection has the bytes still available
                 auto tmp = make_unique<uint8_t[]>(BUFLEN(data));
-                copy(&BUFFER(data).get()[0], &BUFFER(data).get()[BUFLEN(data)], &tmp.get()[0]);
+                copy(&BUFFER(data)[0], &BUFFER(data)[BUFLEN(data)], &tmp[0]);
                 m_mxOutDeque.lock();
                 m_quOutData.emplace_front(move(tmp), BUFLEN(data));
                 m_mxOutDeque.unlock();
@@ -789,7 +789,7 @@ void TcpSocketImpl::WriteThread()
             else if (transferred < BUFLEN(data)) // Less bytes send as buffer size, we put the rast back in your que
             {
                 auto tmp = make_unique<uint8_t[]>(BUFLEN(data) - transferred);
-                copy(&BUFFER(data).get()[transferred], &BUFFER(data).get()[transferred + (BUFLEN(data) - transferred)], &tmp.get()[0]);
+                copy(&BUFFER(data)[transferred], &BUFFER(data)[transferred + (BUFLEN(data) - transferred)], &tmp[0]);
                 m_mxOutDeque.lock();
                 m_quOutData.emplace_front(move(tmp), (BUFLEN(data) - transferred));
                 m_mxOutDeque.unlock();
@@ -990,7 +990,7 @@ void TcpSocketImpl::SelectThread()
                             s_fTraficDebug(static_cast<uint16_t>(m_fSock), buf.get(), transferred, false);
 
                         auto tmp = make_unique<uint8_t[]>(transferred);
-                        copy(&buf.get()[0], &buf.get()[transferred], &tmp.get()[0]);
+                        copy(&buf[0], &buf[transferred], &tmp[0]);
                         lock_guard<mutex> lock(m_mxInDeque);
                         m_quInData.emplace_back(move(tmp), transferred);
                         m_atInBytes += transferred;
@@ -1147,8 +1147,8 @@ bool TcpSocketImpl::GetConnectionInfo()
         return false;
     }
 
-    char caAddrClient[INET6_ADDRSTRLEN + 1] = { 0 };
-    char servInfoClient[NI_MAXSERV] = { 0 };
+    string caAddrClient(INET6_ADDRSTRLEN + 1, 0);
+    string servInfoClient(NI_MAXSERV, 0);
     if (::getnameinfo(reinterpret_cast<struct sockaddr*>(&addrCl), sizeof(struct sockaddr_storage), &caAddrClient[0], sizeof(caAddrClient), &servInfoClient[0], NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
     {
         m_strClientAddr = &caAddrClient[0];
@@ -1161,8 +1161,8 @@ bool TcpSocketImpl::GetConnectionInfo()
         return false;
     }
 
-    char caAddrPeer[INET6_ADDRSTRLEN + 1] = { 0 };
-    char servInfoPeer[NI_MAXSERV] = { 0 };
+    string caAddrPeer(INET6_ADDRSTRLEN + 1, 0);
+    string servInfoPeer(NI_MAXSERV, 0);
     if (::getnameinfo(reinterpret_cast<struct sockaddr*>(&addrPe), sizeof(struct sockaddr_storage), &caAddrPeer[0], sizeof(caAddrPeer), &servInfoPeer[0], NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
     {
         m_strIFaceAddr = &caAddrPeer[0];
@@ -1259,8 +1259,8 @@ uint16_t TcpServerImpl::GetServerPort()
     socklen_t addLen = sizeof(addrPe);
     if (::getsockname(m_vSock[0], reinterpret_cast<struct sockaddr*>(&addrPe), &addLen) == 0)  // Get our IP where the connection was established
     {
-        char caAddrPeer[INET6_ADDRSTRLEN + 1] = { 0 };
-        char servInfoPeer[NI_MAXSERV] = { 0 };
+        string caAddrPeer(INET6_ADDRSTRLEN + 1, 0);
+        string servInfoPeer(NI_MAXSERV, 0);
         if (::getnameinfo(reinterpret_cast<struct sockaddr*>(&addrPe), sizeof(struct sockaddr_storage), &caAddrPeer[0], sizeof(caAddrPeer), &servInfoPeer[0], NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
         {
             return static_cast<uint16_t>(stoi(&servInfoPeer[0]));
@@ -1287,7 +1287,7 @@ void TcpServerImpl::SetSocketOption(const SOCKET& fd)
 
 TcpSocket* TcpServerImpl::MakeClientConnection(const SOCKET& fSock)
 {
-    TcpSocketImpl* pImpl = new TcpSocketImpl(fSock, reinterpret_cast<TcpServer*>(this->m_pBkRef));
+    TcpSocketImpl* pImpl = new TcpSocketImpl(fSock, dynamic_cast<TcpServer*>(this->m_pBkRef));
 
     try
     {
@@ -1305,14 +1305,14 @@ TcpSocket* TcpServerImpl::MakeClientConnection(const SOCKET& fSock)
     return pTcpSock;
 }
 
-void TcpServerImpl::BindNewConnection(const function<void(const vector<TcpSocket*>&)>& fNewConnetion) noexcept
+void TcpServerImpl::BindNewConnection(function<void(const vector<TcpSocket*>&)> fNewConnetion) noexcept
 {
-    m_fNewConnection = fNewConnetion;
+    m_fNewConnection.swap(fNewConnetion);
 }
 
-void TcpServerImpl::BindNewConnection(const function<void(const vector<TcpSocket*>&, void*)>& fNewConnetion) noexcept
+void TcpServerImpl::BindNewConnection(function<void(const vector<TcpSocket*>&, void*)> fNewConnetion) noexcept
 {
-    m_fNewConnectionParam = fNewConnetion;
+    m_fNewConnectionParam.swap(fNewConnetion);
 }
 
 void TcpServerImpl::Delete()
@@ -1643,8 +1643,8 @@ size_t UdpSocketImpl::Read(void* buf, size_t len, string& strFrom)
     m_mxInDeque.unlock();
 
     // Copy the data into the destination buffer
-    size_t nToCopy = min(BUFLEN(data), len);
-    copy(BUFFER(data).get(), BUFFER(data).get() + nToCopy, static_cast<uint8_t*>(buf) + nOffset);
+    const size_t nToCopy = min(BUFLEN(data), len);
+    copy(&BUFFER(data)[0], &BUFFER(data)[nToCopy], &static_cast<uint8_t*>(buf)[nOffset]);
     m_atInBytes -= nToCopy;
     strFrom = ADDRESS(data);
     nRet += nToCopy;
@@ -1653,7 +1653,7 @@ size_t UdpSocketImpl::Read(void* buf, size_t len, string& strFrom)
     {   // Put the Rest of the Data back to the Que
         size_t nRest = BUFLEN(data) - nToCopy;
         auto tmp = make_unique<uint8_t[]>(nRest);
-        copy(BUFFER(data).get() + nToCopy, BUFFER(data).get() + nToCopy + nRest, tmp.get());
+        copy(&BUFFER(data)[nToCopy], &BUFFER(data)[nToCopy + nRest], &tmp[0]);
         m_mxInDeque.lock();
         m_quInData.emplace_front(move(tmp), nRest, ADDRESS(data));
         m_mxInDeque.unlock();
@@ -1677,7 +1677,7 @@ size_t UdpSocketImpl::Write(const void* buf, size_t len, const string& strTo)
     if (m_fnSslEncode == nullptr || (iRet = m_fnSslEncode(buf, len, strTo), iRet == 0))
     {
         auto tmp = make_unique<uint8_t[]>(len);
-        copy(static_cast<const uint8_t*>(buf), static_cast<const uint8_t*>(buf) + len, tmp.get());
+        copy(&static_cast<const uint8_t*>(buf)[0], &static_cast<const uint8_t*>(buf)[len], &tmp[0]);
         m_mxOutDeque.lock();
         m_quOutData.emplace_back(move(tmp), len, strTo);
         m_atOutBytes += len;
@@ -1762,7 +1762,7 @@ void UdpSocketImpl::WriteThread()
                     break;    // we return 0, because of a wrong address
             }
 
-            uint32_t transferred = ::sendto(m_fSock, reinterpret_cast<const char*>(BUFFER(data).get()), static_cast<int>(BUFLEN(data)), 0, lstAddr->ai_addr, static_cast<int>(lstAddr->ai_addrlen));
+            const uint32_t transferred = ::sendto(m_fSock, reinterpret_cast<const char*>(BUFFER(data).get()), static_cast<int>(BUFLEN(data)), 0, lstAddr->ai_addr, static_cast<int>(lstAddr->ai_addrlen));
             ::freeaddrinfo(lstAddr);
             if (static_cast<int32_t>(transferred) <= 0)
             {
@@ -1778,7 +1778,7 @@ void UdpSocketImpl::WriteThread()
                 }
                 // Put the not send bytes back into the que if it is not a SSL connection. A SSL connection has the bytes still available
                 auto tmp = make_unique<uint8_t[]>(BUFLEN(data));
-                copy(BUFFER(data).get(), BUFFER(data).get() + BUFLEN(data), tmp.get());
+                copy(&BUFFER(data)[0], &BUFFER(data)[BUFLEN(data)], &tmp[0]);
                 m_mxOutDeque.lock();
                 m_quOutData.emplace_front(move(tmp), BUFLEN(data), ADDRESS(data));
                 m_mxOutDeque.unlock();
@@ -1787,7 +1787,7 @@ void UdpSocketImpl::WriteThread()
             else if (transferred < BUFLEN(data)) // Less bytes send as buffer size, we put the rast back in your que
             {
                 auto tmp = make_unique<uint8_t[]>(BUFLEN(data) - transferred);
-                copy(BUFFER(data).get() + transferred, BUFFER(data).get() + transferred + (BUFLEN(data) - transferred), tmp.get());
+                copy(&BUFFER(data)[transferred], &BUFFER(data)[transferred + (BUFLEN(data) - transferred)], &tmp[0]);
                 m_mxOutDeque.lock();
                 m_quOutData.emplace_front(move(tmp), (BUFLEN(data) - transferred), ADDRESS(data));
                 m_mxOutDeque.unlock();
@@ -1945,7 +1945,7 @@ void UdpSocketImpl::SelectThread()
                 else
                 {
                     stringstream strAbsender;
-                    char caAddrBuf[INET6_ADDRSTRLEN + 1] = { 0 };
+                    string caAddrBuf(INET6_ADDRSTRLEN + 1, 0);
                     if (SenderAddr.sin6.sin6_family == AF_INET6)
                     {
                         strAbsender << "[" << inet_ntop(SenderAddr.sin6.sin6_family, &SenderAddr.sin6.sin6_addr, &caAddrBuf[0], sizeof(caAddrBuf));
@@ -1961,7 +1961,7 @@ void UdpSocketImpl::SelectThread()
                     if (m_fnSslDecode == nullptr || (iRet = m_fnSslDecode(buf.get(), transferred, strAbsender.str()), iRet == 0))
                     {
                         auto tmp = make_unique<uint8_t[]>(transferred);
-                        copy(&buf.get()[0], &buf.get()[transferred], &tmp.get()[0]);
+                        copy(&buf[0], &buf[transferred], &tmp[0]);
                         m_mxInDeque.lock();
                         m_quInData.emplace_back(move(tmp), transferred, strAbsender.str());
                         m_atInBytes += transferred;

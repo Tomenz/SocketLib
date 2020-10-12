@@ -44,7 +44,7 @@ public:
     function<void(TcpSocket*, void*)> BindFuncConEstablished( function<void(TcpSocket*, void*)> fClientConneted) noexcept override;
     bool IsSslConnection() const noexcept override { return true; }
 
-    void SetAlpnProtokollNames(vector<string>& vProtoList);
+    void SetAlpnProtokollNames(const vector<string>& vProtoList);
     const string GetSelAlpnProtocol() const;
     void SetTrustedRootCertificates(const char* const szTrustRootCert);
     long CheckServerCertificate(const char* const szHostName);
@@ -88,7 +88,7 @@ public:
     bool AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey);
     bool SetDHParameter(const char* const szDhParamFileName);
     bool SetCipher(const char* const szCipher) noexcept;
-    void SetAlpnProtokollNames(vector<string>& vStrProtoNames);
+    void SetAlpnProtokollNames(const vector<string>& vStrProtoNames);
 
 private:
     vector<SslServerContext> m_SslCtx;
@@ -117,7 +117,7 @@ private:
     int DatenDecode(const char* buffer, size_t nAnzahl, const string& strAddress);
 
 private:
-    SslUdpContext    m_pUdpCtx;
+    SslUdpContext            m_pUdpCtx;
     SslConnetion*    m_pSslCon;
 
     function<void(UdpSocket*)> m_fSllInitDone;

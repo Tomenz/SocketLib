@@ -42,11 +42,11 @@ public:
     virtual int GetErrorNo() const  noexcept;
     virtual int GetErrorLoc() const  noexcept;
 
-    virtual function<void(BaseSocket*)> BindErrorFunction(function<void(BaseSocket*)> fError) noexcept;
-    virtual function<void(BaseSocket*, void*)> BindErrorFunction(function<void(BaseSocket*, void*)> fError) noexcept;
-    virtual function<void(BaseSocket*)> BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept;
-    virtual function<void(BaseSocket*, void*)> BindCloseFunction(function<void(BaseSocket*, void*)> fCloseing) noexcept;
-    virtual void SetCallbackUserData(void* pUserData);
+    virtual function<void(BaseSocket*)> BindErrorFunction(function<void(BaseSocket*)> fError);
+    virtual function<void(BaseSocket*, void*)> BindErrorFunction(function<void(BaseSocket*, void*)> fError);
+    virtual function<void(BaseSocket*)> BindCloseFunction(function<void(BaseSocket*)> fCloseing);
+    virtual function<void(BaseSocket*, void*)> BindCloseFunction(function<void(BaseSocket*, void*)> fCloseing);
+    virtual void SetCallbackUserData(void* pUserData) noexcept;
     virtual void SetErrorNo(int iErrNo) noexcept;
     virtual uint16_t GetSocketPort();
     static int EnumIpAddresses(function<int(int, const string&, int, void*)> fnCallBack, void* vpUser);
@@ -57,7 +57,7 @@ public:
 protected:
     explicit BaseSocket(BaseSocketImpl* pImpl);
     void SetImpl(BaseSocketImpl* pImpl);
-    BaseSocketImpl* GetImpl();
+    BaseSocketImpl* GetImpl() const noexcept;
     unique_ptr<BaseSocketImpl> Impl_;
 };
 
@@ -83,10 +83,10 @@ public:
     virtual void Delete();
     virtual size_t GetBytesAvailible() const noexcept;
     virtual size_t GetOutBytesInQue() const noexcept;
-    virtual function<void(TcpSocket*)> BindFuncBytesReceived(function<void(TcpSocket*)> fBytesReceived) noexcept;
-    virtual function<void(TcpSocket*, void*)> BindFuncBytesReceived(function<void(TcpSocket*, void*)> fBytesReceived) noexcept;
-    virtual function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept;
-    virtual function<void(TcpSocket*, void*)> BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted) noexcept;
+    virtual function<void(TcpSocket*)> BindFuncBytesReceived(function<void(TcpSocket*)> fBytesReceived);
+    virtual function<void(TcpSocket*, void*)> BindFuncBytesReceived(function<void(TcpSocket*, void*)> fBytesReceived);
+    virtual function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted);
+    virtual function<void(TcpSocket*, void*)> BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted);
     virtual bool IsSslConnection() const noexcept;
 
     const string& GetClientAddr() const noexcept;
@@ -113,8 +113,8 @@ public:
 
     bool Start(const char* const szIpAddr, const uint16_t sPort);
     uint16_t GetServerPort();
-    virtual void BindNewConnection(function<void(const vector<TcpSocket*>&)>) noexcept;
-    virtual void BindNewConnection(function<void(const vector<TcpSocket*>&, void*)>) noexcept;
+    virtual void BindNewConnection(function<void(const vector<TcpSocket*>&)>);
+    virtual void BindNewConnection(function<void(const vector<TcpSocket*>&, void*)>);
     void Close() noexcept override;
 protected:
     explicit TcpServer(TcpServerImpl* const);
@@ -139,8 +139,8 @@ public:
     void Close() override;
     virtual size_t GetBytesAvailible() const noexcept;
     virtual size_t GetOutBytesInQue() const noexcept;
-    virtual function<void(UdpSocket*)> BindFuncBytesReceived(function<void(UdpSocket*)> fBytesReceived) noexcept;
-    virtual function<void(UdpSocket*, void*)> BindFuncBytesReceived(function<void(UdpSocket*, void*)> fBytesReceived) noexcept;
+    virtual function<void(UdpSocket*)> BindFuncBytesReceived(function<void(UdpSocket*)> fBytesReceived);
+    virtual function<void(UdpSocket*, void*)> BindFuncBytesReceived(function<void(UdpSocket*, void*)> fBytesReceived);
 protected:
     explicit UdpSocket(UdpSocketImpl* const);
 };
@@ -166,11 +166,11 @@ public:
     bool SetConnectState();
     bool Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint = 0) override;
     void Close() override;
-    virtual function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept;
-    virtual function<void(TcpSocket*, void*)> BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted) noexcept;
+    function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) override;
+    function<void(TcpSocket*, void*)> BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted) override;
     bool IsSslConnection() const noexcept override;
 
-    void SetAlpnProtokollNames(vector<string>& vProtoList);
+    void SetAlpnProtokollNames(const vector<string>& vProtoList);
     const string GetSelAlpnProtocol() const;
     void SetTrustedRootCertificates(const char* const szTrustRootCert);
     long CheckServerCertificate(const char* const szHostName);
@@ -192,7 +192,7 @@ public:
     bool AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey);
     bool SetDHParameter(const char* const szDhParamFileName);
     bool SetCipher(const char* const szCipher) noexcept;
-    void SetAlpnProtokollNames(vector<string>& vProtoList);
+    void SetAlpnProtokollNames(const vector<string>& vProtoList);
 };
 
 class SslUdpSocket : public UdpSocket
