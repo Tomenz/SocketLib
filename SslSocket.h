@@ -51,7 +51,7 @@ public:
 
 private:
     friend class SslTcpServerImpl;    // The Server class needs access to the private constructor in the next line
-    explicit SslTcpSocketImpl(SslConnetion* pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket);
+    explicit SslTcpSocketImpl(unique_ptr<SslConnetion> pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket);
     void ConEstablished(const TcpSocketImpl* const pTcpSocket);
     int DatenEncode(const void* buffer, size_t nAnzahl);
     int DatenDecode(const char* buffer, size_t nAnzahl);
@@ -61,7 +61,7 @@ private:
 private:
     SslClientContext m_pClientCtx;
     vector<SslServerContext>  m_pServerCtx;
-    SslConnetion*    m_pSslCon;
+    unique_ptr<SslConnetion>  m_pSslCon;
     function<void(TcpSocket*)> m_fClientConneted;
     function<void(TcpSocket*, void*)> m_fClientConnetedParam;
 
@@ -118,7 +118,7 @@ private:
 
 private:
     SslUdpContext            m_pUdpCtx;
-    SslConnetion*    m_pSslCon;
+    unique_ptr<SslConnetion> m_pSslCon;
 
     function<void(UdpSocket*)> m_fSllInitDone;
     function<void(UdpSocket*, void*)> m_fSllInitDoneParam;

@@ -39,8 +39,8 @@ public:
     BaseSocket& operator=(BaseSocket&&) = delete;
 
     virtual void Close() = 0;
-    virtual int GetErrorNo() const  noexcept;
-    virtual int GetErrorLoc() const  noexcept;
+    virtual int GetErrorNo() const noexcept;
+    virtual int GetErrorLoc() const noexcept;
 
     virtual function<void(BaseSocket*)> BindErrorFunction(function<void(BaseSocket*)> fError);
     virtual function<void(BaseSocket*, void*)> BindErrorFunction(function<void(BaseSocket*, void*)> fError);
