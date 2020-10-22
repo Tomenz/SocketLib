@@ -114,11 +114,9 @@ protected:
     void*                       m_pvUserData;
     mutex                       m_mxFnClosing;
     BaseSocket*                 m_pBkRef;
-
+    static deque<unique_ptr<BaseSocket>> s_lstDynSocket;
+    static mutex s_mxDynSocket;
     static function<void(const uint16_t, const char*, size_t, bool)> s_fTraficDebug;
-
-private:
-    static atomic_uint s_atRefCount;
 };
 
 class TcpSocketImpl : public BaseSocketImpl
@@ -159,31 +157,34 @@ public:
 
 protected:
     friend class TcpServerImpl;       // The Server class needs access to the private constructor in the next line
-    explicit TcpSocketImpl(const SOCKET, const TcpServer* pRefServSocket);
+    friend class SslTcpServerImpl;    // The Server class needs access to the private constructor in the next line
     explicit TcpSocketImpl(BaseSocket* pBkRef, TcpSocketImpl* pTcpSocketImpl);
     void SetSocketOption(const SOCKET& fd) override;
     void TriggerWriteThread();
     virtual void BindFuncConEstablished(function<void(TcpSocketImpl*)> fClientConneted) noexcept;
     bool GetConnectionInfo();
 
-private:
     void WriteThread();
+
+private:
     void SelectThread();
     void ConnectThread();
 
 protected:
-    function<int(const char*, size_t)> m_fnSslDecode;
+    function<int(const uint8_t*, size_t)> m_fnSslDecode;
     mutex            m_mxInDeque;
     deque<DATA>      m_quInData;
     atomic<size_t>   m_atInBytes;
 
-    function<int(const void*, size_t)> m_fnSslEncode;
+    function<int(const uint8_t*, size_t)> m_fnSslEncode;
     mutex            m_mxOutDeque;
     deque<DATA>      m_quOutData;
     atomic<size_t>   m_atOutBytes;
 
     function<void(TcpSocket*)> m_fClientConneted;
     function<void(TcpSocket*, void*)> m_fClientConnetedParam;
+
+    const TcpServer* m_pRefServSocket;
 
 private:
     thread           m_thConnect;
@@ -197,7 +198,6 @@ private:
     string           m_strIFaceAddr;
     uint16_t         m_sIFacePort;
 
-    const TcpServer* m_pRefServSocket;
     bool             m_bSelfDelete;
 
     function<void(TcpSocket*)> m_fBytesReceived;
@@ -274,11 +274,11 @@ private:
     void SelectThread();
 
 protected:
-    function<int(const char*, size_t, const string&)> m_fnSslDecode;
+    function<int(const uint8_t*, size_t, const string&)> m_fnSslDecode;
     mutex            m_mxInDeque;
     deque<DATA>      m_quInData;
     atomic<size_t>  m_atInBytes;
-    function<int(const void*, size_t, const string&)> m_fnSslEncode;
+    function<int(const uint8_t*, size_t, const string&)> m_fnSslEncode;
     mutex            m_mxOutDeque;
     deque<DATA>      m_quOutData;
     atomic<size_t>   m_atOutBytes;

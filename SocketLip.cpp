@@ -16,18 +16,7 @@
 
 using namespace std::placeholders;
 
-
-BaseSocket::BaseSocket(BaseSocketImpl* pImpl) noexcept : Impl_(pImpl)
-{
-
-}
 BaseSocket::~BaseSocket() = default;
-
-void BaseSocket::SetImpl(BaseSocketImpl* pImpl) noexcept
-{
-    Impl_.reset(pImpl);
-}
-
 BaseSocketImpl* BaseSocket::GetImpl() const noexcept
 {
     return Impl_.get();
@@ -95,13 +84,13 @@ void BaseSocket::SetTraficDebugCallback(function<void(const uint16_t, const char
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TcpSocket::TcpSocket() : BaseSocket(new TcpSocketImpl(this))
+TcpSocket::TcpSocket()
 {
+    Impl_ = move(make_unique<TcpSocketImpl>(this));
 }
 
-TcpSocket::TcpSocket(TcpSocketImpl* const impl) noexcept : BaseSocket(impl)
+TcpSocket::TcpSocket(bool/*bDummy*/) noexcept
 {
-
 }
 
 bool TcpSocket::Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint/* = AF_UNSPEC*/)
@@ -131,6 +120,7 @@ void TcpSocket::Close()
 void TcpSocket::SelfDestroy()
 {
     dynamic_cast<TcpSocketImpl*>(GetImpl())->SelfDestroy();
+    Impl_.release();
 }
 void TcpSocket::Delete()
 {
@@ -191,11 +181,12 @@ const TcpServer* TcpSocket::GetServerSocketRef() const noexcept
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TcpServer::TcpServer() : BaseSocket(new TcpServerImpl(this))
+TcpServer::TcpServer()
 {
+    Impl_ = move(make_unique<TcpServerImpl>(this));
 }
 
-TcpServer::TcpServer(TcpServerImpl* const impl) noexcept : BaseSocket(impl)
+TcpServer::TcpServer(bool/*bDummy*/) noexcept
 {
 }
 
@@ -222,13 +213,9 @@ void TcpServer::Close() noexcept
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-UdpSocket::UdpSocket() : BaseSocket(new UdpSocketImpl(this))
+UdpSocket::UdpSocket()
 {
-}
-
-UdpSocket::UdpSocket(UdpSocketImpl* const impl) noexcept : BaseSocket(impl)
-{
-
+    Impl_ = move(make_unique<UdpSocketImpl>(this));
 }
 
 bool UdpSocket::Create(const char* const szIpToWhere, const uint16_t sPort, const char* const szIpToBind/* = nullptr*/)
@@ -289,22 +276,15 @@ function<void(UdpSocket*, void*)> UdpSocket::BindFuncBytesReceived(function<void
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifndef WITHOUT_OPENSSL
 
-SslTcpSocket::SslTcpSocket() : TcpSocket(new SslTcpSocketImpl(this))
+SslTcpSocket::SslTcpSocket() : TcpSocket(false)
 {
+    Impl_ = move(make_unique<SslTcpSocketImpl>(this));
 }
 
-SslTcpSocket::SslTcpSocket(TcpSocket* pTcpSocket) : TcpSocket(new SslTcpSocketImpl(this, reinterpret_cast<TcpSocketImpl*>(pTcpSocket->GetImpl())))
+SslTcpSocket::SslTcpSocket(const TcpSocket* pTcpSock) : TcpSocket(false)   // Switch from Tcp to Ssl/Tls
 {
-}
-
-SslTcpSocket::SslTcpSocket(SslTcpSocketImpl* const impl) : TcpSocket(impl)
-{
-
-}
-
-SslTcpSocket::~SslTcpSocket()
-{
-
+    auto pImpl = pTcpSock->GetImpl();
+    Impl_ = move(make_unique<SslTcpSocketImpl>(this, dynamic_cast<TcpSocketImpl*>(pImpl)));
 }
 
 bool SslTcpSocket::AddServerCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName)
@@ -377,10 +357,16 @@ long SslTcpSocket::CheckServerCertificate(const char* const szHostName)
     return dynamic_cast<SslTcpSocketImpl*>(GetImpl())->CheckServerCertificate(szHostName);
 }
 
+SslTcpSocket* SslTcpSocket::SwitchToSll(TcpSocket* pTcpSocket)
+{
+    return SslTcpSocketImpl::SwitchToSsl(pTcpSocket);
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-SslTcpServer::SslTcpServer() : TcpServer(new SslTcpServerImpl(this))
+SslTcpServer::SslTcpServer() : TcpServer(false)
 {
+    Impl_ = move(make_unique<SslTcpServerImpl>(this));
 }
 
 bool SslTcpServer::AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey)
@@ -405,8 +391,9 @@ void SslTcpServer::SetAlpnProtokollNames(const vector<string>& vProtoList)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-SslUdpSocket::SslUdpSocket() : UdpSocket(new SslUdpSocketImpl(this))
+SslUdpSocket::SslUdpSocket()
 {
+    Impl_ = move(make_unique<SslUdpSocketImpl>(this));
 }
 
 bool SslUdpSocket::AddCertificat(const char* const szHostCertificate, const char* const szHostKey)

@@ -433,7 +433,7 @@ namespace OpenSSLWrapper
             const string& (*fnForewarder)(void*) = reinterpret_cast<const string&(*)(void*)>(SSL_get_ex_data(ssl, 0));   // Index 0 = Funktion pointer to a static proxy function
             void* Obj = SSL_get_ex_data(ssl, 1);    // Index 1 is the "this" pointer of the SslTcpSocket how owns the ssl object
             if (fnForewarder != nullptr && Obj != nullptr)
-                szHostName = fnForewarder(Obj).c_str(); // We get the IP address of the Interface to connection come in
+                szHostName = fnForewarder(Obj).c_str(); // We get the IP address of the Interface the connection come in
         }
 
         if (pSslCtx != nullptr && szHostName != nullptr)
