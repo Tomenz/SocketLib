@@ -25,7 +25,7 @@ class SslTcpSocketImpl : public TcpSocketImpl
 {
 public:
     explicit SslTcpSocketImpl(BaseSocket*);
-    explicit SslTcpSocketImpl(BaseSocket* pBkref, TcpSocketImpl* pTcpSocket);
+    explicit SslTcpSocketImpl(BaseSocket* pBkref, TcpSocketImpl* pTcpSocket);   // Switch from Tcp to Ssl/Tls
     ~SslTcpSocketImpl();
     SslTcpSocketImpl() = delete;
     SslTcpSocketImpl(const SslTcpSocketImpl&) = delete;
@@ -49,12 +49,13 @@ public:
     void SetTrustedRootCertificates(const char* const szTrustRootCert);
     long CheckServerCertificate(const char* const szHostName);
 
+    static SslTcpSocket* SwitchToSsl(TcpSocket*);
+
 private:
     friend class SslTcpServerImpl;    // The Server class needs access to the private constructor in the next line
-    explicit SslTcpSocketImpl(unique_ptr<SslConnetion> pSslCon, const SOCKET fSock, const TcpServer* pRefServSocket);
     void ConEstablished(const TcpSocketImpl* const pTcpSocket);
-    int DatenEncode(const void* buffer, size_t nAnzahl);
-    int DatenDecode(const char* buffer, size_t nAnzahl);
+    int DatenEncode(const uint8_t* buffer, size_t nAnzahl);
+    int DatenDecode(const uint8_t* buffer, size_t nAnzahl);
 
     static const string& fnForwarder(void* obj) noexcept { return static_cast<SslTcpSocketImpl*>(obj)->GetInterfaceAddr(); }
 
@@ -113,8 +114,8 @@ public:
     function<void(UdpSocket*, void*)> BindFuncSslInitDone(function<void(UdpSocket*, void*)> fSllInitDone) noexcept;
 
 private:
-    int DatenEncode(const void* buf, size_t nAnzahl, const string& strAddress);
-    int DatenDecode(const char* buffer, size_t nAnzahl, const string& strAddress);
+    int DatenEncode(const uint8_t* buf, size_t nAnzahl, const string& strAddress);
+    int DatenDecode(const uint8_t* buffer, size_t nAnzahl, const string& strAddress);
 
 private:
     SslUdpContext            m_pUdpCtx;

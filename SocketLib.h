@@ -23,10 +23,7 @@ using namespace std;
 class TcpServer;
 class BaseSocketImpl;
 class TcpSocketImpl;
-class TcpServerImpl;
-class UdpSocketImpl;
 class SslTcpSocketImpl;
-class SslTcpServerImpl;
 
 class BaseSocket
 {
@@ -55,8 +52,7 @@ public:
     static void SetTraficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTraficDbg);
 
 protected:
-    explicit BaseSocket(BaseSocketImpl* pImpl);
-    void SetImpl(BaseSocketImpl* pImpl);
+    friend class SslTcpSocketImpl;
     BaseSocketImpl* GetImpl() const noexcept;
     unique_ptr<BaseSocketImpl> Impl_;
 };
@@ -97,7 +93,7 @@ public:
     const TcpServer* GetServerSocketRef() const noexcept;
 
 protected:
-    explicit TcpSocket(TcpSocketImpl* const);
+    explicit TcpSocket(bool/*bDummy*/) noexcept;
 };
 
 class TcpServer : public BaseSocket
@@ -117,7 +113,7 @@ public:
     virtual void BindNewConnection(function<void(const vector<TcpSocket*>&, void*)>);
     void Close() noexcept override;
 protected:
-    explicit TcpServer(TcpServerImpl* const);
+    explicit TcpServer(bool/*bDummy*/) noexcept;
 };
 
 class UdpSocket : public BaseSocket
@@ -141,8 +137,6 @@ public:
     virtual size_t GetOutBytesInQue() const noexcept;
     virtual function<void(UdpSocket*)> BindFuncBytesReceived(function<void(UdpSocket*)> fBytesReceived);
     virtual function<void(UdpSocket*, void*)> BindFuncBytesReceived(function<void(UdpSocket*, void*)> fBytesReceived);
-protected:
-    explicit UdpSocket(UdpSocketImpl* const);
 };
 
 #ifndef WITHOUT_OPENSSL
@@ -152,8 +146,8 @@ class SslTcpSocket : public TcpSocket
     friend class SslTcpServerImpl;
 public:
     explicit SslTcpSocket();
-    explicit SslTcpSocket(TcpSocket* pTcpSocket);
-    virtual ~SslTcpSocket();
+    explicit SslTcpSocket(const TcpSocket*);    // Switch from Tcp to Ssl/Tls
+    ~SslTcpSocket() = default;
     SslTcpSocket(const SslTcpSocket&) = delete;
     SslTcpSocket(SslTcpSocket&&) = delete;
     SslTcpSocket& operator=(const SslTcpSocket&) = delete;
@@ -175,8 +169,7 @@ public:
     void SetTrustedRootCertificates(const char* const szTrustRootCert);
     long CheckServerCertificate(const char* const szHostName);
 
-protected:
-    explicit SslTcpSocket(SslTcpSocketImpl* const);
+    static SslTcpSocket* SwitchToSll(TcpSocket*);
 };
 
 class SslTcpServer : public TcpServer
