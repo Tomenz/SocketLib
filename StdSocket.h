@@ -42,7 +42,7 @@ using namespace std;
 class InitSocket
 {
 public:
-    static InitSocket* const GetInstance() noexcept;
+    static InitSocket& GetInstance() noexcept;
     ~InitSocket();
     InitSocket(const InitSocket&) = delete;
     InitSocket(InitSocket&&) = delete;

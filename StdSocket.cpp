@@ -49,12 +49,12 @@ typedef int SOCKOPT;
 #endif
 
 // Initialize the Socket Library
-InitSocket* const SocketInit = InitSocket::GetInstance();
+InitSocket& SocketInit = InitSocket::GetInstance();
 
-InitSocket* const InitSocket::GetInstance() noexcept
+InitSocket& InitSocket::GetInstance() noexcept
 {
     static InitSocket iniSocket;
-    return &iniSocket;
+    return iniSocket;
 }
 
 InitSocket::~InitSocket()
@@ -264,7 +264,7 @@ void InitSocket::NotifyOnAddressChanges(vector<tuple<string, int, int>>& vNewLis
     }
 }
 
-function<void(const uint16_t, const char*, size_t, bool)> BaseSocketImpl::s_fTraficDebug(nullptr);
+function<void(const uint16_t, const char*, size_t, bool)> BaseSocketImpl::s_fTraficDebug;
 deque<unique_ptr<BaseSocket>> BaseSocketImpl::s_lstDynSocket;
 mutex BaseSocketImpl::s_mxDynSocket;
 
@@ -453,7 +453,7 @@ int BaseSocketImpl::EnumIpAddresses(function<int(int, const string&, int, void*)
 
 void BaseSocketImpl::SetAddrNotifyCallback(const function<void(bool, const string&, int, int)>& fnCbAddrNotify)
 {
-    InitSocket::GetInstance()->SetAddrNotifyCallback(fnCbAddrNotify);
+    InitSocket::GetInstance().SetAddrNotifyCallback(fnCbAddrNotify);
 }
 
 //************************************************************************************

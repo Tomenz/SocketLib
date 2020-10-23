@@ -105,6 +105,7 @@
     <LinkIncremental>true</LinkIncremental>
     <OutDir>$(OutDir)</OutDir>
     <TargetName>$(ProjectName)$(PlatformArchitecture)d</TargetName>
+    <CodeAnalysisRuleSet>CppCoreCheckRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -120,6 +121,7 @@
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(OutDir)</OutDir>
     <TargetName>$(ProjectName)$(PlatformArchitecture)</TargetName>
+    <CodeAnalysisRuleSet>CppCoreCheckRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release_no_openssl|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -147,7 +149,7 @@
     <ClCompile>
       <PrecompiledHeader>
       </PrecompiledHeader>
-      <WarningLevel>Level3</WarningLevel>
+      <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
