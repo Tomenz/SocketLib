@@ -26,9 +26,6 @@
 #include <openssl/conf.h>
 #include <openssl/x509v3.h>
 #include <openssl/err.h>
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
-DEFINE_STACK_OF(GENERAL_NAME);
-#endif
 
 #if defined (_WIN32) || defined (_WIN64)
 #include <Ws2tcpip.h>
@@ -90,8 +87,8 @@ namespace OpenSSLWrapper
         strVersion = OpenSSL_version(OPENSSL_VERSION);
 #endif
 
-        ERR_load_BIO_strings();
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
+        ERR_load_BIO_strings();
         OpenSSL_add_all_algorithms();
 
         m_pmutLocks = make_unique<mutex[]>(CRYPTO_num_locks());
@@ -305,6 +302,8 @@ namespace OpenSSLWrapper
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
         SSL_CTX_set_ecdh_auto(m_ctx, 1);
 #endif
+        SSL_CTX_set_dh_auto(m_ctx, 1);
+
         //https://raymii.org/s/tutorials/Strong_SSL_Security_On_Apache2.html
 //        SSL_CTX_set_cipher_list(m_ctx, "EECDH+AESGCM:EDH+AESGCM:ECDHE-RSA-AES128-GCM-SHA256:AES256+EECDH:DHE-RSA-AES128-GCM-SHA256:AES256+EDH:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4");
         SSL_CTX_set_cipher_list(m_ctx, "EECDH+ECDSA+AESGCM:EECDH+aRSA+AESGCM:EECDH+ECDSA:EECDH:EDH+AESGCM:EDH:+3DES:ECDH+AESGCM:ECDH+AES:ECDH:AES:HIGH:MEDIUM:!RC4:!CAMELLIA:!SEED:!aNULL:!MD5:!eNULL:!LOW:!EXP:!DSS:!PSK:!SRP");
@@ -335,6 +334,7 @@ namespace OpenSSLWrapper
 
     bool SslServerContext::SetDhParamFile(const char* const szDhParamFile)
     {
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
         fstream fin(szDhParamFile, ios::in | ios::binary);
         if (fin.is_open() == true)
         {
@@ -357,6 +357,10 @@ namespace OpenSSLWrapper
         }
 
         return false;
+#else
+        szDhParamFile;
+        return true;
+#endif
     }
 
     bool SslServerContext::SetCipher(const char* const szChiper) noexcept
