@@ -63,8 +63,8 @@ private:
     SslClientContext m_pClientCtx;
     vector<SslServerContext>  m_pServerCtx;
     unique_ptr<SslConnetion>  m_pSslCon;
-    function<void(TcpSocket*)> m_fClientConneted;
-    function<void(TcpSocket*, void*)> m_fClientConnetedParam;
+    function<void(TcpSocket*)> m_fClientConnected;
+    function<void(TcpSocket*, void*)> m_fClientConnectedParam;
 
     bool             m_bCloseReq;
     int              m_iSslInit;

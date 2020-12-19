@@ -57,8 +57,8 @@ SslTcpSocketImpl::SslTcpSocketImpl(BaseSocket* pBkref, TcpSocketImpl* pTcpSocket
     m_fnSslEncode = bind(&SslTcpSocketImpl::DatenEncode, this, _1, _2);
     m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, this, _1, _2);
 
-    m_fClientConneted.swap(TcpSocketImpl::m_fClientConneted);
-    m_fClientConnetedParam.swap(TcpSocketImpl::m_fClientConnetedParam);
+    m_fClientConnected.swap(TcpSocketImpl::m_fClientConnected);
+    m_fClientConnectedParam.swap(TcpSocketImpl::m_fClientConnectedParam);
 }
 
 SslTcpSocketImpl::~SslTcpSocketImpl()
@@ -140,7 +140,7 @@ bool SslTcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPo
     m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
     m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnForwarder));
     m_pSslCon->SetUserData(1, this);
-    
+
     m_pSslCon->SetSniName(szIpToWhere);
 
     if (m_vProtoList.size() > 0)
@@ -279,13 +279,13 @@ void SslTcpSocketImpl::Close()
 
 function<void(TcpSocket*)> SslTcpSocketImpl::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
 {
-    m_fClientConneted.swap(fClientConneted);
+    m_fClientConnected.swap(fClientConneted);
     return fClientConneted;
 }
 
 function<void(TcpSocket*, void*)> SslTcpSocketImpl::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted) noexcept
 {
-    m_fClientConnetedParam.swap(fClientConneted);
+    m_fClientConnectedParam.swap(fClientConneted);
     return fClientConneted;
 }
 
@@ -397,10 +397,10 @@ int SslTcpSocketImpl::DatenDecode(const uint8_t* buffer, size_t nAnzahl)
         }
         else
         {
-            if (m_fClientConnetedParam)
-                m_fClientConnetedParam(reinterpret_cast<SslTcpSocket*>(m_pBkRef), m_pvUserData);
-            if (m_fClientConneted)
-                m_fClientConneted(reinterpret_cast<SslTcpSocket*>(m_pBkRef));
+            if (m_fClientConnectedParam)
+                m_fClientConnectedParam(reinterpret_cast<SslTcpSocket*>(m_pBkRef), m_pvUserData);
+            if (m_fClientConnected)
+                m_fClientConnected(reinterpret_cast<SslTcpSocket*>(m_pBkRef));
         }
     }
 
@@ -637,7 +637,7 @@ bool SslUdpSocketImpl::CreateClientSide(const char* const szIpToWhere, const uin
     m_strDestAddr = szDestAddr;
     const bool bRet = UdpSocketImpl::Create(szIpToWhere, sPort, szIpToBind);
     if (bRet == true)
-    {        
+    {
         m_pSslCon = make_unique<SslConnetion>(m_pUdpCtx);
         m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
 

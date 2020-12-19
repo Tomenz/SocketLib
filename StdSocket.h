@@ -140,7 +140,7 @@ public:
     void Close() override;
     virtual void SelfDestroy();
     virtual void Delete();
-    virtual size_t GetBytesAvailible() const noexcept;
+    virtual size_t GetBytesAvailable() const noexcept;
     virtual size_t GetOutBytesInQue() const noexcept;
     virtual function<void(TcpSocket*)> BindFuncBytesReceived(function<void(TcpSocket*)> fBytesReceived) noexcept;
     virtual function<void(TcpSocket*, void*)> BindFuncBytesReceived(function<void(TcpSocket*, void*)> fBytesReceived) noexcept;
@@ -181,8 +181,8 @@ protected:
     deque<DATA>      m_quOutData;
     atomic<size_t>   m_atOutBytes;
 
-    function<void(TcpSocket*)> m_fClientConneted;
-    function<void(TcpSocket*, void*)> m_fClientConnetedParam;
+    function<void(TcpSocket*)> m_fClientConnected;
+    function<void(TcpSocket*, void*)> m_fClientConnectedParam;
 
     const TcpServer* m_pRefServSocket;
 
@@ -261,7 +261,7 @@ public:
     virtual size_t Read(void* buf, size_t len, string& strFrom);
     virtual size_t Write(const void* buf, size_t len, const string& strTo);
     void Close() override;
-    virtual size_t GetBytesAvailible() const noexcept;
+    virtual size_t GetBytesAvailable() const noexcept;
     virtual size_t GetOutBytesInQue() const noexcept;
     virtual function<void(UdpSocket*)> BindFuncBytesReceived(function<void(UdpSocket*)> fBytesReceived) noexcept;
     virtual function<void(UdpSocket*, void*)> BindFuncBytesReceived(function<void(UdpSocket*, void*)> fBytesReceived) noexcept;

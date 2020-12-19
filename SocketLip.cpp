@@ -126,9 +126,9 @@ void TcpSocket::Delete()
 {
     dynamic_cast<TcpSocketImpl*>(GetImpl())->Delete();
 }
-size_t TcpSocket::GetBytesAvailible() const noexcept
+size_t TcpSocket::GetBytesAvailable() const noexcept
 {
-    return dynamic_cast<TcpSocketImpl*>(GetImpl())->GetBytesAvailible();
+    return dynamic_cast<TcpSocketImpl*>(GetImpl())->GetBytesAvailable();
 }
 size_t TcpSocket::GetOutBytesInQue() const noexcept
 {
@@ -152,9 +152,9 @@ function<void(TcpSocket*, void*)> TcpSocket::BindFuncConEstablished(function<voi
     return dynamic_cast<TcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConneted);
 }
 
-bool TcpSocket::IsSslConnection() const noexcept 
-{ 
-    return false; 
+bool TcpSocket::IsSslConnection() const noexcept
+{
+    return false;
 }
 
 const string& TcpSocket::GetClientAddr() const noexcept
@@ -253,14 +253,14 @@ void UdpSocket::Close()
     dynamic_cast<UdpSocketImpl*>(GetImpl())->Close();
 }
 
-size_t UdpSocket::GetBytesAvailible() const noexcept
+size_t UdpSocket::GetBytesAvailable() const noexcept
 {
-    return dynamic_cast<UdpSocketImpl*>(GetImpl())->GetBytesAvailible();
+    return dynamic_cast<UdpSocketImpl*>(GetImpl())->GetBytesAvailable();
 }
 
 size_t UdpSocket::GetOutBytesInQue() const noexcept
 {
-    return dynamic_cast<UdpSocketImpl*>(GetImpl())->GetBytesAvailible();
+    return dynamic_cast<UdpSocketImpl*>(GetImpl())->GetOutBytesInQue();
 }
 
 function<void(UdpSocket*)> UdpSocket::BindFuncBytesReceived(function<void(UdpSocket*)> fBytesReceived)

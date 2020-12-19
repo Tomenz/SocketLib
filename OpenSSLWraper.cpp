@@ -21,6 +21,7 @@
 #include <fstream>
 #include <regex>
 
+#define _WINSOCKAPI_
 #include "OpenSSLWraper.h"
 
 #include <openssl/conf.h>

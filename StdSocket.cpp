@@ -483,8 +483,8 @@ TcpSocketImpl::TcpSocketImpl(BaseSocket* pBkRef, TcpSocketImpl* pTcpSocketImpl) 
 
     swap(m_fBytesReceived, pTcpSocketImpl->m_fBytesReceived);
     swap(m_fBytesReceivedParam, pTcpSocketImpl->m_fBytesReceivedParam);
-    swap(m_fClientConneted, pTcpSocketImpl->m_fClientConneted);
-    swap(m_fClientConnetedParam, pTcpSocketImpl->m_fClientConnetedParam);
+    swap(m_fClientConnected, pTcpSocketImpl->m_fClientConnected);
+    swap(m_fClientConnectedParam, pTcpSocketImpl->m_fClientConnectedParam);
     swap(m_fClientConnetedSsl, pTcpSocketImpl->m_fClientConnetedSsl);
 
     m_iShutDownState = 7;
@@ -573,10 +573,10 @@ bool TcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort,
             m_thWrite = thread(&TcpSocketImpl::WriteThread, this);
 
             TcpSocket* pTcpSocket = dynamic_cast<TcpSocket*>(m_pBkRef);
-            if (m_fClientConnetedParam && pTcpSocket != nullptr)
-                m_fClientConnetedParam(pTcpSocket, m_pvUserData);
-            else if (m_fClientConneted && pTcpSocket != nullptr)
-                m_fClientConneted(pTcpSocket);
+            if (m_fClientConnectedParam && pTcpSocket != nullptr)
+                m_fClientConnectedParam(pTcpSocket, m_pvUserData);
+            else if (m_fClientConnected && pTcpSocket != nullptr)
+                m_fClientConnected(pTcpSocket);
 
             if (m_fClientConnetedSsl)
                 m_fClientConnetedSsl(nullptr);
@@ -845,8 +845,8 @@ void TcpSocketImpl::SelfDestroy()
 
 void TcpSocketImpl::Delete()
 {
-    thread([&]() 
-        { 
+    thread([&]()
+        {
             if (m_pBkRef == nullptr)
             {
                 delete this;
@@ -859,11 +859,11 @@ void TcpSocketImpl::Delete()
             if (it != end(s_lstDynSocket))
                 s_lstDynSocket.erase(it);
             else
-                delete pSock; 
+                delete pSock;
         }).detach();
 }
 
-size_t TcpSocketImpl::GetBytesAvailible() const noexcept
+size_t TcpSocketImpl::GetBytesAvailable() const noexcept
 {
     return m_atInBytes;
 }
@@ -887,12 +887,12 @@ function<void(TcpSocket*, void*)> TcpSocketImpl::BindFuncBytesReceived(function<
 
 function<void(TcpSocket*)> TcpSocketImpl::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
 {
-    m_fClientConneted.swap(fClientConneted);
+    m_fClientConnected.swap(fClientConneted);
     return fClientConneted;
 }
 function<void(TcpSocket*, void*)> TcpSocketImpl::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted) noexcept
 {
-    m_fClientConnetedParam.swap(fClientConneted);
+    m_fClientConnectedParam.swap(fClientConneted);
     return fClientConneted;
 }
 void TcpSocketImpl::BindFuncConEstablished(function<void(TcpSocketImpl*)> fClientConneted) noexcept
@@ -1102,10 +1102,10 @@ void TcpSocketImpl::ConnectThread()
                 m_thWrite = thread(&TcpSocketImpl::WriteThread, this);
 
                 TcpSocket* pTcpSocket = dynamic_cast<TcpSocket*>(m_pBkRef);
-                if (m_fClientConnetedParam && pTcpSocket != nullptr)
-                    m_fClientConnetedParam(pTcpSocket, m_pvUserData);
-                else if (m_fClientConneted && pTcpSocket != nullptr)
-                    m_fClientConneted(pTcpSocket);
+                if (m_fClientConnectedParam && pTcpSocket != nullptr)
+                    m_fClientConnectedParam(pTcpSocket, m_pvUserData);
+                else if (m_fClientConnected && pTcpSocket != nullptr)
+                    m_fClientConnected(pTcpSocket);
 
                 if (m_fClientConnetedSsl)
                     m_fClientConnetedSsl(nullptr);
@@ -1847,7 +1847,7 @@ void UdpSocketImpl::Close()
     m_bStop = true; // Stops the listening thread
 }
 
-size_t UdpSocketImpl::GetBytesAvailible() const noexcept
+size_t UdpSocketImpl::GetBytesAvailable() const noexcept
 {
     return m_atInBytes;
 }
