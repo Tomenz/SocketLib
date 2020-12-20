@@ -49,7 +49,7 @@ public:
     static int EnumIpAddresses(function<int(int, const string&, int, void*)> fnCallBack, void* vpUser);
     static void SetAddrNotifyCallback(const function<void(bool, const string&, int, int)>& fnCbAddrNotify);
 
-    static void SetTraficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTraficDbg);
+    static void SetTrafficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTrafficDbg);
 
 protected:
     friend class SslTcpSocketImpl;
@@ -81,8 +81,8 @@ public:
     virtual size_t GetOutBytesInQue() const noexcept;
     virtual function<void(TcpSocket*)> BindFuncBytesReceived(function<void(TcpSocket*)> fBytesReceived);
     virtual function<void(TcpSocket*, void*)> BindFuncBytesReceived(function<void(TcpSocket*, void*)> fBytesReceived);
-    virtual function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted);
-    virtual function<void(TcpSocket*, void*)> BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted);
+    virtual function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConnected);
+    virtual function<void(TcpSocket*, void*)> BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConnected);
     virtual bool IsSslConnection() const noexcept;
 
     const string& GetClientAddr() const noexcept;
@@ -160,8 +160,8 @@ public:
     bool SetConnectState();
     bool Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint = 0) override;
     void Close() override;
-    function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) override;
-    function<void(TcpSocket*, void*)> BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted) override;
+    function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConnected) override;
+    function<void(TcpSocket*, void*)> BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConnected) override;
     bool IsSslConnection() const noexcept override;
 
     void SetAlpnProtokollNames(const vector<string>& vProtoList);

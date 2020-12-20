@@ -77,9 +77,9 @@ void BaseSocket::SetAddrNotifyCallback(const function<void(bool, const string&, 
     return BaseSocketImpl::SetAddrNotifyCallback(fnCbAddrNotify);
 }
 
-void BaseSocket::SetTraficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTraficDbg)
+void BaseSocket::SetTrafficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTrafficDbg)
 {
-    BaseSocketImpl::SetTraficDebugCallback(fnCbTraficDbg);
+    BaseSocketImpl::SetTrafficDebugCallback(fnCbTrafficDbg);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -143,13 +143,13 @@ function<void(TcpSocket*, void*)> TcpSocket::BindFuncBytesReceived(function<void
 {
     return dynamic_cast<TcpSocketImpl*>(GetImpl())->BindFuncBytesReceived(fBytesReceived);
 }
-function<void(TcpSocket*)> TcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted)
+function<void(TcpSocket*)> TcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConnected)
 {
-    return dynamic_cast<TcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConneted);
+    return dynamic_cast<TcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConnected);
 }
-function<void(TcpSocket*, void*)> TcpSocket::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted)
+function<void(TcpSocket*, void*)> TcpSocket::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConnected)
 {
-    return dynamic_cast<TcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConneted);
+    return dynamic_cast<TcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConnected);
 }
 
 bool TcpSocket::IsSslConnection() const noexcept
@@ -322,14 +322,14 @@ void SslTcpSocket::Close()
     dynamic_cast<SslTcpSocketImpl*>(GetImpl())->Close();
 }
 
-function<void(TcpSocket*)> SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted)
+function<void(TcpSocket*)> SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConnected)
 {
-    return dynamic_cast<SslTcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConneted);
+    return dynamic_cast<SslTcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConnected);
 }
 
-function<void(TcpSocket*, void*)> SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted)
+function<void(TcpSocket*, void*)> SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConnected)
 {
-    return dynamic_cast<SslTcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConneted);
+    return dynamic_cast<SslTcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConnected);
 }
 
 bool SslTcpSocket::IsSslConnection() const noexcept
