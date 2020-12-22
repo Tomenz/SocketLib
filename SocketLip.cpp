@@ -77,6 +77,16 @@ void BaseSocket::SetAddrNotifyCallback(const function<void(bool, const string&, 
     return BaseSocketImpl::SetAddrNotifyCallback(fnCbAddrNotify);
 }
 
+void BaseSocket::SetSocketName(const string& strName)
+{
+    GetImpl()->SetSocketName(strName);
+}
+
+string& BaseSocket::GetSocketName()
+{
+    return GetImpl()->GetSocketName();
+}
+
 void BaseSocket::SetTrafficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTrafficDbg)
 {
     BaseSocketImpl::SetTrafficDebugCallback(fnCbTrafficDbg);

@@ -48,6 +48,8 @@ public:
     virtual uint16_t GetSocketPort();
     static int EnumIpAddresses(function<int(int, const string&, int, void*)> fnCallBack, void* vpUser);
     static void SetAddrNotifyCallback(const function<void(bool, const string&, int, int)>& fnCbAddrNotify);
+    virtual void SetSocketName(const string& strName);
+    virtual string& GetSocketName();
 
     static void SetTrafficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTrafficDbg);
 
