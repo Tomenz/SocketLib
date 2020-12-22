@@ -77,9 +77,9 @@ void BaseSocket::SetAddrNotifyCallback(const function<void(bool, const string&, 
     return BaseSocketImpl::SetAddrNotifyCallback(fnCbAddrNotify);
 }
 
-void BaseSocket::SetTraficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTraficDbg)
+void BaseSocket::SetTrafficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTrafficDbg)
 {
-    BaseSocketImpl::SetTraficDebugCallback(fnCbTraficDbg);
+    BaseSocketImpl::SetTrafficDebugCallback(fnCbTrafficDbg);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -126,9 +126,9 @@ void TcpSocket::Delete()
 {
     dynamic_cast<TcpSocketImpl*>(GetImpl())->Delete();
 }
-size_t TcpSocket::GetBytesAvailible() const noexcept
+size_t TcpSocket::GetBytesAvailable() const noexcept
 {
-    return dynamic_cast<TcpSocketImpl*>(GetImpl())->GetBytesAvailible();
+    return dynamic_cast<TcpSocketImpl*>(GetImpl())->GetBytesAvailable();
 }
 size_t TcpSocket::GetOutBytesInQue() const noexcept
 {
@@ -143,18 +143,18 @@ function<void(TcpSocket*, void*)> TcpSocket::BindFuncBytesReceived(function<void
 {
     return dynamic_cast<TcpSocketImpl*>(GetImpl())->BindFuncBytesReceived(fBytesReceived);
 }
-function<void(TcpSocket*)> TcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted)
+function<void(TcpSocket*)> TcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConnected)
 {
-    return dynamic_cast<TcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConneted);
+    return dynamic_cast<TcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConnected);
 }
-function<void(TcpSocket*, void*)> TcpSocket::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted)
+function<void(TcpSocket*, void*)> TcpSocket::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConnected)
 {
-    return dynamic_cast<TcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConneted);
+    return dynamic_cast<TcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConnected);
 }
 
-bool TcpSocket::IsSslConnection() const noexcept 
-{ 
-    return false; 
+bool TcpSocket::IsSslConnection() const noexcept
+{
+    return false;
 }
 
 const string& TcpSocket::GetClientAddr() const noexcept
@@ -253,14 +253,14 @@ void UdpSocket::Close()
     dynamic_cast<UdpSocketImpl*>(GetImpl())->Close();
 }
 
-size_t UdpSocket::GetBytesAvailible() const noexcept
+size_t UdpSocket::GetBytesAvailable() const noexcept
 {
-    return dynamic_cast<UdpSocketImpl*>(GetImpl())->GetBytesAvailible();
+    return dynamic_cast<UdpSocketImpl*>(GetImpl())->GetBytesAvailable();
 }
 
 size_t UdpSocket::GetOutBytesInQue() const noexcept
 {
-    return dynamic_cast<UdpSocketImpl*>(GetImpl())->GetBytesAvailible();
+    return dynamic_cast<UdpSocketImpl*>(GetImpl())->GetOutBytesInQue();
 }
 
 function<void(UdpSocket*)> UdpSocket::BindFuncBytesReceived(function<void(UdpSocket*)> fBytesReceived)
@@ -322,14 +322,14 @@ void SslTcpSocket::Close()
     dynamic_cast<SslTcpSocketImpl*>(GetImpl())->Close();
 }
 
-function<void(TcpSocket*)> SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted)
+function<void(TcpSocket*)> SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConnected)
 {
-    return dynamic_cast<SslTcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConneted);
+    return dynamic_cast<SslTcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConnected);
 }
 
-function<void(TcpSocket*, void*)> SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted)
+function<void(TcpSocket*, void*)> SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConnected)
 {
-    return dynamic_cast<SslTcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConneted);
+    return dynamic_cast<SslTcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConnected);
 }
 
 bool SslTcpSocket::IsSslConnection() const noexcept

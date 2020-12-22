@@ -42,7 +42,7 @@ using namespace std;
 class InitSocket
 {
 public:
-    static InitSocket* const GetInstance() noexcept;
+    static InitSocket& GetInstance() noexcept;
     ~InitSocket();
     InitSocket(const InitSocket&) = delete;
     InitSocket(InitSocket&&) = delete;
@@ -60,7 +60,7 @@ private:
     thread m_thIpChange;
     bool   m_bStopThread;
 #endif
-    int CbEnumIpAdressen(int iFamiely, const string& strIp, int nInterFaceId, void* vpUserParam);
+    int CbEnumIpAdressen(int iFamily, const string& strIp, int nInterFaceId, void* vpUserParam);
     void NotifyOnAddressChanges(vector<tuple<string, int, int>>& vNewListing);
 
     vector<tuple<string, int, int>> m_vCurIPAddr;
@@ -90,8 +90,10 @@ public:
     virtual uint16_t GetSocketPort();
     static int EnumIpAddresses(function<int(int,const string&,int,void*)> fnCallBack, void* vpUser);
     static void SetAddrNotifyCallback(const function<void(bool, const string&, int, int)>& fnCbAddrNotify);
+    virtual void SetSocketName(const string& strName) { m_strName = strName; }
+    virtual string& GetSocketName() { return m_strName; }
 
-    static void SetTraficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTraficDbg) { s_fTraficDebug = fnCbTraficDbg; }
+    static void SetTrafficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTrafficDbg) { s_fTrafficDebug = fnCbTrafficDbg; }
 
 protected:
     explicit BaseSocketImpl(BaseSocketImpl* pBaseSocket);
@@ -101,6 +103,7 @@ protected:
 
 protected:
     SOCKET                      m_fSock;
+    string                      m_strName;
     thread                      m_thListen;
     thread                      m_thWrite;
     bool                        m_bStop;
@@ -116,7 +119,7 @@ protected:
     BaseSocket*                 m_pBkRef;
     static deque<unique_ptr<BaseSocket>> s_lstDynSocket;
     static mutex s_mxDynSocket;
-    static function<void(const uint16_t, const char*, size_t, bool)> s_fTraficDebug;
+    static function<void(const uint16_t, const char*, size_t, bool)> s_fTrafficDebug;
 };
 
 class TcpSocketImpl : public BaseSocketImpl
@@ -140,12 +143,12 @@ public:
     void Close() override;
     virtual void SelfDestroy();
     virtual void Delete();
-    virtual size_t GetBytesAvailible() const noexcept;
+    virtual size_t GetBytesAvailable() const noexcept;
     virtual size_t GetOutBytesInQue() const noexcept;
     virtual function<void(TcpSocket*)> BindFuncBytesReceived(function<void(TcpSocket*)> fBytesReceived) noexcept;
     virtual function<void(TcpSocket*, void*)> BindFuncBytesReceived(function<void(TcpSocket*, void*)> fBytesReceived) noexcept;
-    virtual function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept;
-    virtual function<void(TcpSocket*, void*)> BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted) noexcept;
+    virtual function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConnected) noexcept;
+    virtual function<void(TcpSocket*, void*)> BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConnected) noexcept;
     virtual bool IsSslConnection() const noexcept { return false; }
 
     const string& GetClientAddr() const noexcept { return m_strClientAddr; }
@@ -161,7 +164,7 @@ protected:
     explicit TcpSocketImpl(BaseSocket* pBkRef, TcpSocketImpl* pTcpSocketImpl);
     void SetSocketOption(const SOCKET& fd) override;
     void TriggerWriteThread();
-    virtual void BindFuncConEstablished(function<void(TcpSocketImpl*)> fClientConneted) noexcept;
+    virtual void BindFuncConEstablished(function<void(TcpSocketImpl*)> fClientConnected) noexcept;
     bool GetConnectionInfo();
 
     void WriteThread();
@@ -181,8 +184,8 @@ protected:
     deque<DATA>      m_quOutData;
     atomic<size_t>   m_atOutBytes;
 
-    function<void(TcpSocket*)> m_fClientConneted;
-    function<void(TcpSocket*, void*)> m_fClientConnetedParam;
+    function<void(TcpSocket*)> m_fClientConnected;
+    function<void(TcpSocket*, void*)> m_fClientConnectedParam;
 
     const TcpServer* m_pRefServSocket;
 
@@ -202,7 +205,7 @@ private:
 
     function<void(TcpSocket*)> m_fBytesReceived;
     function<void(TcpSocket*,void*)> m_fBytesReceivedParam;
-    function<void(TcpSocketImpl*)> m_fClientConnetedSsl;
+    function<void(TcpSocketImpl*)> m_fClientConnectedSsl;
 };
 
 class TcpServerImpl : public BaseSocketImpl
@@ -221,10 +224,10 @@ public:
     virtual void BindNewConnection(function<void(const vector<TcpSocket*>&)>) noexcept;
     virtual void BindNewConnection(function<void(const vector<TcpSocket*>&, void*)>) noexcept;
     void Close() noexcept override;
-    virtual TcpSocket* MakeClientConnection(const SOCKET&);
 
 protected:
     void SetSocketOption(const SOCKET& fd) override;
+    virtual TcpSocket* MakeClientConnection(const SOCKET&);
 
 private:
     void Delete();
@@ -261,7 +264,7 @@ public:
     virtual size_t Read(void* buf, size_t len, string& strFrom);
     virtual size_t Write(const void* buf, size_t len, const string& strTo);
     void Close() override;
-    virtual size_t GetBytesAvailible() const noexcept;
+    virtual size_t GetBytesAvailable() const noexcept;
     virtual size_t GetOutBytesInQue() const noexcept;
     virtual function<void(UdpSocket*)> BindFuncBytesReceived(function<void(UdpSocket*)> fBytesReceived) noexcept;
     virtual function<void(UdpSocket*, void*)> BindFuncBytesReceived(function<void(UdpSocket*, void*)> fBytesReceived) noexcept;

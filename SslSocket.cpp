@@ -46,19 +46,19 @@ void OutputDebugStringA(const char* pOut)
 }
 #endif
 
-SslTcpSocketImpl::SslTcpSocketImpl(BaseSocket* pBkref) : TcpSocketImpl(pBkref), m_pSslCon(nullptr), m_bCloseReq(false), m_iSslInit(0)
+SslTcpSocketImpl::SslTcpSocketImpl(BaseSocket* pBkref) : TcpSocketImpl(pBkref), m_bCloseReq(false), m_iSslInit(0)
 {
     m_fnSslEncode = bind(&SslTcpSocketImpl::DatenEncode, this, _1, _2);
     m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, this, _1, _2);
 }
 
-SslTcpSocketImpl::SslTcpSocketImpl(BaseSocket* pBkref, TcpSocketImpl* pTcpSocket) : TcpSocketImpl(pBkref, pTcpSocket), m_pSslCon(nullptr), m_bCloseReq(false), m_iSslInit(0)
+SslTcpSocketImpl::SslTcpSocketImpl(BaseSocket* pBkref, TcpSocketImpl* pTcpSocket) : TcpSocketImpl(pBkref, pTcpSocket), m_bCloseReq(false), m_iSslInit(0)
 {   // Switch from Tcp to Ssl/Tls
     m_fnSslEncode = bind(&SslTcpSocketImpl::DatenEncode, this, _1, _2);
     m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, this, _1, _2);
 
-    m_fClientConneted.swap(TcpSocketImpl::m_fClientConneted);
-    m_fClientConnetedParam.swap(TcpSocketImpl::m_fClientConnetedParam);
+    m_fClientConnected.swap(TcpSocketImpl::m_fClientConnected);
+    m_fClientConnectedParam.swap(TcpSocketImpl::m_fClientConnectedParam);
 }
 
 SslTcpSocketImpl::~SslTcpSocketImpl()
@@ -95,7 +95,10 @@ bool SslTcpSocketImpl::SetCipher(const char* const szCipher) noexcept
 
 bool SslTcpSocketImpl::SetAcceptState()
 {
-    m_pSslCon = move(make_unique<SslConnetion>(m_pServerCtx.front()));
+    if (m_pServerCtx.size() == 0)
+        return false;
+
+    m_pSslCon = make_unique<SslConnetion>(m_pServerCtx.front());
     m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
     m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnForwarder));
     m_pSslCon->SetUserData(1, this);
@@ -119,7 +122,7 @@ bool SslTcpSocketImpl::SetAcceptState()
 
 bool SslTcpSocketImpl::SetConnectState()
 {
-    m_pSslCon = move(make_unique<SslConnetion>(m_pClientCtx));
+    m_pSslCon = make_unique<SslConnetion>(m_pClientCtx);
     m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
     m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnForwarder));
     m_pSslCon->SetUserData(1, this);
@@ -133,11 +136,11 @@ bool SslTcpSocketImpl::SetConnectState()
 
 bool SslTcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint/* = AF_UNSPEC*/)
 {
-    m_pSslCon = move(make_unique<SslConnetion>(m_pClientCtx));
+    m_pSslCon = make_unique<SslConnetion>(m_pClientCtx);
     m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
     m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnForwarder));
     m_pSslCon->SetUserData(1, this);
-    
+
     m_pSslCon->SetSniName(szIpToWhere);
 
     if (m_vProtoList.size() > 0)
@@ -274,16 +277,16 @@ void SslTcpSocketImpl::Close()
     TcpSocketImpl::Close();
 }
 
-function<void(TcpSocket*)> SslTcpSocketImpl::BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept
+function<void(TcpSocket*)> SslTcpSocketImpl::BindFuncConEstablished(function<void(TcpSocket*)> fClientConnected) noexcept
 {
-    m_fClientConneted.swap(fClientConneted);
-    return fClientConneted;
+    m_fClientConnected.swap(fClientConnected);
+    return fClientConnected;
 }
 
-function<void(TcpSocket*, void*)> SslTcpSocketImpl::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConneted) noexcept
+function<void(TcpSocket*, void*)> SslTcpSocketImpl::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConnected) noexcept
 {
-    m_fClientConnetedParam.swap(fClientConneted);
-    return fClientConneted;
+    m_fClientConnectedParam.swap(fClientConnected);
+    return fClientConnected;
 }
 
 void SslTcpSocketImpl::ConEstablished(const TcpSocketImpl* const /*pTcpSocket*/)
@@ -383,7 +386,7 @@ int SslTcpSocketImpl::DatenDecode(const uint8_t* buffer, size_t nAnzahl)
             {
                 m_iError = 0x80000000 | iError;
                 m_iErrLoc = 14;
-                OutputDebugString(wstring(L"SSL_error: " + to_wstring(iError) + L", after SSL_do_handshake returnd: " + to_wstring(m_iSslInit) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)()))).c_str());
+                OutputDebugString(wstring(L"SSL_error: " + to_wstring(iError) + L", after SSL_do_handshake returned: " + to_wstring(m_iSslInit) + L" on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)()))).c_str());
                 OutputDebugStringA(string(", msg: " + m_pSslCon->GetSslErrAsString()).c_str());
                 if (m_fErrorParam)
                     m_fErrorParam(m_pBkRef, m_pvUserData);
@@ -394,10 +397,10 @@ int SslTcpSocketImpl::DatenDecode(const uint8_t* buffer, size_t nAnzahl)
         }
         else
         {
-            if (m_fClientConnetedParam)
-                m_fClientConnetedParam(reinterpret_cast<SslTcpSocket*>(m_pBkRef), m_pvUserData);
-            if (m_fClientConneted)
-                m_fClientConneted(reinterpret_cast<SslTcpSocket*>(m_pBkRef));
+            if (m_fClientConnectedParam)
+                m_fClientConnectedParam(reinterpret_cast<SslTcpSocket*>(m_pBkRef), m_pvUserData);
+            if (m_fClientConnected)
+                m_fClientConnected(reinterpret_cast<SslTcpSocket*>(m_pBkRef));
         }
     }
 
@@ -487,12 +490,7 @@ SslTcpSocket* SslTcpSocketImpl::SwitchToSsl(TcpSocket* pTcpSocket)
     try
     {
         SslServerContext SllServCont;
-        pSslTcpSocketImpl->m_pSslCon = move(make_unique<SslConnetion>(SllServCont));
-
-        //pSslTcpSocketImpl->m_fSock = fSock;
-        //pSslTcpSocketImpl->m_iShutDownState = 7;
-        //pSslTcpSocketImpl->m_pRefServSocket = dynamic_cast<SslTcpServer*>(m_pBkRef);
-        //pSslTcpSocketImpl->m_thWrite = thread(&TcpSocketImpl::WriteThread, dynamic_cast<SslTcpSocketImpl*>(pSslTcpSock->GetImpl()));
+        pSslTcpSocketImpl->m_pSslCon = make_unique<SslConnetion>(SllServCont);
 
         pSslTcpSocketImpl->m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, pSslTcpSocketImpl)));
         pSslTcpSocketImpl->m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnForwarder));
@@ -501,9 +499,6 @@ SslTcpSocket* SslTcpSocketImpl::SwitchToSsl(TcpSocket* pTcpSocket)
         pSslTcpSocketImpl->m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, pSslTcpSocketImpl, _1, _2);
 
         pSslTcpSocketImpl->m_pSslCon->SSLSetAcceptState();
-
-        //pSslTcpSocketImpl->SetSocketOption(fSock);
-        //pSslTcpSocketImpl->GetConnectionInfo();
     }
 
     catch (const int iErrNo)
@@ -606,7 +601,7 @@ void SslTcpServerImpl::SetAlpnProtokollNames(const vector<string>& vStrProtoName
 
 //************************************************************************************
 
-SslUdpSocketImpl::SslUdpSocketImpl(BaseSocket* pBkRef) : UdpSocketImpl(pBkRef), m_pSslCon(nullptr), m_bCloseReq(false)
+SslUdpSocketImpl::SslUdpSocketImpl(BaseSocket* pBkRef) : UdpSocketImpl(pBkRef), m_bCloseReq(false)
 {
     m_fnSslEncode = bind(&SslUdpSocketImpl::DatenEncode, this, _1, _2, _3);
     m_fnSslDecode = bind(&SslUdpSocketImpl::DatenDecode, this, _1, _2, _3);
@@ -627,7 +622,7 @@ bool SslUdpSocketImpl::CreateServerSide(const char* const szIpToWhere, const uin
     const bool bRet = UdpSocketImpl::Create(szIpToWhere, sPort, szIpToBind);
     if (bRet == true)
     {
-        m_pSslCon = move(make_unique<SslConnetion>(m_pUdpCtx));
+        m_pSslCon = make_unique<SslConnetion>(m_pUdpCtx);
         m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
 
         //SSL_set_info_callback((*m_pSslCon)(), ssl_info_callbackServer);
@@ -642,8 +637,8 @@ bool SslUdpSocketImpl::CreateClientSide(const char* const szIpToWhere, const uin
     m_strDestAddr = szDestAddr;
     const bool bRet = UdpSocketImpl::Create(szIpToWhere, sPort, szIpToBind);
     if (bRet == true)
-    {        
-        m_pSslCon = move(make_unique<SslConnetion>(m_pUdpCtx));
+    {
+        m_pSslCon = make_unique<SslConnetion>(m_pUdpCtx);
         m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
 
         //SSL_set_info_callback((*m_pSslCon)(), ssl_info_callbackClient);

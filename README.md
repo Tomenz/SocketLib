@@ -70,12 +70,12 @@ void ServerThread(bool* bStop)
 
                             auto spBuffer = make_unique<unsigned char[]>(nAvalible + 1);
 
-                            size_t nRead = pTcpSocket->Read(spBuffer.get(), nAvalible);
+                            size_t nRead = pTcpSocket->Read(&spBuffer[0], nAvalible);
 
                             if (nRead > 0)
                             {
                                 string strRec(nRead, 0);
-                                copy(spBuffer.get(), spBuffer.get() + nRead, &strRec[0]);
+                                copy(&spBuffer[0], &spBuffer[nRead], &strRec[0]);
 
                                 stringstream strOutput;
                                 strOutput << pTcpSocket->GetClientAddr() << " - Server received: " 
@@ -92,8 +92,6 @@ void ServerThread(bool* bStop)
                     pSocket->BindErrorFunction([&](BaseSocket*) { cout << "Server: socket error" << endl; });
                     pSocket->BindCloseFunction([&](BaseSocket* pSock) 
                         {
-                            // We let the socket destroy it self
-                            pSock->SelfDestroy();
                             cout << "Server: socket closing" << endl;
                         });
                     pSocket->StartReceiving();
@@ -109,7 +107,7 @@ void ServerThread(bool* bStop)
         this_thread::sleep_for(chrono::milliseconds(10));
     }
 
-    // Closeing the server socket will not call the close callback
+    // Closing the server socket will not call the close callback
     sock.Close();
 }
 
@@ -125,12 +123,12 @@ void ClientThread(bool* bStop)
 
             auto spBuffer = make_unique<unsigned char[]>(nAvalible + 1);
 
-            size_t nRead = pTcpSocket->Read(spBuffer.get(), nAvalible);
+            size_t nRead = pTcpSocket->Read(&spBuffer[0], nAvalible);
 
             if (nRead > 0)
             {
                 string strRec(nRead, 0);
-                copy(spBuffer.get(), spBuffer.get() + nRead, &strRec[0]);
+                copy(&spBuffer[0], &spBuffer[nRead], &strRec[0]);
 
                 stringstream strOutput;
                 strOutput << pTcpSocket->GetClientAddr() << " - Client received: " 
@@ -154,10 +152,10 @@ void ClientThread(bool* bStop)
         this_thread::sleep_for(chrono::milliseconds(10));
     }
 
-    // The Close call will call the Callbackfuntion above
+    // The Close call will call the Callback function above
     // but if we leave the thread, the Instance is destroyed
     // and we crash. So we disable the Callback by setting a nullptr
-    sock.BindCloseFunction(nullptr);
+    sock.BindCloseFunction(static_cast<function<void(BaseSocket*)>>(nullptr)));
     sock.Close();
 }
 
