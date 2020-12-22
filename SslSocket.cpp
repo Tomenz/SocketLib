@@ -48,12 +48,14 @@ void OutputDebugStringA(const char* pOut)
 
 SslTcpSocketImpl::SslTcpSocketImpl(BaseSocket* pBkref) : TcpSocketImpl(pBkref), m_bCloseReq(false), m_iSslInit(0)
 {
+    m_fnSslInitDone = [this]() -> int { return m_iSslInit; };
     m_fnSslEncode = bind(&SslTcpSocketImpl::DatenEncode, this, _1, _2);
     m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, this, _1, _2);
 }
 
 SslTcpSocketImpl::SslTcpSocketImpl(BaseSocket* pBkref, TcpSocketImpl* pTcpSocket) : TcpSocketImpl(pBkref, pTcpSocket), m_bCloseReq(false), m_iSslInit(0)
 {   // Switch from Tcp to Ssl/Tls
+    m_fnSslInitDone = [this]() -> int { return m_iSslInit; };
     m_fnSslEncode = bind(&SslTcpSocketImpl::DatenEncode, this, _1, _2);
     m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, this, _1, _2);
 
@@ -446,6 +448,17 @@ int SslTcpSocketImpl::DatenDecode(const uint8_t* buffer, size_t nAnzahl)
 
         if (bNewData == true)
             TriggerWriteThread();
+
+        m_mxOutDeque.lock();
+        while (m_quTmpOutData.size() > 0)
+        {
+            DATA data = move(m_quTmpOutData.front());
+            m_quTmpOutData.pop_front();
+            m_mxOutDeque.unlock();
+            Write((&BUFFER(data)[0]), BUFLEN(data));
+            m_mxOutDeque.lock();
+        }
+        m_mxOutDeque.unlock();
     }
 
     if (nPut != 0 && nPut != nAnzahl)

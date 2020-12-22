@@ -676,6 +676,15 @@ size_t TcpSocketImpl::Write(const void* buf, size_t len)
     if (s_fTrafficDebug != nullptr)
         s_fTrafficDebug(static_cast<uint16_t>(m_fSock), static_cast<const char*>(buf), len, true);
 
+    if (m_fnSslInitDone != nullptr && m_fnSslInitDone() != 1)
+    {
+        auto tmp = make_unique<uint8_t[]>(len);
+        copy(&static_cast<const uint8_t*>(buf)[0], &static_cast<const uint8_t*>(buf)[len], &tmp[0]);
+        lock_guard<mutex> lock(m_mxOutDeque);
+        m_quTmpOutData.emplace_back(move(tmp), len);
+        return len;
+    }
+
     int iRet = 0;
     if (m_fnSslEncode == nullptr || (iRet = m_fnSslEncode(reinterpret_cast<const uint8_t*>(buf), len), iRet == 0))
     {

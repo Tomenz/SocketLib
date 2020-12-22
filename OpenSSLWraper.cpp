@@ -629,6 +629,7 @@ namespace OpenSSLWrapper
         const int iResult = BIO_write_ex(m_wbio, szBuffer, nWriteLen, &nWritten);
         if (iResult <= 0)
             return 0;
+        BIO_flush(m_wbio);
         return nWritten;
     }
 

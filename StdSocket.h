@@ -174,6 +174,8 @@ private:
     void ConnectThread();
 
 protected:
+    function<int()>  m_fnSslInitDone;
+    deque<DATA>      m_quTmpOutData;
     function<int(const uint8_t*, size_t)> m_fnSslDecode;
     mutex            m_mxInDeque;
     deque<DATA>      m_quInData;
