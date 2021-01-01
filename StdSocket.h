@@ -91,7 +91,7 @@ public:
     static int EnumIpAddresses(function<int(int,const string&,int,void*)> fnCallBack, void* vpUser);
     static void SetAddrNotifyCallback(const function<void(bool, const string&, int, int)>& fnCbAddrNotify);
     virtual void SetSocketName(const string& strName) { m_strName = strName; }
-    virtual string& GetSocketName() { return m_strName; }
+    virtual string& GetSocketName() noexcept { return m_strName; }
 
     static void SetTrafficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTrafficDbg) { s_fTrafficDebug = fnCbTrafficDbg; }
 

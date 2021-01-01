@@ -48,14 +48,14 @@ void OutputDebugStringA(const char* pOut)
 
 SslTcpSocketImpl::SslTcpSocketImpl(BaseSocket* pBkref) : TcpSocketImpl(pBkref), m_bCloseReq(false), m_iSslInit(0)
 {
-    m_fnSslInitDone = [this]() -> int { return m_iSslInit; };
+    m_fnSslInitDone = [this]() noexcept -> int { return m_iSslInit; };
     m_fnSslEncode = bind(&SslTcpSocketImpl::DatenEncode, this, _1, _2);
     m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, this, _1, _2);
 }
 
 SslTcpSocketImpl::SslTcpSocketImpl(BaseSocket* pBkref, TcpSocketImpl* pTcpSocket) : TcpSocketImpl(pBkref, pTcpSocket), m_bCloseReq(false), m_iSslInit(0)
 {   // Switch from Tcp to Ssl/Tls
-    m_fnSslInitDone = [this]() -> int { return m_iSslInit; };
+    m_fnSslInitDone = [this]() noexcept -> int { return m_iSslInit; };
     m_fnSslEncode = bind(&SslTcpSocketImpl::DatenEncode, this, _1, _2);
     m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, this, _1, _2);
 
