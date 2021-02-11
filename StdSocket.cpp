@@ -370,7 +370,7 @@ uint16_t BaseSocketImpl::GetSocketPort()
     {
         string caAddrPeer(INET6_ADDRSTRLEN + 1, 0);
         string servInfoPeer(NI_MAXSERV, 0);
-        if (::getnameinfo(reinterpret_cast<struct sockaddr*>(&addrPe), sizeof(struct sockaddr_storage), &caAddrPeer[0], sizeof(caAddrPeer), &servInfoPeer[0], NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
+        if (::getnameinfo(reinterpret_cast<struct sockaddr*>(&addrPe), sizeof(struct sockaddr_storage), &caAddrPeer[0], INET6_ADDRSTRLEN, &servInfoPeer[0], NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
         {
             return static_cast<uint16_t>(stoi(&servInfoPeer[0]));
         }
@@ -1163,7 +1163,7 @@ bool TcpSocketImpl::GetConnectionInfo()
 
     string caAddrClient(INET6_ADDRSTRLEN + 1, 0);
     string servInfoClient(NI_MAXSERV, 0);
-    if (::getnameinfo(reinterpret_cast<struct sockaddr*>(&addrCl), sizeof(struct sockaddr_storage), &caAddrClient[0], sizeof(caAddrClient), &servInfoClient[0], NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
+    if (::getnameinfo(reinterpret_cast<struct sockaddr*>(&addrCl), sizeof(struct sockaddr_storage), &caAddrClient[0], INET6_ADDRSTRLEN, &servInfoClient[0], NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
     {
         m_strClientAddr = &caAddrClient[0];
         m_sClientPort = static_cast<uint16_t>(stoi(&servInfoClient[0]));
@@ -1177,7 +1177,7 @@ bool TcpSocketImpl::GetConnectionInfo()
 
     string caAddrPeer(INET6_ADDRSTRLEN + 1, 0);
     string servInfoPeer(NI_MAXSERV, 0);
-    if (::getnameinfo(reinterpret_cast<struct sockaddr*>(&addrPe), sizeof(struct sockaddr_storage), &caAddrPeer[0], sizeof(caAddrPeer), &servInfoPeer[0], NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
+    if (::getnameinfo(reinterpret_cast<struct sockaddr*>(&addrPe), sizeof(struct sockaddr_storage), &caAddrPeer[0], INET6_ADDRSTRLEN, &servInfoPeer[0], NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
     {
         m_strIFaceAddr = &caAddrPeer[0];
         m_sIFacePort = static_cast<uint16_t>(stoi(&servInfoPeer[0]));
@@ -1235,7 +1235,7 @@ bool TcpServerImpl::Start(const char* const szIpAddr, const uint16_t sPort)
 
             if (curAddr->ai_family == AF_INET6)
             {
-                constexpr uint32_t on = 0;
+                constexpr uint32_t on = 1;
                 if (::setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<const char*>(&on), sizeof(on)) == -1)
                     throw WSAGetLastError();
             }
@@ -1275,7 +1275,7 @@ uint16_t TcpServerImpl::GetServerPort()
     {
         string caAddrPeer(INET6_ADDRSTRLEN + 1, 0);
         string servInfoPeer(NI_MAXSERV, 0);
-        if (::getnameinfo(reinterpret_cast<struct sockaddr*>(&addrPe), sizeof(struct sockaddr_storage), &caAddrPeer[0], sizeof(caAddrPeer), &servInfoPeer[0], NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
+        if (::getnameinfo(reinterpret_cast<struct sockaddr*>(&addrPe), sizeof(struct sockaddr_storage), &caAddrPeer[0], INET6_ADDRSTRLEN, &servInfoPeer[0], NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV) == 0)
         {
             return static_cast<uint16_t>(stoi(&servInfoPeer[0]));
         }
@@ -1392,12 +1392,6 @@ void TcpServerImpl::SelectThread()
                         const SOCKET fdClient = ::accept(Sock, reinterpret_cast<struct sockaddr*>(&addrCl), &addLen);
                         if (fdClient == INVALID_SOCKET)
                             break;
-
-                        if (addrCl.ss_family == AF_INET6)
-                        {
-                            constexpr uint32_t on = 0;
-                            ::setsockopt(fdClient, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<const char*>(&on), sizeof(on));
-                        }
 
                         vSockets.push_back(fdClient);
                     }

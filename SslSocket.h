@@ -40,8 +40,8 @@ public:
     bool SetConnectState();
     bool Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint = AF_UNSPEC) override;
     void Close() override;
-    function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConneted) noexcept override;
-    function<void(TcpSocket*, void*)> BindFuncConEstablished( function<void(TcpSocket*, void*)> fClientConneted) noexcept override;
+    function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConnected) noexcept override;
+    function<void(TcpSocket*, void*)> BindFuncConEstablished( function<void(TcpSocket*, void*)> fClientConnected) noexcept override;
     bool IsSslConnection() const noexcept override { return true; }
 
     void SetAlpnProtokollNames(const vector<string>& vProtoList);
