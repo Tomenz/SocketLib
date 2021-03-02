@@ -50,14 +50,14 @@ SslTcpSocketImpl::SslTcpSocketImpl(BaseSocket* pBkref) : TcpSocketImpl(pBkref), 
 {
     m_fnSslInitDone = [this]() noexcept -> int { return m_iSslInit; };
     m_fnSslEncode = bind(&SslTcpSocketImpl::DatenEncode, this, _1, _2);
-    m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, this, _1, _2);
+    m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, this, _1, _2, _3);
 }
 
 SslTcpSocketImpl::SslTcpSocketImpl(BaseSocket* pBkref, TcpSocketImpl* pTcpSocket) : TcpSocketImpl(pBkref, pTcpSocket), m_bCloseReq(false), m_iSslInit(0)
 {   // Switch from Tcp to Ssl/Tls
     m_fnSslInitDone = [this]() noexcept -> int { return m_iSslInit; };
     m_fnSslEncode = bind(&SslTcpSocketImpl::DatenEncode, this, _1, _2);
-    m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, this, _1, _2);
+    m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, this, _1, _2, _3);
 
     m_fClientConnected.swap(TcpSocketImpl::m_fClientConnected);
     m_fClientConnectedParam.swap(TcpSocketImpl::m_fClientConnectedParam);
@@ -113,9 +113,10 @@ bool SslTcpSocketImpl::SetAcceptState()
         DATA data = move(m_quInData.front());
         m_quInData.pop_front();
 
+        bool bZeroReceived = false;
         const size_t nToCopy = BUFLEN(data);
         m_atInBytes -= nToCopy;
-        DatenDecode(&BUFFER(data)[0], nToCopy);
+        DatenDecode(&BUFFER(data)[0], nToCopy, bZeroReceived);
     }
     m_mxInDeque.unlock();
 
@@ -333,7 +334,7 @@ void SslTcpSocketImpl::ConEstablished(const TcpSocketImpl* const /*pTcpSocket*/)
         TriggerWriteThread();
 }
 
-int SslTcpSocketImpl::DatenDecode(const uint8_t* buffer, size_t nAnzahl)
+int SslTcpSocketImpl::DatenDecode(const uint8_t* buffer, size_t nAnzahl, bool& bZeroReceived)
 {
     if (buffer == nullptr || nAnzahl == 0)
         return 0;
@@ -459,12 +460,13 @@ int SslTcpSocketImpl::DatenDecode(const uint8_t* buffer, size_t nAnzahl)
             m_mxOutDeque.lock();
         }
         m_mxOutDeque.unlock();
+        bZeroReceived = m_pSslCon->GetZeroReceived();
     }
 
     if (nPut != 0 && nPut != nAnzahl)
     {
         OutputDebugString(wstring(L"SslPutInData konnte nicht alles fassen on ssl context: " + to_wstring(reinterpret_cast<size_t>((*m_pSslCon)())) + L"\r\n").c_str());
-        return DatenDecode(&buffer[nPut], nAnzahl - nPut);
+        return DatenDecode(&buffer[nPut], nAnzahl - nPut, bZeroReceived);
     }
 
     return iReturn;
@@ -500,24 +502,8 @@ SslTcpSocket* SslTcpSocketImpl::SwitchToSsl(TcpSocket* pTcpSocket)
     SslTcpSocket* pSslTcpSock = dynamic_cast<SslTcpSocket*>(pSslTcpSocket.get());
     SslTcpSocketImpl* pSslTcpSocketImpl = dynamic_cast<SslTcpSocketImpl*>(pSslTcpSock->GetImpl());
 
-    try
-    {
-        SslServerContext SllServCont;
-        pSslTcpSocketImpl->m_pSslCon = make_unique<SslConnetion>(SllServCont);
-
-        pSslTcpSocketImpl->m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, pSslTcpSocketImpl)));
-        pSslTcpSocketImpl->m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnForwarder));
-        pSslTcpSocketImpl->m_pSslCon->SetUserData(1, dynamic_cast<SslTcpSocketImpl*>(pSslTcpSock->GetImpl()));
-        pSslTcpSocketImpl->m_fnSslEncode = bind(&SslTcpSocketImpl::DatenEncode, pSslTcpSocketImpl, _1, _2);
-        pSslTcpSocketImpl->m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, pSslTcpSocketImpl, _1, _2);
-
-        pSslTcpSocketImpl->m_pSslCon->SSLSetAcceptState();
-    }
-
-    catch (const int iErrNo)
-    {
-        pSslTcpSocketImpl->SetErrorNo(iErrNo);
-    }
+    pSslTcpSocketImpl->m_fnSslEncode = bind(&SslTcpSocketImpl::DatenEncode, pSslTcpSocketImpl, _1, _2);
+    pSslTcpSocketImpl->m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, pSslTcpSocketImpl, _1, _2, _3);
 
     lock_guard<mutex> lock(s_mxDynSocket);
     s_lstDynSocket.push_back(move(pSslTcpSocket));
@@ -553,7 +539,7 @@ SslTcpSocket* SslTcpServerImpl::MakeClientConnection(const SOCKET& fSock)
         pSslTcpSocketImpl->m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnForwarder));
         pSslTcpSocketImpl->m_pSslCon->SetUserData(1, dynamic_cast<SslTcpSocketImpl*>(pSslTcpSock->GetImpl()));
         pSslTcpSocketImpl->m_fnSslEncode = bind(&SslTcpSocketImpl::DatenEncode, pSslTcpSocketImpl, _1, _2);
-        pSslTcpSocketImpl->m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, pSslTcpSocketImpl, _1, _2);
+        pSslTcpSocketImpl->m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, pSslTcpSocketImpl, _1, _2, _3);
 
         pSslTcpSocketImpl->m_pSslCon->SSLSetAcceptState();
 

@@ -55,7 +55,7 @@ private:
     friend class SslTcpServerImpl;    // The Server class needs access to the private constructor in the next line
     void ConEstablished(const TcpSocketImpl* const pTcpSocket);
     int DatenEncode(const uint8_t* buffer, size_t nAnzahl);
-    int DatenDecode(const uint8_t* buffer, size_t nAnzahl);
+    int DatenDecode(const uint8_t* buffer, size_t nAnzahl, bool& bZeroReceived);
 
     static const string& fnForwarder(void* obj) noexcept { return static_cast<SslTcpSocketImpl*>(obj)->GetInterfaceAddr(); }
 

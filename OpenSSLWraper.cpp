@@ -485,7 +485,7 @@ namespace OpenSSLWrapper
     }
 
 
-    SslConnetion::SslConnetion(SslContext& ctx) : m_ssl(SSL_new(ctx())), m_iShutDownFlag(INT32_MIN), m_iWantState(0)
+    SslConnetion::SslConnetion(SslContext& ctx) : m_ssl(SSL_new(ctx())), m_iShutDownFlag(INT32_MIN), m_bZeroReceived(false), m_iWantState(0)
     {
         m_rbio = BIO_new(BIO_s_mem());
         m_wbio = BIO_new(BIO_s_mem());
@@ -638,6 +638,11 @@ namespace OpenSSLWrapper
         return m_iShutDownFlag;
     }
 
+    bool SslConnetion:: GetZeroReceived() noexcept
+    {
+        return m_bZeroReceived;
+    }
+
     size_t SslConnetion::SslRead(uint8_t* szBuffer, size_t nBufLen, int* iErrorHint/* = nullptr*/)
     {
         if (nullptr == m_ssl)
@@ -666,6 +671,7 @@ namespace OpenSSLWrapper
             case SSL_ERROR_WANT_WRITE:
                 m_iWantState |= 2; break;
             case SSL_ERROR_ZERO_RETURN:
+                m_bZeroReceived = true;
                 ShutDownConnection(iErrorHint);
                 break;
             case SSL_ERROR_SYSCALL:
@@ -713,6 +719,7 @@ namespace OpenSSLWrapper
             case SSL_ERROR_WANT_WRITE:
                 m_iWantState |= 2; break;
             case SSL_ERROR_ZERO_RETURN:
+                m_bZeroReceived = true;
                 ShutDownConnection(iErrorHint);
                 break;
             case SSL_ERROR_SYSCALL:

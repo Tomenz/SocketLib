@@ -172,6 +172,7 @@ namespace OpenSSLWrapper
         size_t SslGetOutData(uint8_t* szBuffer, size_t nBufLen);
         size_t SslPutInData(const uint8_t* szBuffer, size_t nWriteLen);
         int GetShutDownFlag() noexcept;
+        bool GetZeroReceived() noexcept;
         size_t SslRead(uint8_t* szBuffer, size_t nBufLen, int* iErrorHint = nullptr);
         size_t SslWrite(const uint8_t* szBuffer, size_t nWriteLen, int* iErrorHint = nullptr);
         int ShutDownConnection(int* iErrorHint = nullptr);
@@ -187,6 +188,7 @@ namespace OpenSSLWrapper
         BIO* m_rbio;
         BIO* m_wbio;
         int  m_iShutDownFlag;
+        bool m_bZeroReceived;
         function<void()> m_fError;
         int m_iWantState;
         mutex m_mxSsl;

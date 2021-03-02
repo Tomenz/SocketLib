@@ -106,6 +106,7 @@ protected:
     string                      m_strName;
     thread                      m_thListen;
     thread                      m_thWrite;
+    mutex                       m_mxWrite;
     bool                        m_bStop;
     int                         m_iError;
     int                         m_iErrLoc;
@@ -176,7 +177,7 @@ private:
 protected:
     function<int()>  m_fnSslInitDone;
     deque<DATA>      m_quTmpOutData;
-    function<int(const uint8_t*, size_t)> m_fnSslDecode;
+    function<int(const uint8_t*, size_t, bool&)> m_fnSslDecode;
     mutex            m_mxInDeque;
     deque<DATA>      m_quInData;
     atomic<size_t>   m_atInBytes;
@@ -195,7 +196,6 @@ private:
     thread           m_thConnect;
 
     bool             m_bCloseReq;
-    mutex            m_mxWrite;
     condition_variable m_cv;
 
     string           m_strClientAddr;

@@ -274,6 +274,7 @@ BaseSocketImpl::BaseSocketImpl() noexcept : m_fSock(INVALID_SOCKET), m_bStop(fal
 
 BaseSocketImpl::BaseSocketImpl(BaseSocketImpl* pBaseSocket) : m_fSock(INVALID_SOCKET), m_bStop(pBaseSocket->m_bStop), m_iError(pBaseSocket->m_iError), m_iErrLoc(pBaseSocket->m_iErrLoc), m_iShutDownState(0), m_fError(bind(&BaseSocketImpl::OnError, this)), m_pvUserData(pBaseSocket->m_pvUserData), m_pBkRef(nullptr)
 {
+    lock_guard<mutex> lock(pBaseSocket->m_mxWrite);
     swap(m_fSock, pBaseSocket->m_fSock);
     swap(m_fError, pBaseSocket->m_fError);
     swap(m_fErrorParam, pBaseSocket->m_fErrorParam);
@@ -469,12 +470,14 @@ TcpSocketImpl::TcpSocketImpl(BaseSocket* pBkRef, TcpSocketImpl* pTcpSocketImpl) 
 {
     pTcpSocketImpl->m_pRefServSocket = nullptr;
 
+    atomic_init(&m_atInBytes, static_cast<size_t>(0));
+    atomic_init(&m_atOutBytes, static_cast<size_t>(0));
+
+    pTcpSocketImpl->m_mxInDeque.lock();
     swap(m_quInData, pTcpSocketImpl->m_quInData);
     m_atInBytes.exchange(pTcpSocketImpl->m_atInBytes);
-    atomic_init(&pTcpSocketImpl->m_atInBytes, static_cast<size_t>(0));
     swap(m_quOutData, pTcpSocketImpl->m_quOutData);
     m_atOutBytes.exchange(pTcpSocketImpl->m_atOutBytes);
-    atomic_init(&pTcpSocketImpl->m_atOutBytes, static_cast<size_t>(0));
 
     swap(m_strClientAddr, pTcpSocketImpl->m_strClientAddr);
     swap(m_sClientPort, pTcpSocketImpl->m_sClientPort);
@@ -715,6 +718,9 @@ void TcpSocketImpl::WriteThread()
         if (m_bCloseReq == false && m_atOutBytes == 0)
             m_cv.wait(lock, [&]() noexcept { return m_atOutBytes == 0 ? m_bCloseReq : true; });
 
+        if (m_fSock == INVALID_SOCKET)
+            break;
+
         if (m_atOutBytes != 0)
         {
             fd_set writefd = { 0 }, errorfd = { 0 };
@@ -742,16 +748,26 @@ void TcpSocketImpl::WriteThread()
                     getsockopt(m_fSock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&m_iError), &iLen);
                     m_iErrLoc = 2;
                     lock.unlock();
-                    if (m_fErrorParam && m_bStop == false)
-                        m_fErrorParam(m_pBkRef, m_pvUserData);
-                    else if (m_fError && m_bStop == false)
-                        m_fError(m_pBkRef);
+                    thread thErrorCb([&]()
+                    {
+                        if (m_fErrorParam && m_bStop == false)
+                            m_fErrorParam(m_pBkRef, m_pvUserData);
+                        else if (m_fError && m_bStop == false)
+                            m_fError(m_pBkRef);
+                    });
+                    thErrorCb.join();
                     lock.lock();
                 }
                 break;
             }
 
             m_mxOutDeque.lock();
+            if (m_quOutData.size() == 0)
+            {
+                m_atOutBytes = 0;
+                m_mxOutDeque.unlock();
+                continue;
+            }
             DATA data = move(m_quOutData.front());
             m_quOutData.pop_front();
             m_atOutBytes -= BUFLEN(data);
@@ -766,10 +782,14 @@ void TcpSocketImpl::WriteThread()
                     m_iError = iError;
                     m_iErrLoc = 3;
                     lock.unlock();
-                    if (m_fErrorParam && m_bStop == false)
-                        m_fErrorParam(m_pBkRef, m_pvUserData);
-                    else if (m_fError && m_bStop == false)
-                        m_fError(m_pBkRef);
+                    thread thErrorCb([&]()
+                    {
+                        if (m_fErrorParam && m_bStop == false)
+                            m_fErrorParam(m_pBkRef, m_pvUserData);
+                        else if (m_fError && m_bStop == false)
+                            m_fError(m_pBkRef);
+                    });
+                    thErrorCb.join();
                     lock.lock();
                     break;
                 }
@@ -799,7 +819,7 @@ void TcpSocketImpl::WriteThread()
     lock.unlock();
 
     // if we get out of the while loop, the stop request was send or we have an error
-    if (m_iError == 0)
+    if (m_iError == 0 && m_fSock != INVALID_SOCKET)
     {
         if (::shutdown(m_fSock, SD_SEND) != 0)
         {
@@ -813,9 +833,10 @@ void TcpSocketImpl::WriteThread()
     if (m_iShutDownState.compare_exchange_strong(cExpected, 15) == true)
     {
         if (m_fSock != INVALID_SOCKET)
+        {
             ::closesocket(m_fSock);
-        m_fSock = INVALID_SOCKET;
-
+            m_fSock = INVALID_SOCKET;
+        }
         StartCloseingCB();
 
         if (m_pRefServSocket != nullptr || m_bSelfDelete == true)    // Auto-delete, socket created from server socket
@@ -920,7 +941,7 @@ void TcpSocketImpl::SelectThread()
 
     while (m_bStop == false)
     {
-        if (m_atInBytes > 0x40000)  // More than 256 KB in the receive buffer
+        if (m_atInBytes > 0x80000)  // More than 512 KB in the receive buffer
         {
             this_thread::sleep_for(chrono::milliseconds(1));
             continue;
@@ -953,86 +974,115 @@ void TcpSocketImpl::SelectThread()
 
             if (FD_ISSET(m_fSock, &readfd))
             {
-                int32_t transferred = ::recv(m_fSock, &buf[0], 0x0000ffff, 0);
-
-                if (transferred <= 0)
+                do
                 {
-                    if (transferred == 0)
-                    {   // The connection was shutdown from the other side, there will be no more bytes to read on that connection
-                        // We set the flag, so we don't read on the connection any more
+                    int32_t transferred = ::recv(m_fSock, &buf[0], 0x0000ffff, 0);
 
-                        if (::shutdown(m_fSock, SD_RECEIVE) != 0)
-                        {
-                            m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
-                            m_iErrLoc = 6;
+                    if (transferred <= 0)
+                    {
+                        if (transferred == 0)
+                        {   // The connection was shutdown from the other side, there will be no more bytes to read on that connection
+                            // We set the flag, so we don't read on the connection any more
+
+                            if (::shutdown(m_fSock, SD_RECEIVE) != 0)
+                            {
+                                m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
+                                m_iErrLoc = 6;
+                            }
+                            bSocketShutDown = true;
+
+                            while (bReadCall == true)
+                                this_thread::sleep_for(chrono::milliseconds(10));
+
+                            TcpSocket* pTcpSocket = dynamic_cast<TcpSocket*>(m_pBkRef);
+                            if (m_fBytesReceivedParam && pTcpSocket != nullptr)
+                                m_fBytesReceivedParam(pTcpSocket, m_pvUserData);
+                            else if (m_fBytesReceived && pTcpSocket != nullptr)
+                                m_fBytesReceived(pTcpSocket);
                         }
-                        bSocketShutDown = true;
-
-                        while (bReadCall == true)
-                            this_thread::sleep_for(chrono::milliseconds(10));
-
-                        TcpSocket* pTcpSocket = dynamic_cast<TcpSocket*>(m_pBkRef);
-                        if (m_fBytesReceivedParam && pTcpSocket != nullptr)
-                            m_fBytesReceivedParam(pTcpSocket, m_pvUserData);
-                        else if (m_fBytesReceived && pTcpSocket != nullptr)
-                            m_fBytesReceived(pTcpSocket);
+                        else
+                        {
+                            const int iError = WSAGetLastError();
+                            if (iError != WSAEWOULDBLOCK)
+                            {
+                                m_iError = iError;
+                                m_iErrLoc = 7;
+                                if (m_fErrorParam && m_bStop == false)
+                                    m_fErrorParam(m_pBkRef, m_pvUserData);
+                                else if (m_fError && m_bStop == false)
+                                    m_fError(m_pBkRef);
+                            }
+                        }
                         break;
                     }
                     else
                     {
-                        const int iError = WSAGetLastError();
-                        if (iError != WSAEWOULDBLOCK)
+                        bool bZeroReceived = false;
+                        int iRet = 0;
+                        if (m_fnSslDecode == nullptr || (iRet = m_fnSslDecode(reinterpret_cast<const uint8_t*>(&buf[0]), transferred, bZeroReceived), iRet == 0))
                         {
-                            m_iError = iError;
-                            m_iErrLoc = 7;
-                            if (m_fErrorParam && m_bStop == false)
-                                m_fErrorParam(m_pBkRef, m_pvUserData);
-                            else if (m_fError && m_bStop == false)
-                                m_fError(m_pBkRef);
-                            break;
+                            if (s_fTrafficDebug != nullptr)
+                                s_fTrafficDebug(static_cast<uint16_t>(m_fSock), &buf[0], transferred, false);
+
+                            auto tmp = make_unique<uint8_t[]>(transferred);
+                            copy(&buf[0], &buf[transferred], &tmp[0]);
+                            lock_guard<mutex> lock(m_mxInDeque);
+                            m_quInData.emplace_back(move(tmp), transferred);
+                            m_atInBytes += transferred;
                         }
-                    }
-                }
-                else
-                {
-                    int iRet = 0;
-                    if (m_fnSslDecode == nullptr || (iRet = m_fnSslDecode(reinterpret_cast<const uint8_t*>(&buf[0]), transferred), iRet == 0))
-                    {
-                        if (s_fTrafficDebug != nullptr)
-                            s_fTrafficDebug(static_cast<uint16_t>(m_fSock), &buf[0], transferred, false);
 
-                        auto tmp = make_unique<uint8_t[]>(transferred);
-                        copy(&buf[0], &buf[transferred], &tmp[0]);
-                        lock_guard<mutex> lock(m_mxInDeque);
-                        m_quInData.emplace_back(move(tmp), transferred);
-                        m_atInBytes += transferred;
-                    }
-
-                    if ((m_fBytesReceived || m_fBytesReceivedParam) && m_bStop == false && iRet != -1)
-                    {
-                        lock_guard<mutex> lock(mxNotify);
-                        if (bReadCall == false)
+                        if ((m_fBytesReceived || m_fBytesReceivedParam) && m_bStop == false && iRet != -1)
                         {
-                            bReadCall = true;
-                            thread([&]()
+                            lock_guard<mutex> lock(mxNotify);
+                            if (bReadCall == false)
                             {
-                                mxNotify.lock();
-                                while (m_atInBytes > 0 && m_bStop == false)
+                                bReadCall = true;
+                                thread([&]()
                                 {
-                                    TcpSocket* pTcpSocket = dynamic_cast<TcpSocket*>(m_pBkRef);
-                                    mxNotify.unlock();
-                                    if (m_fBytesReceivedParam != nullptr && pTcpSocket != nullptr)
-                                        m_fBytesReceivedParam(pTcpSocket, m_pvUserData);
-                                    else if (pTcpSocket != nullptr)
-                                        m_fBytesReceived(pTcpSocket);
                                     mxNotify.lock();
-                                }
-                                bReadCall = false;
-                                mxNotify.unlock();
-                            }).detach();
+                                        m_mxInDeque.lock();
+                                    while (m_atInBytes > 0 && m_bStop == false)
+                                    {
+                                            m_mxInDeque.unlock();
+                                            mxNotify.unlock();
+                                        TcpSocket* pTcpSocket = dynamic_cast<TcpSocket*>(m_pBkRef);
+                                        if (m_fBytesReceivedParam != nullptr && pTcpSocket != nullptr)
+                                            m_fBytesReceivedParam(pTcpSocket, m_pvUserData);
+                                            else if (m_fBytesReceived != nullptr && pTcpSocket != nullptr)
+                                            m_fBytesReceived(pTcpSocket);
+                                        mxNotify.lock();
+                                            m_mxInDeque.lock();
+                                    }
+                                    bReadCall = false;
+                                        m_mxInDeque.unlock();
+                                    mxNotify.unlock();
+                                }).detach();
+                            }
+                        }
+
+                        if (bZeroReceived == true)
+                        {
+                            if (::shutdown(m_fSock, SD_RECEIVE) != 0)
+                            {
+                                m_iError = WSAGetLastError();// OutputDebugString(L"Error shutdown socket\r\n");
+                                m_iErrLoc = 14;
+                            }
+                            bSocketShutDown = true;
+
+                            while (bReadCall == true)
+                                this_thread::sleep_for(chrono::milliseconds(10));
+
+                            TcpSocket* pTcpSocket = dynamic_cast<TcpSocket*>(m_pBkRef);
+                            if (m_fBytesReceivedParam && pTcpSocket != nullptr)
+                                m_fBytesReceivedParam(pTcpSocket, m_pvUserData);
+                            else if (m_fBytesReceived && pTcpSocket != nullptr)
+                                m_fBytesReceived(pTcpSocket);
                         }
                     }
-                }
+                } while (m_bStop == false && m_fSock != INVALID_SOCKET && m_iError == 0 && bSocketShutDown == false);
+
+                if (bSocketShutDown == true || (m_iError != 0 && m_iError != WSAEWOULDBLOCK) || m_fSock == INVALID_SOCKET)
+                    break;
             }
         }// if select
     }//while
@@ -1950,7 +2000,7 @@ void UdpSocketImpl::SelectThread()
                         m_iError = WSAGetLastError();
                         if (m_iError != WSAEWOULDBLOCK)
                         {
-                            m_iErrLoc = 9;
+                            m_iErrLoc = 11;
                             if (m_fErrorParam && m_bStop == false)
                                 m_fErrorParam(m_pBkRef, m_pvUserData);
                             else if (m_fError && m_bStop == false)
