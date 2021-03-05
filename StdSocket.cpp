@@ -478,6 +478,7 @@ TcpSocketImpl::TcpSocketImpl(BaseSocket* pBkRef, TcpSocketImpl* pTcpSocketImpl) 
     m_atInBytes.exchange(pTcpSocketImpl->m_atInBytes);
     swap(m_quOutData, pTcpSocketImpl->m_quOutData);
     m_atOutBytes.exchange(pTcpSocketImpl->m_atOutBytes);
+    pTcpSocketImpl->m_mxInDeque.unlock();
 
     swap(m_strClientAddr, pTcpSocketImpl->m_strClientAddr);
     swap(m_sClientPort, pTcpSocketImpl->m_sClientPort);
@@ -592,8 +593,10 @@ bool TcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort,
         m_iErrLoc = 1;
 
         if (m_fSock != INVALID_SOCKET)
+        {
             ::closesocket(m_fSock);
-        m_fSock = INVALID_SOCKET;
+            m_fSock = INVALID_SOCKET;
+        }
         bRet = false;
     }
 
@@ -1040,21 +1043,21 @@ void TcpSocketImpl::SelectThread()
                                 thread([&]()
                                 {
                                     mxNotify.lock();
-                                        m_mxInDeque.lock();
+                                    m_mxInDeque.lock();
                                     while (m_atInBytes > 0 && m_bStop == false)
                                     {
-                                            m_mxInDeque.unlock();
-                                            mxNotify.unlock();
+                                        m_mxInDeque.unlock();
+                                        mxNotify.unlock();
                                         TcpSocket* pTcpSocket = dynamic_cast<TcpSocket*>(m_pBkRef);
                                         if (m_fBytesReceivedParam != nullptr && pTcpSocket != nullptr)
                                             m_fBytesReceivedParam(pTcpSocket, m_pvUserData);
-                                            else if (m_fBytesReceived != nullptr && pTcpSocket != nullptr)
+                                        else if (m_fBytesReceived != nullptr && pTcpSocket != nullptr)
                                             m_fBytesReceived(pTcpSocket);
                                         mxNotify.lock();
-                                            m_mxInDeque.lock();
+                                        m_mxInDeque.lock();
                                     }
                                     bReadCall = false;
-                                        m_mxInDeque.unlock();
+                                    m_mxInDeque.unlock();
                                     mxNotify.unlock();
                                 }).detach();
                             }
@@ -1089,7 +1092,7 @@ void TcpSocketImpl::SelectThread()
 
     // if we are here, bStop is set,or m_iShutDownState has bit 1 set, or we have an error
 
-    if (bSocketShutDown == false && m_iError == 0)
+    if (bSocketShutDown == false && m_iError == 0 && m_fSock != INVALID_SOCKET)
     {
         if (::shutdown(m_fSock, SD_RECEIVE) != 0)
         {
@@ -1110,8 +1113,10 @@ void TcpSocketImpl::SelectThread()
     if (m_iShutDownState.compare_exchange_strong(cExpected, 15) == true)
     {
         if (m_fSock != INVALID_SOCKET)
+        {
             ::closesocket(m_fSock);
-        m_fSock = INVALID_SOCKET;
+            m_fSock = INVALID_SOCKET;
+        }
 
         StartCloseingCB();
 
@@ -1178,16 +1183,16 @@ void TcpSocketImpl::ConnectThread()
     unsigned char cExpected = 7;
     if (m_iShutDownState.compare_exchange_strong(cExpected, 15) == true)
     {
-        if ((m_iError != 0 && m_fSock != INVALID_SOCKET) || m_bStop == true)
+        if (m_fSock != INVALID_SOCKET)
         {
             ::closesocket(m_fSock);
             m_fSock = INVALID_SOCKET;
-
-            StartCloseingCB();
-
-            if (m_bSelfDelete == true)    // Auto-delete, socket created from server socket
-                Delete();// thread([&]() { delete this; }).detach();
         }
+
+        StartCloseingCB();
+
+        if (m_bSelfDelete == true)    // Auto-delete, socket created from server socket
+            Delete();// thread([&]() { delete this; }).detach();
     }
 }
 
