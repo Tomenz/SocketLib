@@ -94,6 +94,7 @@ public:
     virtual string& GetSocketName() noexcept { return m_strName; }
 
     static void SetTrafficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTrafficDbg) { s_fTrafficDebug = fnCbTrafficDbg; }
+    static size_t GetNrOfClientSockets() { lock_guard<mutex> lock(s_mxClientSocket); return s_lstClientSocket.size(); }
 
 protected:
     explicit BaseSocketImpl(BaseSocketImpl* pBaseSocket);
@@ -118,8 +119,8 @@ protected:
     void*                       m_pvUserData;
     mutex                       m_mxFnClosing;
     BaseSocket*                 m_pBkRef;
-    static deque<unique_ptr<BaseSocket>> s_lstDynSocket;
-    static mutex s_mxDynSocket;
+    static deque<unique_ptr<BaseSocket>> s_lstClientSocket;
+    static mutex                s_mxClientSocket;
     static function<void(const uint16_t, const char*, size_t, bool)> s_fTrafficDebug;
 };
 

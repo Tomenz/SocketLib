@@ -82,7 +82,7 @@ void BaseSocket::SetSocketName(const string& strName)
     GetImpl()->SetSocketName(strName);
 }
 
-string& BaseSocket::GetSocketName()
+string& BaseSocket::GetSocketName() noexcept
 {
     return GetImpl()->GetSocketName();
 }
@@ -90,6 +90,10 @@ string& BaseSocket::GetSocketName()
 void BaseSocket::SetTrafficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTrafficDbg)
 {
     BaseSocketImpl::SetTrafficDebugCallback(fnCbTrafficDbg);
+}
+
+size_t BaseSocket::GetNrOfClientSockets() {
+    return BaseSocketImpl::GetNrOfClientSockets();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////

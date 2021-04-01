@@ -505,8 +505,8 @@ SslTcpSocket* SslTcpSocketImpl::SwitchToSsl(TcpSocket* pTcpSocket)
     pSslTcpSocketImpl->m_fnSslEncode = bind(&SslTcpSocketImpl::DatenEncode, pSslTcpSocketImpl, _1, _2);
     pSslTcpSocketImpl->m_fnSslDecode = bind(&SslTcpSocketImpl::DatenDecode, pSslTcpSocketImpl, _1, _2, _3);
 
-    lock_guard<mutex> lock(s_mxDynSocket);
-    s_lstDynSocket.push_back(move(pSslTcpSocket));
+    lock_guard<mutex> lock(s_mxClientSocket);
+    s_lstClientSocket.push_back(move(pSslTcpSocket));
 
     return pSslTcpSock;
 }
@@ -552,8 +552,8 @@ SslTcpSocket* SslTcpServerImpl::MakeClientConnection(const SOCKET& fSock)
         pSslTcpSocketImpl->SetErrorNo(iErrNo);
     }
 
-    lock_guard<mutex> lock(s_mxDynSocket);
-    s_lstDynSocket.push_back(move(pSslTcpSocket));
+    lock_guard<mutex> lock(s_mxClientSocket);
+    s_lstClientSocket.push_back(move(pSslTcpSocket));
 
     return pSslTcpSock;
 }
