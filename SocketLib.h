@@ -49,9 +49,10 @@ public:
     static int EnumIpAddresses(function<int(int, const string&, int, void*)> fnCallBack, void* vpUser);
     static void SetAddrNotifyCallback(const function<void(bool, const string&, int, int)>& fnCbAddrNotify);
     virtual void SetSocketName(const string& strName);
-    virtual string& GetSocketName();
+    virtual string& GetSocketName() noexcept;
 
     static void SetTrafficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTrafficDbg);
+    static size_t GetNrOfClientSockets();
 
 protected:
     friend class SslTcpSocketImpl;

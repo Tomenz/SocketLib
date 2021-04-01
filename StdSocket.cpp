@@ -265,8 +265,8 @@ void InitSocket::NotifyOnAddressChanges(vector<tuple<string, int, int>>& vNewLis
 }
 
 function<void(const uint16_t, const char*, size_t, bool)> BaseSocketImpl::s_fTrafficDebug;
-deque<unique_ptr<BaseSocket>> BaseSocketImpl::s_lstDynSocket;
-mutex BaseSocketImpl::s_mxDynSocket;
+deque<unique_ptr<BaseSocket>> BaseSocketImpl::s_lstClientSocket;
+mutex BaseSocketImpl::s_mxClientSocket;
 
 BaseSocketImpl::BaseSocketImpl() noexcept : m_fSock(INVALID_SOCKET), m_bStop(false), m_iError(0), m_iErrLoc(0), m_iShutDownState(0), m_fError(bind(&BaseSocketImpl::OnError, this)), m_pvUserData(nullptr), m_pBkRef(nullptr)
 {
@@ -886,11 +886,11 @@ void TcpSocketImpl::Delete()
                 return;
             }
             TcpSocket* pSock = dynamic_cast<TcpSocket*>(m_pBkRef);
-            lock_guard<mutex> lock(s_mxDynSocket);
+            lock_guard<mutex> lock(s_mxClientSocket);
 
-            auto it = find_if(begin(s_lstDynSocket), end(s_lstDynSocket), [&](auto& item) noexcept { return item.get() == pSock; });
-            if (it != end(s_lstDynSocket))
-                s_lstDynSocket.erase(it);
+            auto it = find_if(begin(s_lstClientSocket), end(s_lstClientSocket), [&](auto& item) noexcept { return item.get() == pSock; });
+            if (it != end(s_lstClientSocket))
+                s_lstClientSocket.erase(it);
             else
                 delete pSock;
         }).detach();
@@ -1376,8 +1376,8 @@ TcpSocket* TcpServerImpl::MakeClientConnection(const SOCKET& fSock)
         pTcpSocketImpl->SetErrorNo(iErrNo);
     }
 
-    lock_guard<mutex> lock(s_mxDynSocket);
-    s_lstDynSocket.push_back(move(pTcpSocket));
+    lock_guard<mutex> lock(s_mxClientSocket);
+    s_lstClientSocket.push_back(move(pTcpSocket));
 
     return pTcpSock;
 }
@@ -1602,7 +1602,11 @@ bool UdpSocketImpl::EnableBroadCast(bool bEnable/* = true*/) noexcept
     return true;
 }
 
+#if defined(_WIN32) || defined(_WIN64)
+bool UdpSocketImpl::AddToMulticastGroup(const char* const szMulticastIp, const char* const/*szInterfaceIp*/, uint32_t nInterfaceIndex) noexcept
+#else
 bool UdpSocketImpl::AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex) noexcept
+#endif
 {
     struct addrinfo *lstAddr;
     if (::getaddrinfo(szMulticastIp, nullptr, nullptr, &lstAddr) != 0)
@@ -1654,7 +1658,11 @@ bool UdpSocketImpl::AddToMulticastGroup(const char* const szMulticastIp, const c
     return true;
 }
 
+#if defined(_WIN32) || defined(_WIN64)
+bool UdpSocketImpl::RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const/*szInterfaceIp*/, uint32_t nInterfaceIndex) noexcept
+#else
 bool UdpSocketImpl::RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex) noexcept
+#endif
 {
     struct addrinfo *lstAddr;
     if (::getaddrinfo(szMulticastIp, nullptr, nullptr, &lstAddr) != 0)
