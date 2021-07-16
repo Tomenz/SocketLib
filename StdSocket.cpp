@@ -866,7 +866,12 @@ void TcpSocketImpl::Close()
     m_bStop = true; // Stops the listening thread
 
     if (m_pRefServSocket == nullptr && m_iShutDownState == 15 && (m_fCloseing || m_fCloseingParam))
+    {
         thread([&]() { StartCloseingCB(); }).detach();
+
+        while (m_fCloseingParam != nullptr || m_fCloseing != nullptr)
+            this_thread::sleep_for(chrono::milliseconds(1));
+    }
 }
 
 void TcpSocketImpl::SelfDestroy()
