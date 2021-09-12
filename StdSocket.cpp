@@ -1301,8 +1301,8 @@ bool TcpServerImpl::Start(const char* const szIpAddr, const uint16_t sPort)
             }
 
             if (::bind(fd, curAddr->ai_addr, static_cast<int>(curAddr->ai_addrlen)) < 0)
-                throw WSAGetLastError();
-        }
+                throw WSAGetLastError();    // https://docs.microsoft.com/de-de/troubleshoot/windows-server/backup-and-storage/error-10013-wsaeacces-is-returned
+        }                                   // netsh int ipv4 show excludedportrange protocol = tcp
 
         for (auto fSock : m_vSock)
         {
