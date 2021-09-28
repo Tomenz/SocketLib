@@ -108,6 +108,7 @@ protected:
     thread                      m_thListen;
     thread                      m_thWrite;
     mutex                       m_mxWrite;
+    thread                      m_thClose;
     bool                        m_bStop;
     int                         m_iError;
     int                         m_iErrLoc;

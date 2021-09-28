@@ -289,6 +289,8 @@ BaseSocketImpl::~BaseSocketImpl()
         m_thListen.join();
     if (m_thWrite.joinable() == true)
         m_thWrite.join();
+    if (m_thClose.joinable() == true)
+        m_thClose.join();
 }
 
 function<void(BaseSocket*)> BaseSocketImpl::BindErrorFunction(function<void(BaseSocket*)> fError) noexcept
@@ -515,11 +517,7 @@ TcpSocketImpl::~TcpSocketImpl()
         ::closesocket(m_fSock);
         m_fSock = INVALID_SOCKET;
 
-        lock_guard<mutex> lock(m_mxFnClosing);
-        if (m_fCloseingParam)
-            m_fCloseingParam(m_pBkRef, m_pvUserData);
-        else if (m_fCloseing)
-            m_fCloseing(m_pBkRef);
+        StartCloseingCB();
     }
 }
 
@@ -865,9 +863,11 @@ void TcpSocketImpl::Close()
     } while ((m_iShutDownState & 2) == 0 && m_iError == 0); // Wait until the write thread is finished
     m_bStop = true; // Stops the listening thread
 
-    if (m_pRefServSocket == nullptr && m_iShutDownState == 15 && (m_fCloseing || m_fCloseingParam))
+    if (m_pRefServSocket == nullptr && m_iShutDownState == 15 && (m_fCloseing || m_fCloseingParam) && m_thClose.joinable() == false)
     {
-        thread([&]() { StartCloseingCB(); }).detach();
+        m_thClose = thread([&]() {
+            StartCloseingCB();
+        });
 
         while (m_fCloseingParam != nullptr || m_fCloseing != nullptr)
             this_thread::sleep_for(chrono::milliseconds(1));
