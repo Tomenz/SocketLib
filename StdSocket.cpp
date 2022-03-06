@@ -610,6 +610,14 @@ void TcpSocketImpl::SetSocketOption(const SOCKET& fd)
     constexpr SOCKOPT rc = 1;
     if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &rc, sizeof(rc)) == -1)
         throw WSAGetLastError();
+
+    uint32_t nSize = 0x100000;
+    constexpr int iLen = sizeof(nSize);
+    if (::setsockopt(m_fSock, SOL_SOCKET, SO_SNDBUF, reinterpret_cast<char*>(&nSize), iLen) == -1)
+        throw WSAGetLastError();
+    nSize = 0x100000;
+    if (::setsockopt(m_fSock, SOL_SOCKET, SO_RCVBUF, reinterpret_cast<char*>(&nSize), iLen) == -1)
+        throw WSAGetLastError();
 }
 
 size_t TcpSocketImpl::Read(void* buf, size_t len)
