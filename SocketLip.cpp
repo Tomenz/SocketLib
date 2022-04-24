@@ -32,22 +32,22 @@ int BaseSocket::GetErrorLoc() const  noexcept
     return GetImpl()->GetErrorLoc();
 }
 
-function<void(BaseSocket*)> BaseSocket::BindErrorFunction(function<void(BaseSocket*)> fError)
+std::function<void(BaseSocket*)> BaseSocket::BindErrorFunction(std::function<void(BaseSocket*)> fError)
 {
     return GetImpl()->BindErrorFunction(fError);
 }
 
-function<void(BaseSocket*, void*)> BaseSocket::BindErrorFunction(function<void(BaseSocket*, void*)> fError)
+std::function<void(BaseSocket*, void*)> BaseSocket::BindErrorFunction(std::function<void(BaseSocket*, void*)> fError)
 {
     return GetImpl()->BindErrorFunction(fError);
 }
 
-function<void(BaseSocket*)> BaseSocket::BindCloseFunction(function<void(BaseSocket*)> fCloseing)
+std::function<void(BaseSocket*)> BaseSocket::BindCloseFunction(std::function<void(BaseSocket*)> fCloseing)
 {
     return GetImpl()->BindCloseFunction(fCloseing);
 }
 
-function<void(BaseSocket*, void*)> BaseSocket::BindCloseFunction(function<void(BaseSocket*, void*)> fCloseing)
+std::function<void(BaseSocket*, void*)> BaseSocket::BindCloseFunction(std::function<void(BaseSocket*, void*)> fCloseing)
 {
     return GetImpl()->BindCloseFunction(fCloseing);
 }
@@ -67,27 +67,27 @@ uint16_t BaseSocket::GetSocketPort()
     return GetImpl()->GetSocketPort();
 }
 
-int BaseSocket::EnumIpAddresses(function<int(int, const string&, int, void*)> fnCallBack, void* vpUser)
+int BaseSocket::EnumIpAddresses(std::function<int(int, const std::string&, int, void*)> fnCallBack, void* vpUser)
 {
     return BaseSocketImpl::EnumIpAddresses(fnCallBack, vpUser);
 }
 
-void BaseSocket::SetAddrNotifyCallback(const function<void(bool, const string&, int, int)>& fnCbAddrNotify)
+void BaseSocket::SetAddrNotifyCallback(const std::function<void(bool, const std::string&, int, int)>& fnCbAddrNotify)
 {
     return BaseSocketImpl::SetAddrNotifyCallback(fnCbAddrNotify);
 }
 
-void BaseSocket::SetSocketName(const string& strName)
+void BaseSocket::SetSocketName(const std::string& strName)
 {
     GetImpl()->SetSocketName(strName);
 }
 
-string& BaseSocket::GetSocketName() noexcept
+std::string& BaseSocket::GetSocketName() noexcept
 {
     return GetImpl()->GetSocketName();
 }
 
-void BaseSocket::SetTrafficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTrafficDbg)
+void BaseSocket::SetTrafficDebugCallback(std::function<void(const uint16_t, const char*, size_t, bool)> fnCbTrafficDbg)
 {
     BaseSocketImpl::SetTrafficDebugCallback(fnCbTrafficDbg);
 }
@@ -100,7 +100,7 @@ size_t BaseSocket::GetNrOfClientSockets() {
 
 TcpSocket::TcpSocket()
 {
-    Impl_ = move(make_unique<TcpSocketImpl>(this));
+    Impl_ = std::move(make_unique<TcpSocketImpl>(this));
 }
 
 TcpSocket::TcpSocket(bool/*bDummy*/) noexcept
@@ -149,19 +149,19 @@ size_t TcpSocket::GetOutBytesInQue() const noexcept
     return dynamic_cast<TcpSocketImpl*>(GetImpl())->GetOutBytesInQue();
 }
 
-function<void(TcpSocket*)> TcpSocket::BindFuncBytesReceived(function<void(TcpSocket*)> fBytesReceived)
+std::function<void(TcpSocket*)> TcpSocket::BindFuncBytesReceived(std::function<void(TcpSocket*)> fBytesReceived)
 {
     return dynamic_cast<TcpSocketImpl*>(GetImpl())->BindFuncBytesReceived(fBytesReceived);
 }
-function<void(TcpSocket*, void*)> TcpSocket::BindFuncBytesReceived(function<void(TcpSocket*, void*)> fBytesReceived)
+std::function<void(TcpSocket*, void*)> TcpSocket::BindFuncBytesReceived(std::function<void(TcpSocket*, void*)> fBytesReceived)
 {
     return dynamic_cast<TcpSocketImpl*>(GetImpl())->BindFuncBytesReceived(fBytesReceived);
 }
-function<void(TcpSocket*)> TcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConnected)
+std::function<void(TcpSocket*)> TcpSocket::BindFuncConEstablished(std::function<void(TcpSocket*)> fClientConnected)
 {
     return dynamic_cast<TcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConnected);
 }
-function<void(TcpSocket*, void*)> TcpSocket::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConnected)
+std::function<void(TcpSocket*, void*)> TcpSocket::BindFuncConEstablished(std::function<void(TcpSocket*, void*)> fClientConnected)
 {
     return dynamic_cast<TcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConnected);
 }
@@ -171,7 +171,7 @@ bool TcpSocket::IsSslConnection() const noexcept
     return false;
 }
 
-const string& TcpSocket::GetClientAddr() const noexcept
+const std::string& TcpSocket::GetClientAddr() const noexcept
 {
     return dynamic_cast<TcpSocketImpl*>(GetImpl())->GetClientAddr();
 }
@@ -179,7 +179,7 @@ uint16_t TcpSocket::GetClientPort() const noexcept
 {
     return dynamic_cast<TcpSocketImpl*>(GetImpl())->GetClientPort();
 }
-const string& TcpSocket::GetInterfaceAddr() const noexcept
+const std::string& TcpSocket::GetInterfaceAddr() const noexcept
 {
     return dynamic_cast<TcpSocketImpl*>(GetImpl())->GetInterfaceAddr();
 }
@@ -197,7 +197,7 @@ const TcpServer* TcpSocket::GetServerSocketRef() const noexcept
 
 TcpServer::TcpServer()
 {
-    Impl_ = move(make_unique<TcpServerImpl>(this));
+    Impl_ = std::move(make_unique<TcpServerImpl>(this));
 }
 
 TcpServer::TcpServer(bool/*bDummy*/) noexcept
@@ -212,11 +212,11 @@ unsigned short TcpServer::GetServerPort()
 {
     return dynamic_cast<TcpServerImpl*>(GetImpl())->GetServerPort();
 }
-void TcpServer::BindNewConnection(function<void(const vector<TcpSocket*>&)> fnNewConnection)
+void TcpServer::BindNewConnection(std::function<void(const std::vector<TcpSocket*>&)> fnNewConnection)
 {
     dynamic_cast<TcpServerImpl*>(GetImpl())->BindNewConnection(fnNewConnection);
 }
-void TcpServer::BindNewConnection(function<void(const vector<TcpSocket*>&, void*)> fnNewConnection)
+void TcpServer::BindNewConnection(std::function<void(const std::vector<TcpSocket*>&, void*)> fnNewConnection)
 {
     dynamic_cast<TcpServerImpl*>(GetImpl())->BindNewConnection(fnNewConnection);
 }
@@ -229,7 +229,7 @@ void TcpServer::Close() noexcept
 
 UdpSocket::UdpSocket()
 {
-    Impl_ = move(make_unique<UdpSocketImpl>(this));
+    Impl_ = std::move(make_unique<UdpSocketImpl>(this));
 }
 
 bool UdpSocket::Create(const char* const szIpToWhere, const uint16_t sPort, const char* const szIpToBind/* = nullptr*/)
@@ -252,12 +252,12 @@ bool UdpSocket::RemoveFromMulticastGroup(const char* const szMulticastIp, const 
     return dynamic_cast<UdpSocketImpl*>(GetImpl())->RemoveFromMulticastGroup(szMulticastIp, szInterfaceIp, nInterfaceIndex);
 }
 
-size_t UdpSocket::Read(void* buf, size_t len, string& strFrom)
+size_t UdpSocket::Read(void* buf, size_t len, std::string& strFrom)
 {
     return dynamic_cast<UdpSocketImpl*>(GetImpl())->Read(buf, len, strFrom);
 }
 
-size_t UdpSocket::Write(const void* buf, size_t len, const string& strTo)
+size_t UdpSocket::Write(const void* buf, size_t len, const std::string& strTo)
 {
     return dynamic_cast<UdpSocketImpl*>(GetImpl())->Write(buf, len, strTo);
 }
@@ -277,12 +277,12 @@ size_t UdpSocket::GetOutBytesInQue() const noexcept
     return dynamic_cast<UdpSocketImpl*>(GetImpl())->GetOutBytesInQue();
 }
 
-function<void(UdpSocket*)> UdpSocket::BindFuncBytesReceived(function<void(UdpSocket*)> fBytesReceived)
+std::function<void(UdpSocket*)> UdpSocket::BindFuncBytesReceived(std::function<void(UdpSocket*)> fBytesReceived)
 {
     return dynamic_cast<UdpSocketImpl*>(GetImpl())->BindFuncBytesReceived(fBytesReceived);
 }
 
-function<void(UdpSocket*, void*)> UdpSocket::BindFuncBytesReceived(function<void(UdpSocket*, void*)> fBytesReceived)
+std::function<void(UdpSocket*, void*)> UdpSocket::BindFuncBytesReceived(std::function<void(UdpSocket*, void*)> fBytesReceived)
 {
     return dynamic_cast<UdpSocketImpl*>(GetImpl())->BindFuncBytesReceived(fBytesReceived);
 }
@@ -292,13 +292,13 @@ function<void(UdpSocket*, void*)> UdpSocket::BindFuncBytesReceived(function<void
 
 SslTcpSocket::SslTcpSocket() : TcpSocket(false)
 {
-    Impl_ = move(make_unique<SslTcpSocketImpl>(this));
+    Impl_ = std::move(make_unique<SslTcpSocketImpl>(this));
 }
 
 SslTcpSocket::SslTcpSocket(const TcpSocket* pTcpSock) : TcpSocket(false)   // Switch from Tcp to Ssl/Tls
 {
     auto pImpl = pTcpSock->GetImpl();
-    Impl_ = move(make_unique<SslTcpSocketImpl>(this, dynamic_cast<TcpSocketImpl*>(pImpl)));
+    Impl_ = std::move(make_unique<SslTcpSocketImpl>(this, dynamic_cast<TcpSocketImpl*>(pImpl)));
 }
 
 bool SslTcpSocket::AddServerCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName)
@@ -336,12 +336,12 @@ void SslTcpSocket::Close()
     dynamic_cast<SslTcpSocketImpl*>(GetImpl())->Close();
 }
 
-function<void(TcpSocket*)> SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*)> fClientConnected)
+std::function<void(TcpSocket*)> SslTcpSocket::BindFuncConEstablished(std::function<void(TcpSocket*)> fClientConnected)
 {
     return dynamic_cast<SslTcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConnected);
 }
 
-function<void(TcpSocket*, void*)> SslTcpSocket::BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConnected)
+std::function<void(TcpSocket*, void*)> SslTcpSocket::BindFuncConEstablished(std::function<void(TcpSocket*, void*)> fClientConnected)
 {
     return dynamic_cast<SslTcpSocketImpl*>(GetImpl())->BindFuncConEstablished(fClientConnected);
 }
@@ -351,12 +351,12 @@ bool SslTcpSocket::IsSslConnection() const noexcept
     return true;
 }
 
-void SslTcpSocket::SetAlpnProtokollNames(const vector<string>& vProtoList)
+void SslTcpSocket::SetAlpnProtokollNames(const std::vector<std::string>& vProtoList)
 {
     dynamic_cast<SslTcpSocketImpl*>(GetImpl())->SetAlpnProtokollNames(vProtoList);
 }
 
-const string SslTcpSocket::GetSelAlpnProtocol() const
+const std::string SslTcpSocket::GetSelAlpnProtocol() const
 {
     return dynamic_cast<SslTcpSocketImpl*>(GetImpl())->GetSelAlpnProtocol();
 }
@@ -380,7 +380,7 @@ SslTcpSocket* SslTcpSocket::SwitchToSll(TcpSocket* pTcpSocket)
 
 SslTcpServer::SslTcpServer() : TcpServer(false)
 {
-    Impl_ = move(make_unique<SslTcpServerImpl>(this));
+    Impl_ = std::move(make_unique<SslTcpServerImpl>(this));
 }
 
 bool SslTcpServer::AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey)
@@ -398,7 +398,7 @@ bool SslTcpServer::SetCipher(const char* const szCipher) noexcept
     return dynamic_cast<SslTcpServerImpl*>(GetImpl())->SetCipher(szCipher);
 }
 
-void SslTcpServer::SetAlpnProtokollNames(const vector<string>& vProtoList)
+void SslTcpServer::SetAlpnProtokollNames(const std::vector<std::string>& vProtoList)
 {
     dynamic_cast<SslTcpServerImpl*>(GetImpl())->SetAlpnProtokollNames(vProtoList);
 }
@@ -407,7 +407,7 @@ void SslTcpServer::SetAlpnProtokollNames(const vector<string>& vProtoList)
 
 SslUdpSocket::SslUdpSocket()
 {
-    Impl_ = move(make_unique<SslUdpSocketImpl>(this));
+    Impl_ = std::move(make_unique<SslUdpSocketImpl>(this));
 }
 
 bool SslUdpSocket::AddCertificat(const char* const szHostCertificate, const char* const szHostKey)
@@ -430,12 +430,12 @@ void SslUdpSocket::Close()
     dynamic_cast<SslUdpSocketImpl*>(GetImpl())->Close();
 }
 
-function<void(UdpSocket*)> SslUdpSocket::BindFuncSslInitDone(function<void(UdpSocket*)> fSllInitDone)
+std::function<void(UdpSocket*)> SslUdpSocket::BindFuncSslInitDone(std::function<void(UdpSocket*)> fSllInitDone)
 {
     return dynamic_cast<SslUdpSocketImpl*>(GetImpl())->BindFuncSslInitDone(fSllInitDone);
 }
 
-function<void(UdpSocket*, void*)> SslUdpSocket::BindFuncSslInitDone(function<void(UdpSocket*, void*)> fSllInitDone)
+std::function<void(UdpSocket*, void*)> SslUdpSocket::BindFuncSslInitDone(std::function<void(UdpSocket*, void*)> fSllInitDone)
 {
     return dynamic_cast<SslUdpSocketImpl*>(GetImpl())->BindFuncSslInitDone(fSllInitDone);
 }

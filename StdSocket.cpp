@@ -478,17 +478,20 @@ TcpSocketImpl::TcpSocketImpl(BaseSocket* pBkRef, TcpSocketImpl* pTcpSocketImpl) 
     pTcpSocketImpl->m_mxInDeque.lock();
     swap(m_quInData, pTcpSocketImpl->m_quInData);
     m_atInBytes.exchange(pTcpSocketImpl->m_atInBytes);
+    swap(m_fBytesReceived, pTcpSocketImpl->m_fBytesReceived);
+    swap(m_fBytesReceivedParam, pTcpSocketImpl->m_fBytesReceivedParam);
+    pTcpSocketImpl->m_mxInDeque.unlock();
+
+    pTcpSocketImpl->m_mxOutDeque.lock();
     swap(m_quOutData, pTcpSocketImpl->m_quOutData);
     m_atOutBytes.exchange(pTcpSocketImpl->m_atOutBytes);
-    pTcpSocketImpl->m_mxInDeque.unlock();
+    pTcpSocketImpl->m_mxOutDeque.unlock();
 
     swap(m_strClientAddr, pTcpSocketImpl->m_strClientAddr);
     swap(m_sClientPort, pTcpSocketImpl->m_sClientPort);
     swap(m_strIFaceAddr, pTcpSocketImpl->m_strIFaceAddr);
     swap(m_sIFacePort, pTcpSocketImpl->m_sIFacePort);
 
-    swap(m_fBytesReceived, pTcpSocketImpl->m_fBytesReceived);
-    swap(m_fBytesReceivedParam, pTcpSocketImpl->m_fBytesReceivedParam);
     swap(m_fClientConnected, pTcpSocketImpl->m_fClientConnected);
     swap(m_fClientConnectedParam, pTcpSocketImpl->m_fClientConnectedParam);
     swap(m_fClientConnectedSsl, pTcpSocketImpl->m_fClientConnectedSsl);

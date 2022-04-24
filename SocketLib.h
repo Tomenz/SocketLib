@@ -18,8 +18,6 @@
 #include <vector>
 #include <string>
 
-using namespace std;
-
 class TcpServer;
 class BaseSocketImpl;
 class TcpSocketImpl;
@@ -39,25 +37,25 @@ public:
     virtual int GetErrorNo() const noexcept;
     virtual int GetErrorLoc() const noexcept;
 
-    virtual function<void(BaseSocket*)> BindErrorFunction(function<void(BaseSocket*)> fError);
-    virtual function<void(BaseSocket*, void*)> BindErrorFunction(function<void(BaseSocket*, void*)> fError);
-    virtual function<void(BaseSocket*)> BindCloseFunction(function<void(BaseSocket*)> fCloseing);
-    virtual function<void(BaseSocket*, void*)> BindCloseFunction(function<void(BaseSocket*, void*)> fCloseing);
+    virtual std::function<void(BaseSocket*)> BindErrorFunction(std::function<void(BaseSocket*)> fError);
+    virtual std::function<void(BaseSocket*, void*)> BindErrorFunction(std::function<void(BaseSocket*, void*)> fError);
+    virtual std::function<void(BaseSocket*)> BindCloseFunction(std::function<void(BaseSocket*)> fCloseing);
+    virtual std::function<void(BaseSocket*, void*)> BindCloseFunction(std::function<void(BaseSocket*, void*)> fCloseing);
     virtual void SetCallbackUserData(void* pUserData) noexcept;
     virtual void SetErrorNo(int iErrNo) noexcept;
     virtual uint16_t GetSocketPort();
-    static int EnumIpAddresses(function<int(int, const string&, int, void*)> fnCallBack, void* vpUser);
-    static void SetAddrNotifyCallback(const function<void(bool, const string&, int, int)>& fnCbAddrNotify);
-    virtual void SetSocketName(const string& strName);
-    virtual string& GetSocketName() noexcept;
+    static int EnumIpAddresses(std::function<int(int, const std::string&, int, void*)> fnCallBack, void* vpUser);
+    static void SetAddrNotifyCallback(const std::function<void(bool, const std::string&, int, int)>& fnCbAddrNotify);
+    virtual void SetSocketName(const std::string& strName);
+    virtual std::string& GetSocketName() noexcept;
 
-    static void SetTrafficDebugCallback(function<void(const uint16_t, const char*, size_t, bool)> fnCbTrafficDbg);
+    static void SetTrafficDebugCallback(std::function<void(const uint16_t, const char*, size_t, bool)> fnCbTrafficDbg);
     static size_t GetNrOfClientSockets();
 
 protected:
     friend class SslTcpSocketImpl;
     BaseSocketImpl* GetImpl() const noexcept;
-    unique_ptr<BaseSocketImpl> Impl_;
+    std::unique_ptr<BaseSocketImpl> Impl_;
 };
 
 class TcpSocket : public BaseSocket
@@ -82,15 +80,15 @@ public:
     virtual void Delete();
     virtual size_t GetBytesAvailable() const noexcept;
     virtual size_t GetOutBytesInQue() const noexcept;
-    virtual function<void(TcpSocket*)> BindFuncBytesReceived(function<void(TcpSocket*)> fBytesReceived);
-    virtual function<void(TcpSocket*, void*)> BindFuncBytesReceived(function<void(TcpSocket*, void*)> fBytesReceived);
-    virtual function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConnected);
-    virtual function<void(TcpSocket*, void*)> BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConnected);
+    virtual std::function<void(TcpSocket*)> BindFuncBytesReceived(std::function<void(TcpSocket*)> fBytesReceived);
+    virtual std::function<void(TcpSocket*, void*)> BindFuncBytesReceived(std::function<void(TcpSocket*, void*)> fBytesReceived);
+    virtual std::function<void(TcpSocket*)> BindFuncConEstablished(std::function<void(TcpSocket*)> fClientConnected);
+    virtual std::function<void(TcpSocket*, void*)> BindFuncConEstablished(std::function<void(TcpSocket*, void*)> fClientConnected);
     virtual bool IsSslConnection() const noexcept;
 
-    const string& GetClientAddr() const noexcept;
+    const std::string& GetClientAddr() const noexcept;
     uint16_t GetClientPort() const noexcept;
-    const string& GetInterfaceAddr() const noexcept;
+    const std::string& GetInterfaceAddr() const noexcept;
     uint16_t GetInterfacePort() const noexcept;
 
     const TcpServer* GetServerSocketRef() const noexcept;
@@ -112,8 +110,8 @@ public:
 
     bool Start(const char* const szIpAddr, const uint16_t sPort);
     uint16_t GetServerPort();
-    virtual void BindNewConnection(function<void(const vector<TcpSocket*>&)>);
-    virtual void BindNewConnection(function<void(const vector<TcpSocket*>&, void*)>);
+    virtual void BindNewConnection(std::function<void(const std::vector<TcpSocket*>&)>);
+    virtual void BindNewConnection(std::function<void(const std::vector<TcpSocket*>&, void*)>);
     void Close() noexcept override;
 protected:
     explicit TcpServer(bool/*bDummy*/) noexcept;
@@ -133,13 +131,13 @@ public:
     virtual bool EnableBroadCast(bool bEnable = true) noexcept;
     virtual bool AddToMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex) noexcept;
     virtual bool RemoveFromMulticastGroup(const char* const szMulticastIp, const char* const szInterfaceIp, uint32_t nInterfaceIndex) noexcept;
-    virtual size_t Read(void* buf, size_t len, string& strFrom);
-    virtual size_t Write(const void* buf, size_t len, const string& strTo);
+    virtual size_t Read(void* buf, size_t len, std::string& strFrom);
+    virtual size_t Write(const void* buf, size_t len, const std::string& strTo);
     void Close() override;
     virtual size_t GetBytesAvailable() const noexcept;
     virtual size_t GetOutBytesInQue() const noexcept;
-    virtual function<void(UdpSocket*)> BindFuncBytesReceived(function<void(UdpSocket*)> fBytesReceived);
-    virtual function<void(UdpSocket*, void*)> BindFuncBytesReceived(function<void(UdpSocket*, void*)> fBytesReceived);
+    virtual std::function<void(UdpSocket*)> BindFuncBytesReceived(std::function<void(UdpSocket*)> fBytesReceived);
+    virtual std::function<void(UdpSocket*, void*)> BindFuncBytesReceived(std::function<void(UdpSocket*, void*)> fBytesReceived);
 };
 
 #ifndef WITHOUT_OPENSSL
@@ -163,12 +161,12 @@ public:
     bool SetConnectState();
     bool Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint = 0) override;
     void Close() override;
-    function<void(TcpSocket*)> BindFuncConEstablished(function<void(TcpSocket*)> fClientConnected) override;
-    function<void(TcpSocket*, void*)> BindFuncConEstablished(function<void(TcpSocket*, void*)> fClientConnected) override;
+    std::function<void(TcpSocket*)> BindFuncConEstablished(std::function<void(TcpSocket*)> fClientConnected) override;
+    std::function<void(TcpSocket*, void*)> BindFuncConEstablished(std::function<void(TcpSocket*, void*)> fClientConnected) override;
     bool IsSslConnection() const noexcept override;
 
-    void SetAlpnProtokollNames(const vector<string>& vProtoList);
-    const string GetSelAlpnProtocol() const;
+    void SetAlpnProtokollNames(const std::vector<std::string>& vProtoList);
+    const std::string GetSelAlpnProtocol() const;
     void SetTrustedRootCertificates(const char* const szTrustRootCert);
     long CheckServerCertificate(const char* const szHostName);
 
@@ -188,7 +186,7 @@ public:
     bool AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey);
     bool SetDHParameter(const char* const szDhParamFileName);
     bool SetCipher(const char* const szCipher) noexcept;
-    void SetAlpnProtokollNames(const vector<string>& vProtoList);
+    void SetAlpnProtokollNames(const std::vector<std::string>& vProtoList);
 };
 
 class SslUdpSocket : public UdpSocket
@@ -205,8 +203,8 @@ public:
     bool CreateServerSide(const char* const szIpToWhere, const uint16_t uint16_t, const char* const szIpToBind = nullptr);
     bool CreateClientSide(const char* const szIpToWhere, const uint16_t uint16_t, const char* const szDestAddr, const char* const szIpToBind = nullptr);
     void Close() override;
-    function<void(UdpSocket*)> BindFuncSslInitDone(function<void(UdpSocket*)> fSllInitDone);
-    function<void(UdpSocket*, void*)> BindFuncSslInitDone(function<void(UdpSocket*, void*)> fSllInitDone);
+    std::function<void(UdpSocket*)> BindFuncSslInitDone(std::function<void(UdpSocket*)> fSllInitDone);
+    std::function<void(UdpSocket*, void*)> BindFuncSslInitDone(std::function<void(UdpSocket*, void*)> fSllInitDone);
 };
 
 #endif // WITHOUT_OPENSSL

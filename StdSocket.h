@@ -19,14 +19,14 @@
 #include <mutex>
 #include <atomic>
 #include <functional>
+#include <thread>
+#include <condition_variable>
 
 #if defined (_WIN32) || defined (_WIN64)
 // https://support.microsoft.com/de-de/kb/257460
 #include <Ws2tcpip.h>
 #include <Netioapi.h>
 #else
-#include <thread>
-#include <condition_variable>
 #include <sys/socket.h>
 #define SOCKET int32_t
 #endif
