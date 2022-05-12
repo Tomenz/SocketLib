@@ -3,9 +3,9 @@
 
 CC = g++
 ifeq ($(DEBUG), yes)
-CFLAGS = -ggdb -pthread
+CFLAGS = -ggdb -pthread -std=c++14
 else
-CFLAGS = -Wall -O3 -pthread -ffunction-sections -fdata-sections
+CFLAGS = -Wall -O3 -pthread -std=c++14 -ffunction-sections -fdata-sections
 endif
 TARGET = libsocketlib.a
 
