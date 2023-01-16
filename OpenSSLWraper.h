@@ -10,7 +10,6 @@
    Email:   Thomas@fam-hauck.de
 */
 
-#pragma once
 #ifndef OPENSSLWRAPPER
 #define OPENSSLWRAPPER
 

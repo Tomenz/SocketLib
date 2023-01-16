@@ -10,7 +10,6 @@
    Email:   Thomas@fam-hauck.de
 */
 
-#pragma once
 #ifndef SSLSOCKET
 #define SSLSOCKET
 
