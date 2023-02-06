@@ -109,23 +109,23 @@ namespace OpenSSLWrapper
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    bool GetCertInformation(const X509* cert, string& strCommenName, vector<string>& vstrAltNames)
+    bool GetCertInformation(const X509* cert, string& strCommonName, vector<string>& vstrAltNames)
     {
         string caBuf(256, 0);
         X509_NAME_oneline(X509_get_subject_name(cert), &caBuf[0], static_cast<int>(caBuf.size()));
 
-        strCommenName = &caBuf[0];
-        size_t nPos = strCommenName.find("/CN=");
+        strCommonName = &caBuf[0];
+        size_t nPos = strCommonName.find("/CN=");
         if (nPos != string::npos)
         {
-            strCommenName.erase(0, nPos + 4);
-            nPos = strCommenName.find("/");
+            strCommonName.erase(0, nPos + 4);
+            nPos = strCommonName.find("/");
             if (nPos != string::npos)
-                strCommenName.erase(nPos, string::npos);
-            transform(begin(strCommenName), end(strCommenName), begin(strCommenName), [](char c) noexcept { return static_cast<char>(::tolower(c)); });
+                strCommonName.erase(nPos, string::npos);
+            transform(begin(strCommonName), end(strCommonName), begin(strCommonName), [](char c) noexcept { return static_cast<char>(::tolower(c)); });
 
-            if (strCommenName[0] == '*' && strCommenName[1] == '.')
-                strCommenName = "^(.+\\.)?" + strCommenName.substr(2) + "$";
+            if (strCommonName[0] == '*' && strCommonName[1] == '.')
+                strCommonName = "^(.+\\.)?" + strCommonName.substr(2) + "$";
         }
 
         STACK_OF(GENERAL_NAME)* pSubAltNames = static_cast<STACK_OF(GENERAL_NAME)*>(X509_get_ext_d2i(cert, NID_subject_alt_name, nullptr, nullptr));
@@ -144,7 +144,7 @@ namespace OpenSSLWrapper
 
                     string strTmp(reinterpret_cast<char*>(utf8));
                     transform(begin(strTmp), end(strTmp), begin(strTmp), [](char c) noexcept { return static_cast<char>(::tolower(c)); });
-                    if (strCommenName.compare(strTmp) != 0)
+                    if (strCommonName.compare(strTmp) != 0)
                     {
                         if (strTmp[0] == '*' && strTmp[1] == '.')
                             strTmp = "^(.+\\.)?" + strTmp.substr(2) + "$";
@@ -171,7 +171,7 @@ namespace OpenSSLWrapper
                         {
                             string strTmp(&caAddrClient[0]);
                             transform(begin(strTmp), end(strTmp), begin(strTmp), [](char c) noexcept { return static_cast<char>(::tolower(c)); });
-                            if (strCommenName.compare(strTmp) != 0)
+                            if (strCommonName.compare(strTmp) != 0)
                                 vstrAltNames.push_back(strTmp);
                         }
                     }
@@ -364,9 +364,9 @@ namespace OpenSSLWrapper
 #endif
     }
 
-    bool SslServerContext::SetCipher(const char* const szChiper) noexcept
+    bool SslServerContext::SetCipher(const char* const szCipher) noexcept
     {
-        return SSL_CTX_set_cipher_list(m_ctx, szChiper) == 1 ? true : false;
+        return SSL_CTX_set_cipher_list(m_ctx, szCipher) == 1 ? true : false;
     }
 
     void SslServerContext::SetAlpnProtokollNames(const vector<string>& vStrList)
@@ -435,10 +435,10 @@ namespace OpenSSLWrapper
 
         if (szHostName == nullptr)  // if the host name is not set, the connection was made by IP address, we use the IP of the interface the connection came in, to find the certificate
         {
-            const string& (*fnForewarder)(void*) = reinterpret_cast<const string&(*)(void*)>(SSL_get_ex_data(ssl, 0));   // Index 0 = Funktion pointer to a static proxy function
+            const string& (*fnForwarder)(void*) = reinterpret_cast<const string&(*)(void*)>(SSL_get_ex_data(ssl, 0));   // Index 0 = Funktion pointer to a static proxy function
             void* Obj = SSL_get_ex_data(ssl, 1);    // Index 1 is the "this" pointer of the SslTcpSocket how owns the ssl object
-            if (fnForewarder != nullptr && Obj != nullptr)
-                szHostName = fnForewarder(Obj).c_str(); // We get the IP address of the Interface the connection come in
+            if (fnForwarder != nullptr && Obj != nullptr)
+                szHostName = fnForwarder(Obj).c_str(); // We get the IP address of the Interface the connection come in
         }
 
         if (pSslCtx != nullptr && szHostName != nullptr)
@@ -485,7 +485,7 @@ namespace OpenSSLWrapper
     }
 
 
-    SslConnetion::SslConnetion(SslContext& ctx) : m_ssl(SSL_new(ctx())), m_iShutDownFlag(INT32_MIN), m_bZeroReceived(false), m_iWantState(0)
+    SslConnection::SslConnection(SslContext& ctx) : m_ssl(SSL_new(ctx())), m_iShutDownFlag(INT32_MIN), m_bZeroReceived(false), m_iWantState(0)
     {
         m_rbio = BIO_new(BIO_s_mem());
         m_wbio = BIO_new(BIO_s_mem());
@@ -501,80 +501,80 @@ namespace OpenSSLWrapper
         //BIO_set_callback(m_wbio, CbBioInfo);
     }
 
-    SslConnetion::~SslConnetion()
+    SslConnection::~SslConnection()
     {
         if (nullptr != m_ssl)
             SSL_free(m_ssl);
     }
 
     /*
-    long SslConnetion::CbBioInfo(struct bio_st* pBioInfo, int iInt1, const char* cpBuf, int iInt2, long l1, long lRet)
+    long SslConnection::CbBioInfo(struct bio_st* pBioInfo, int iInt1, const char* cpBuf, int iInt2, long l1, long lRet)
     {
-        SslConnetion* pThis = reinterpret_cast<SslConnetion*>(pBioInfo->cb_arg);
+        SslConnection* pThis = reinterpret_cast<SslConnection*>(pBioInfo->cb_arg);
 
         return lRet;
     }
     */
-    SSL* SslConnetion::operator() ()
+    SSL* SslConnection::operator() ()
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
         return m_ssl;
     }
 
-    void SslConnetion::SetErrorCb(const function<void()>& fError)
+    void SslConnection::SetErrorCb(const function<void()>& fError)
     {
         m_fError = fError;
     }
 
-    void SslConnetion::SetUserData(int iIndex, void* pVoid) noexcept
+    void SslConnection::SetUserData(int iIndex, void* pVoid) noexcept
     {
         SSL_set_ex_data(m_ssl, iIndex, pVoid);
     }
 
-    void SslConnetion::SSLSetAcceptState()
+    void SslConnection::SSLSetAcceptState()
     {
         lock_guard<mutex> lk(m_mxSsl);
         SSL_set_accept_state(m_ssl);
     }
 
-    void SslConnetion::SSLSetConnectState()
+    void SslConnection::SSLSetConnectState()
     {
         lock_guard<mutex> lk(m_mxSsl);
         SSL_set_connect_state(m_ssl);
     }
 
-    int SslConnetion::SSLDoHandshake()
+    int SslConnection::SSLDoHandshake()
     {
         lock_guard<mutex> lk(m_mxSsl);
         return SSL_do_handshake(m_ssl);
     }
 
-    int SslConnetion::SslInitFinished()
+    int SslConnection::SslInitFinished()
     {
         lock_guard<mutex> lk(m_mxSsl);
         return SSL_is_init_finished(m_ssl);
     }
 
-    void SslConnetion::SSLSetShutdown(int iState)
+    void SslConnection::SSLSetShutdown(int iState)
     {
         lock_guard<mutex> lk(m_mxSsl);
         SSL_set_shutdown(m_ssl, iState);
     }
 
-    int SslConnetion::SSLGetShutdown()
+    int SslConnection::SSLGetShutdown()
     {
         lock_guard<mutex> lk(m_mxSsl);
         return SSL_get_shutdown(m_ssl);
     }
 
-    int SslConnetion::SSLGetError(int iResult)
+    int SslConnection::SSLGetError(int iResult)
     {
         lock_guard<mutex> lk(m_mxSsl);
         return SSL_get_error(m_ssl, iResult);
     }
 
-    size_t SslConnetion::SslGetOutDataSize()
+    size_t SslConnection::SslGetOutDataSize()
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
@@ -582,7 +582,7 @@ namespace OpenSSLWrapper
         return BIO_ctrl_pending(m_rbio);
     }
     /*
-    size_t SslConnetion::SslGetOutwDataSize()
+    size_t SslConnection::SslGetOutwDataSize()
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
@@ -590,7 +590,7 @@ namespace OpenSSLWrapper
         return BIO_ctrl_pending(m_wbio);
     }
 
-    size_t SslConnetion::SslGetInrDataSize()
+    size_t SslConnection::SslGetInrDataSize()
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
@@ -598,7 +598,7 @@ namespace OpenSSLWrapper
         return BIO_ctrl_wpending(m_rbio);
     }
 
-    size_t SslConnetion::SslGetInwDataSize()
+    size_t SslConnection::SslGetInwDataSize()
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
@@ -606,7 +606,7 @@ namespace OpenSSLWrapper
         return BIO_ctrl_wpending(m_wbio);
     }
     */
-    size_t SslConnetion::SslGetOutData(uint8_t* szBuffer, size_t nBufLen)
+    size_t SslConnection::SslGetOutData(uint8_t* szBuffer, size_t nBufLen)
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
@@ -619,7 +619,7 @@ namespace OpenSSLWrapper
         return nRead;
     }
 
-    size_t SslConnetion::SslPutInData(const uint8_t* szBuffer, size_t nWriteLen)
+    size_t SslConnection::SslPutInData(const uint8_t* szBuffer, size_t nWriteLen)
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
@@ -633,17 +633,17 @@ namespace OpenSSLWrapper
         return nWritten;
     }
 
-    int SslConnetion::GetShutDownFlag() noexcept
+    int SslConnection::GetShutDownFlag() noexcept
     {
         return m_iShutDownFlag;
     }
 
-    bool SslConnetion:: GetZeroReceived() noexcept
+    bool SslConnection:: GetZeroReceived() noexcept
     {
         return m_bZeroReceived;
     }
 
-    size_t SslConnetion::SslRead(uint8_t* szBuffer, size_t nBufLen, int* iErrorHint/* = nullptr*/)
+    size_t SslConnection::SslRead(uint8_t* szBuffer, size_t nBufLen, int* iErrorHint/* = nullptr*/)
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
@@ -691,7 +691,7 @@ namespace OpenSSLWrapper
         return nRead;
     }
 
-    size_t SslConnetion::SslWrite(const uint8_t* szBuffer, size_t nWriteLen, int* iErrorHint/* = nullptr*/)
+    size_t SslConnection::SslWrite(const uint8_t* szBuffer, size_t nWriteLen, int* iErrorHint/* = nullptr*/)
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
@@ -738,7 +738,7 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iResult) 
         return nWritten;
     }
 
-    int SslConnetion::ShutDownConnection(int* iErrorHint/* = nullptr*/)
+    int SslConnection::ShutDownConnection(int* iErrorHint/* = nullptr*/)
     {
         if (nullptr == m_ssl)
             throw runtime_error("Not Initialized");
@@ -763,7 +763,7 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iResult) 
         return m_iShutDownFlag;
     }
 
-    void SslConnetion::SetAlpnProtokollNames(const vector<string>& vProtoList)
+    void SslConnection::SetAlpnProtokollNames(const vector<string>& vProtoList)
     {
         if (vProtoList.size() > 0)
         {
@@ -777,7 +777,7 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iResult) 
         }
     }
 
-    string SslConnetion::GetSelAlpnProtocol()
+    string SslConnection::GetSelAlpnProtocol()
     {
         const unsigned char* cpAlpnProto = nullptr;
         unsigned int iProtoLen = 0;
@@ -788,7 +788,7 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iResult) 
         return string();
     }
 
-    int SslConnetion::SetTrustedRootCertificates(const char* szFileName) noexcept
+    int SslConnection::SetTrustedRootCertificates(const char* szFileName) noexcept
     {
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
         return SSL_CTX_load_verify_locations(SSL_get_SSL_CTX(m_ssl), szFileName, nullptr);
@@ -797,12 +797,12 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iResult) 
 #endif
     }
 
-    long SslConnetion::SetSniName(const char* szServerName) noexcept
+    long SslConnection::SetSniName(const char* szServerName) noexcept
     {
         return SSL_set_tlsext_host_name(m_ssl, szServerName);
     }
 
-    long SslConnetion::CheckServerCertificate(const char* szHostName)
+    long SslConnection::CheckServerCertificate(const char* szHostName)
     {
         // Check 1, is a certificate present
         string strComName;
@@ -836,7 +836,7 @@ OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iResult) 
         return lResult;
     }
 
-    string SslConnetion::GetSslErrAsString()
+    string SslConnection::GetSslErrAsString()
     {
         /*BIO *bio = BIO_new(BIO_s_mem());
         ERR_print_errors(bio);

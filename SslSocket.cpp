@@ -101,7 +101,7 @@ bool SslTcpSocketImpl::SetAcceptState()
     if (m_pServerCtx.size() == 0)
         return false;
 
-    m_pSslCon = make_unique<SslConnetion>(m_pServerCtx.front());
+    m_pSslCon = make_unique<SslConnection>(m_pServerCtx.front());
     m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
     m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnForwarder));
     m_pSslCon->SetUserData(1, this);
@@ -126,7 +126,7 @@ bool SslTcpSocketImpl::SetAcceptState()
 
 bool SslTcpSocketImpl::SetConnectState()
 {
-    m_pSslCon = make_unique<SslConnetion>(m_pClientCtx);
+    m_pSslCon = make_unique<SslConnection>(m_pClientCtx);
     m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
     m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnForwarder));
     m_pSslCon->SetUserData(1, this);
@@ -140,7 +140,7 @@ bool SslTcpSocketImpl::SetConnectState()
 
 bool SslTcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort, const int AddrHint/* = AF_UNSPEC*/)
 {
-    m_pSslCon = make_unique<SslConnetion>(m_pClientCtx);
+    m_pSslCon = make_unique<SslConnection>(m_pClientCtx);
     m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
     m_pSslCon->SetUserData(0, reinterpret_cast<void*>(&SslTcpSocketImpl::fnForwarder));
     m_pSslCon->SetUserData(1, this);
@@ -529,7 +529,7 @@ SslTcpSocket* SslTcpServerImpl::MakeClientConnection(const SOCKET& fSock)
 
     try
     {
-        pSslTcpSocketImpl->m_pSslCon = move(make_unique<SslConnetion>(m_SslCtx.front()));
+        pSslTcpSocketImpl->m_pSslCon = make_unique<SslConnection>(m_SslCtx.front());
 
         pSslTcpSocketImpl->m_fSock = fSock;
         pSslTcpSocketImpl->m_iShutDownState = 7;
@@ -622,7 +622,7 @@ bool SslUdpSocketImpl::CreateServerSide(const char* const szIpToWhere, const uin
     const bool bRet = UdpSocketImpl::Create(szIpToWhere, sPort, szIpToBind);
     if (bRet == true)
     {
-        m_pSslCon = make_unique<SslConnetion>(m_pUdpCtx);
+        m_pSslCon = make_unique<SslConnection>(m_pUdpCtx);
         m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
 
         //SSL_set_info_callback((*m_pSslCon)(), ssl_info_callbackServer);
@@ -638,7 +638,7 @@ bool SslUdpSocketImpl::CreateClientSide(const char* const szIpToWhere, const uin
     const bool bRet = UdpSocketImpl::Create(szIpToWhere, sPort, szIpToBind);
     if (bRet == true)
     {
-        m_pSslCon = make_unique<SslConnetion>(m_pUdpCtx);
+        m_pSslCon = make_unique<SslConnection>(m_pUdpCtx);
         m_pSslCon->SetErrorCb(function<void()>(bind(&BaseSocketImpl::Close, this)));
 
         //SSL_set_info_callback((*m_pSslCon)(), ssl_info_callbackClient);

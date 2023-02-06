@@ -42,14 +42,14 @@ std::function<void(BaseSocket*, void*)> BaseSocket::BindErrorFunction(std::funct
     return GetImpl()->BindErrorFunction(fError);
 }
 
-std::function<void(BaseSocket*)> BaseSocket::BindCloseFunction(std::function<void(BaseSocket*)> fCloseing)
+std::function<void(BaseSocket*)> BaseSocket::BindCloseFunction(std::function<void(BaseSocket*)> fClosing)
 {
-    return GetImpl()->BindCloseFunction(fCloseing);
+    return GetImpl()->BindCloseFunction(fClosing);
 }
 
-std::function<void(BaseSocket*, void*)> BaseSocket::BindCloseFunction(std::function<void(BaseSocket*, void*)> fCloseing)
+std::function<void(BaseSocket*, void*)> BaseSocket::BindCloseFunction(std::function<void(BaseSocket*, void*)> fClosing)
 {
-    return GetImpl()->BindCloseFunction(fCloseing);
+    return GetImpl()->BindCloseFunction(fClosing);
 }
 
 void BaseSocket::SetCallbackUserData(void* pUserData) noexcept
@@ -100,7 +100,7 @@ size_t BaseSocket::GetNrOfClientSockets() {
 
 TcpSocket::TcpSocket()
 {
-    Impl_ = std::move(make_unique<TcpSocketImpl>(this));
+    Impl_ = make_unique<TcpSocketImpl>(this);
 }
 
 TcpSocket::TcpSocket(bool/*bDummy*/) noexcept
@@ -197,7 +197,7 @@ const TcpServer* TcpSocket::GetServerSocketRef() const noexcept
 
 TcpServer::TcpServer()
 {
-    Impl_ = std::move(make_unique<TcpServerImpl>(this));
+    Impl_ = make_unique<TcpServerImpl>(this);
 }
 
 TcpServer::TcpServer(bool/*bDummy*/) noexcept
@@ -229,7 +229,7 @@ void TcpServer::Close() noexcept
 
 UdpSocket::UdpSocket()
 {
-    Impl_ = std::move(make_unique<UdpSocketImpl>(this));
+    Impl_ = make_unique<UdpSocketImpl>(this);
 }
 
 bool UdpSocket::Create(const char* const szIpToWhere, const uint16_t sPort, const char* const szIpToBind/* = nullptr*/)
@@ -292,13 +292,13 @@ std::function<void(UdpSocket*, void*)> UdpSocket::BindFuncBytesReceived(std::fun
 
 SslTcpSocket::SslTcpSocket() : TcpSocket(false)
 {
-    Impl_ = std::move(make_unique<SslTcpSocketImpl>(this));
+    Impl_ = make_unique<SslTcpSocketImpl>(this);
 }
 
 SslTcpSocket::SslTcpSocket(const TcpSocket* pTcpSock) : TcpSocket(false)   // Switch from Tcp to Ssl/Tls
 {
     auto pImpl = pTcpSock->GetImpl();
-    Impl_ = std::move(make_unique<SslTcpSocketImpl>(this, dynamic_cast<TcpSocketImpl*>(pImpl)));
+    Impl_ = make_unique<SslTcpSocketImpl>(this, dynamic_cast<TcpSocketImpl*>(pImpl));
 }
 
 bool SslTcpSocket::AddServerCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName)
@@ -380,7 +380,7 @@ SslTcpSocket* SslTcpSocket::SwitchToSll(TcpSocket* pTcpSocket)
 
 SslTcpServer::SslTcpServer() : TcpServer(false)
 {
-    Impl_ = std::move(make_unique<SslTcpServerImpl>(this));
+    Impl_ = make_unique<SslTcpServerImpl>(this);
 }
 
 bool SslTcpServer::AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey)
@@ -407,7 +407,7 @@ void SslTcpServer::SetAlpnProtokollNames(const std::vector<std::string>& vProtoL
 
 SslUdpSocket::SslUdpSocket()
 {
-    Impl_ = std::move(make_unique<SslUdpSocketImpl>(this));
+    Impl_ = make_unique<SslUdpSocketImpl>(this);
 }
 
 bool SslUdpSocket::AddCertificat(const char* const szHostCertificate, const char* const szHostKey)

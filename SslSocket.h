@@ -61,7 +61,7 @@ private:
 private:
     SslClientContext m_pClientCtx;
     vector<SslServerContext>  m_pServerCtx;
-    unique_ptr<SslConnetion>  m_pSslCon;
+    unique_ptr<SslConnection>  m_pSslCon;
     function<void(TcpSocket*)> m_fClientConnected;
     function<void(TcpSocket*, void*)> m_fClientConnectedParam;
 
@@ -118,7 +118,7 @@ private:
 
 private:
     SslUdpContext            m_pUdpCtx;
-    unique_ptr<SslConnetion> m_pSslCon;
+    unique_ptr<SslConnection> m_pSslCon;
 
     function<void(UdpSocket*)> m_fSllInitDone;
     function<void(UdpSocket*, void*)> m_fSllInitDoneParam;

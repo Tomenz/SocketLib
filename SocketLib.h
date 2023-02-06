@@ -38,8 +38,8 @@ public:
 
     virtual std::function<void(BaseSocket*)> BindErrorFunction(std::function<void(BaseSocket*)> fError);
     virtual std::function<void(BaseSocket*, void*)> BindErrorFunction(std::function<void(BaseSocket*, void*)> fError);
-    virtual std::function<void(BaseSocket*)> BindCloseFunction(std::function<void(BaseSocket*)> fCloseing);
-    virtual std::function<void(BaseSocket*, void*)> BindCloseFunction(std::function<void(BaseSocket*, void*)> fCloseing);
+    virtual std::function<void(BaseSocket*)> BindCloseFunction(std::function<void(BaseSocket*)> fClosing);
+    virtual std::function<void(BaseSocket*, void*)> BindCloseFunction(std::function<void(BaseSocket*, void*)> fClosing);
     virtual void SetCallbackUserData(void* pUserData) noexcept;
     virtual void SetErrorNo(int iErrNo) noexcept;
     virtual uint16_t GetSocketPort();

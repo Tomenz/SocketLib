@@ -56,7 +56,7 @@ namespace OpenSSLWrapper
         string strVersion;
     };
 
-    bool GetCertInformation(const X509* cert, string& strCommenName, vector<string>& vstrAltNames);
+    bool GetCertInformation(const X509* cert, string& strCommonName, vector<string>& vstrAltNames);
 
     class SslContext
     {
@@ -110,7 +110,7 @@ namespace OpenSSLWrapper
         int SetCertificates(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey);
         void AddVirtualHost(vector<SslServerContext>* pSslCtx) noexcept;
         bool SetDhParamFile(const char* const szDhParamFile);
-        bool SetCipher(const char* const szChiper) noexcept;
+        bool SetCipher(const char* const szCipher) noexcept;
         void SetAlpnProtokollNames(const vector<string>& vStrList);
         SslServerContext(const SslServerContext& src) = delete;
         explicit SslServerContext(SslServerContext&& src) noexcept : SslContext(move(src))
@@ -144,15 +144,15 @@ namespace OpenSSLWrapper
         static int verify_callback(int preverify_ok, X509_STORE_CTX *ctx) noexcept;
     };
 
-    class SslConnetion
+    class SslConnection
     {
     public:
-        explicit SslConnetion(SslContext& ctx);
-        ~SslConnetion();
-        SslConnetion(const SslConnetion&) = delete;
-        SslConnetion(SslConnetion&&) = delete;
-        SslConnetion& operator=(const SslConnetion&) = delete;
-        SslConnetion& operator=(SslConnetion&&) = delete;
+        explicit SslConnection(SslContext& ctx);
+        ~SslConnection();
+        SslConnection(const SslConnection&) = delete;
+        SslConnection(SslConnection&&) = delete;
+        SslConnection& operator=(const SslConnection&) = delete;
+        SslConnection& operator=(SslConnection&&) = delete;
 //      static long CbBioInfo(struct bio_st* pBioInfo, int iInt1, const char* cpBuf, int iInt2, long l1, long lRet);
         SSL* operator() ();
         void SetErrorCb(const function<void()>& fError);

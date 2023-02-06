@@ -80,8 +80,8 @@ public:
     virtual void Close() = 0;
     virtual function<void(BaseSocket*)> BindErrorFunction(function<void(BaseSocket*)> fError) noexcept;
     virtual function<void(BaseSocket*, void*)> BindErrorFunction(function<void(BaseSocket*, void*)> fError) noexcept;
-    virtual function<void(BaseSocket*)> BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept;
-    virtual function<void(BaseSocket*, void*)> BindCloseFunction(function<void(BaseSocket*, void*)> fCloseing) noexcept;
+    virtual function<void(BaseSocket*)> BindCloseFunction(function<void(BaseSocket*)> fClosing) noexcept;
+    virtual function<void(BaseSocket*, void*)> BindCloseFunction(function<void(BaseSocket*, void*)> fClosing) noexcept;
     virtual void SetCallbackUserData(void*) noexcept;
     virtual int GetErrorNo() const  noexcept { return m_iError; }
     virtual int GetErrorLoc() const  noexcept { return m_iErrLoc; }
@@ -99,7 +99,7 @@ protected:
     explicit BaseSocketImpl(BaseSocketImpl* pBaseSocket);
     virtual void SetSocketOption(const SOCKET& fd);
     virtual void OnError();
-    virtual void StartCloseingCB();
+    virtual void StartClosingCB();
 
 protected:
     SOCKET                      m_fSock;
@@ -114,8 +114,8 @@ protected:
     atomic_uchar                m_iShutDownState;
     function<void(BaseSocket*)> m_fError;
     function<void(BaseSocket*, void*)> m_fErrorParam;
-    function<void(BaseSocket*)> m_fCloseing;
-    function<void(BaseSocket*, void*)> m_fCloseingParam;
+    function<void(BaseSocket*)> m_fClosing;
+    function<void(BaseSocket*, void*)> m_fClosingParam;
     void*                       m_pvUserData;
     mutex                       m_mxFnClosing;
     BaseSocket*                 m_pBkRef;

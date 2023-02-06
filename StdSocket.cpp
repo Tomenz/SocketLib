@@ -278,8 +278,8 @@ BaseSocketImpl::BaseSocketImpl(BaseSocketImpl* pBaseSocket) : m_fSock(INVALID_SO
     swap(m_fSock, pBaseSocket->m_fSock);
     swap(m_fError, pBaseSocket->m_fError);
     swap(m_fErrorParam, pBaseSocket->m_fErrorParam);
-    swap(m_fCloseing, pBaseSocket->m_fCloseing);
-    swap(m_fCloseingParam, pBaseSocket->m_fCloseingParam);
+    swap(m_fClosing, pBaseSocket->m_fClosing);
+    swap(m_fClosingParam, pBaseSocket->m_fClosingParam);
     m_iShutDownState.exchange(pBaseSocket->m_iShutDownState);
 }
 
@@ -305,16 +305,16 @@ function<void(BaseSocket*, void*)> BaseSocketImpl::BindErrorFunction(function<vo
     return fError;
 }
 
-function<void(BaseSocket*)> BaseSocketImpl::BindCloseFunction(function<void(BaseSocket*)> fCloseing) noexcept
+function<void(BaseSocket*)> BaseSocketImpl::BindCloseFunction(function<void(BaseSocket*)> fClosing) noexcept
 {
-    m_fCloseing.swap(fCloseing);
-    return fCloseing;
+    m_fClosing.swap(fClosing);
+    return fClosing;
 }
 
-function<void(BaseSocket*, void*)> BaseSocketImpl::BindCloseFunction(function<void(BaseSocket*, void*)> fCloseing) noexcept
+function<void(BaseSocket*, void*)> BaseSocketImpl::BindCloseFunction(function<void(BaseSocket*, void*)> fClosing) noexcept
 {
-    m_fCloseingParam.swap(fCloseing);
-    return fCloseing;
+    m_fClosingParam.swap(fClosing);
+    return fClosing;
 }
 
 void BaseSocketImpl::SetCallbackUserData(void* pUserData) noexcept
@@ -344,20 +344,20 @@ void BaseSocketImpl::OnError()
     Close();
 }
 
-void BaseSocketImpl::StartCloseingCB()
+void BaseSocketImpl::StartClosingCB()
 {
     m_mxFnClosing.lock();
-    if (m_fCloseingParam)
+    if (m_fClosingParam)
     {
         function<void(BaseSocket*, void*)> tmpfun;
-        m_fCloseingParam.swap(tmpfun);
+        m_fClosingParam.swap(tmpfun);
         m_mxFnClosing.unlock();
         tmpfun(m_pBkRef, m_pvUserData);
     }
-    else if (m_fCloseing)
+    else if (m_fClosing)
     {
         function<void(BaseSocket*)> tmpfun;
-        m_fCloseing.swap(tmpfun);
+        m_fClosing.swap(tmpfun);
         m_mxFnClosing.unlock();
         tmpfun(m_pBkRef);
     }
@@ -520,7 +520,7 @@ TcpSocketImpl::~TcpSocketImpl()
         ::closesocket(m_fSock);
         m_fSock = INVALID_SOCKET;
 
-        StartCloseingCB();
+        StartClosingCB();
     }
 }
 
@@ -849,7 +849,7 @@ void TcpSocketImpl::WriteThread()
             ::closesocket(m_fSock);
             m_fSock = INVALID_SOCKET;
         }
-        StartCloseingCB();
+        StartClosingCB();
 
         if (m_pRefServSocket != nullptr || m_bSelfDelete == true)    // Auto-delete, socket created from server socket
             Delete();// thread([&]() { delete this; }).detach();
@@ -874,13 +874,13 @@ void TcpSocketImpl::Close()
     } while ((m_iShutDownState & 2) == 0 && m_iError == 0); // Wait until the write thread is finished
     m_bStop = true; // Stops the listening thread
 
-    if (m_pRefServSocket == nullptr && m_iShutDownState == 15 && (m_fCloseing || m_fCloseingParam) && m_thClose.joinable() == false)
+    if (m_pRefServSocket == nullptr && m_iShutDownState == 15 && (m_fClosing || m_fClosingParam) && m_thClose.joinable() == false)
     {
         m_thClose = thread([&]() {
-            StartCloseingCB();
+            StartClosingCB();
         });
 
-        while (m_fCloseingParam != nullptr || m_fCloseing != nullptr)
+        while (m_fClosingParam != nullptr || m_fClosing != nullptr)
             this_thread::sleep_for(chrono::milliseconds(1));
     }
 }
@@ -1134,7 +1134,7 @@ void TcpSocketImpl::SelectThread()
             m_fSock = INVALID_SOCKET;
         }
 
-        StartCloseingCB();
+        StartClosingCB();
 
         // if it is a auto-delete class we start the auto-delete thread now
         if (m_pRefServSocket != nullptr || m_bSelfDelete == true)    // Auto-delete, socket created from server socket
@@ -1205,7 +1205,7 @@ void TcpSocketImpl::ConnectThread()
             m_fSock = INVALID_SOCKET;
         }
 
-        StartCloseingCB();
+        StartClosingCB();
 
         if (m_bSelfDelete == true)    // Auto-delete, socket created from server socket
             Delete();// thread([&]() { delete this; }).detach();
@@ -1398,14 +1398,14 @@ TcpSocket* TcpServerImpl::MakeClientConnection(const SOCKET& fSock)
     return pTcpSock;
 }
 
-void TcpServerImpl::BindNewConnection(function<void(const vector<TcpSocket*>&)> fNewConnetion) noexcept
+void TcpServerImpl::BindNewConnection(function<void(const vector<TcpSocket*>&)> fNewConnection) noexcept
 {
-    m_fNewConnection.swap(fNewConnetion);
+    m_fNewConnection.swap(fNewConnection);
 }
 
-void TcpServerImpl::BindNewConnection(function<void(const vector<TcpSocket*>&, void*)> fNewConnetion) noexcept
+void TcpServerImpl::BindNewConnection(function<void(const vector<TcpSocket*>&, void*)> fNewConnection) noexcept
 {
-    m_fNewConnectionParam.swap(fNewConnetion);
+    m_fNewConnectionParam.swap(fNewConnection);
 }
 
 void TcpServerImpl::Delete()
@@ -1537,10 +1537,10 @@ UdpSocketImpl::~UdpSocketImpl()
     {
         ::closesocket(m_fSock);
 
-        if (m_fCloseingParam)
-            m_fCloseingParam(m_pBkRef, m_pvUserData);
-        else if (m_fCloseing)
-            m_fCloseing(m_pBkRef);
+        if (m_fClosingParam)
+            m_fClosingParam(m_pBkRef, m_pvUserData);
+        else if (m_fClosing)
+            m_fClosing(m_pBkRef);
     }
 }
 
@@ -1635,7 +1635,7 @@ bool UdpSocketImpl::AddToMulticastGroup(const char* const szMulticastIp, const c
 
     if (iAddFamily == AF_INET6)
     {
-        ipv6_mreq mreq = { 0 };
+        ipv6_mreq mreq{IN6ADDR_ANY_INIT, 0};
         inet_pton(AF_INET6, szMulticastIp, &mreq.ipv6mr_multiaddr);
         mreq.ipv6mr_interface = nInterfaceIndex;
 
@@ -1652,7 +1652,7 @@ bool UdpSocketImpl::AddToMulticastGroup(const char* const szMulticastIp, const c
     }
     else
     {
-        ip_mreq mreq = { 0 };
+        ip_mreq mreq{{0},{0}};
         inet_pton(AF_INET, szMulticastIp, &mreq.imr_multiaddr.s_addr);
 #if defined(_WIN32) || defined(_WIN64)
         mreq.imr_interface.s_addr = htonl(nInterfaceIndex);
@@ -1690,7 +1690,7 @@ bool UdpSocketImpl::RemoveFromMulticastGroup(const char* const szMulticastIp, co
 
     if (iAddFamily == AF_INET6)
     {
-        ipv6_mreq mreq = { 0 };
+        ipv6_mreq mreq{IN6ADDR_ANY_INIT, 0};
         inet_pton(AF_INET6, szMulticastIp, &mreq.ipv6mr_multiaddr);
         mreq.ipv6mr_interface = nInterfaceIndex; // use default
 
@@ -1704,7 +1704,7 @@ bool UdpSocketImpl::RemoveFromMulticastGroup(const char* const szMulticastIp, co
     }
     else
     {
-        ip_mreq mreq = { 0 };
+        ip_mreq mreq{{0}};
         inet_pton(AF_INET, szMulticastIp, &mreq.imr_multiaddr.s_addr);
 #if defined(_WIN32) || defined(_WIN64)
         mreq.imr_interface.s_addr = htonl(nInterfaceIndex);
@@ -1911,8 +1911,8 @@ void UdpSocketImpl::WriteThread()
             ::closesocket(m_fSock);
         m_fSock = INVALID_SOCKET;
 
-        if (m_fCloseing || m_fCloseingParam)
-            StartCloseingCB();
+        if (m_fClosing || m_fClosingParam)
+            StartClosingCB();
     }
 }
 
@@ -1997,7 +1997,7 @@ void UdpSocketImpl::SelectThread()
                 {
                     sockaddr_in sin;
                     sockaddr_in6 sin6;
-                }SenderAddr = { 0 };
+                }SenderAddr{{0}};
                 socklen_t sinLen = sizeof(SenderAddr);
 
                 int32_t transferred = ::recvfrom(m_fSock, &buf[0], 0x0000ffff, 0, reinterpret_cast<sockaddr*>(&SenderAddr), &sinLen);
@@ -2117,7 +2117,7 @@ void UdpSocketImpl::SelectThread()
             ::closesocket(m_fSock);
         m_fSock = INVALID_SOCKET;
 
-        if (m_fCloseing || m_fCloseingParam)
-            StartCloseingCB();
+        if (m_fClosing || m_fClosingParam)
+            StartClosingCB();
     }
 }
