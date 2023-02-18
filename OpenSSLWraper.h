@@ -10,8 +10,8 @@
    Email:   Thomas@fam-hauck.de
 */
 
-#ifndef OPENSSLWRAPPER
-#define OPENSSLWRAPPER
+#ifndef OPENSSLWRAPPER_H
+#define OPENSSLWRAPPER_H
 
 #ifndef WITHOUT_OPENSSL
 
@@ -30,6 +30,8 @@
 #include <openssl/engine.h>
 
 #include <mutex>
+#include <vector>
+#include <functional>
 
 namespace OpenSSLWrapper
 {
@@ -196,4 +198,4 @@ namespace OpenSSLWrapper
 
 #endif // WITHOUT_OPENSSL
 
-#endif
+#endif // OPENSSLWRAPPER_H

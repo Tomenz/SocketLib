@@ -10,8 +10,8 @@
    Email:   Thomas@fam-hauck.de
 */
 
-#ifndef STDSOCKET
-#define STDSOCKET
+#ifndef STDSOCKET_H
+#define STDSOCKET_H
 
 #include <vector>
 #include <deque>
@@ -298,4 +298,4 @@ private:
     function<void(UdpSocket*, void*)> m_fBytesReceivedParam;
 };
 
-#endif  // #ifndef STDSOCKET
+#endif  // #ifndef STDSOCKET_H

@@ -10,8 +10,8 @@
    Email:   Thomas@fam-hauck.de
 */
 
-#ifndef SSLSOCKET
-#define SSLSOCKET
+#ifndef SSLSOCKET_H
+#define SSLSOCKET_H
 
 #ifndef WITHOUT_OPENSSL
 
@@ -131,4 +131,4 @@ private:
 
 #endif  // WITHOUT_OPENSSL
 
-#endif  // #ifndef SSLSOCKET
+#endif  // #ifndef SSLSOCKET_H

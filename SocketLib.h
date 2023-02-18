@@ -10,8 +10,9 @@
    Email:   Thomas@fam-hauck.de
 */
 
-#ifndef SOCKETLIB
-#define SOCKETLIB
+#ifndef SOCKETLIB_H
+#define SOCKETLIB_H
+
 #include <memory>
 #include <functional>
 #include <vector>
@@ -208,4 +209,4 @@ public:
 
 #endif // WITHOUT_OPENSSL
 
-#endif // SOCKETLIB
+#endif // SOCKETLIB_H
