@@ -2,17 +2,18 @@
 [![Build Status](https://travis-ci.org/Tomenz/SocketLib.svg?branch=master)](https://travis-ci.org/Tomenz/SocketLib)
 [![Build status](https://ci.appveyor.com/api/projects/status/ed2el9dnaua20hqj?svg=true)](https://ci.appveyor.com/project/Tomenz/socketlib)
 [![CMake](https://github.com/Tomenz/SocketLib/actions/workflows/cmake.yml/badge.svg)](https://github.com/Tomenz/SocketLib/actions/workflows/cmake.yml)
+[![C/C++ CI](https://github.com/Tomenz/SocketLib/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/Tomenz/SocketLib/actions/workflows/c-cpp.yml)
 
 # SocketLib
 Socket library written in c++11/14 for Windows/Linux (32/64)
 
--  IPv4 and IPv6 support
--  TCP and UDP support (both with SSL/TLS)
--  multi-cast support for IPv4 and IPv6
--  Enum all IP's on the host
--  notify if host ip comes up / changes / is removed
--  TLS 1.3 if openssl 1.1.1 or newer is used
--  Multi-threading, none blocking. All callback function executed in own thread
+  - IPv4 and IPv6 support
+  - TCP and UDP support (both with SSL/TLS)
+  - multi-cast support for IPv4 and IPv6
+  - Enum all IP's on the host
+  - notify if host ip comes up / changes / is removed
+  - TLS 1.3 if openssl 1.1.1 or newer is used
+  - Multi-threading, none blocking. All callback function executed in own thread
 
 Examples: https://github.com/Tomenz/Examples-SocketLib
 
