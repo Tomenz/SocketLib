@@ -6,15 +6,15 @@
 [![Language grade: C/C++](https://img.shields.io/lgtm/grade/cpp/g/Tomenz/SocketLib.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/Tomenz/SocketLib/context:cpp)
 
 # SocketLib
-Socket library written in c++11/14 for Windows/Linux (32/64) 
+Socket library written in c++11/14 for Windows/Linux (32/64)
 
-- IPv4 and IPv6 support
-- TCP and UDP support (both with SSL/TLS)
-- multi-cast support for IPv4 and IPv6
-- Enum all IP's on the host
-- notify if host ip comes up / changes / is removed
-- TLS 1.3 if openssl 1.1.1 or newer is used
-- Multi-threading, none blocking. All callback function executed in own thread
+-  IPv4 and IPv6 support
+-  TCP and UDP support (both with SSL/TLS)
+-  multi-cast support for IPv4 and IPv6
+-  Enum all IP's on the host
+-  notify if host ip comes up / changes / is removed
+-  TLS 1.3 if openssl 1.1.1 or newer is used
+-  Multi-threading, none blocking. All callback function executed in own thread
 
 Examples: https://github.com/Tomenz/Examples-SocketLib
 
@@ -56,8 +56,8 @@ void ServerThread(bool* bStop)
 
     sock.BindErrorFunction([&](BaseSocket* pSock) { cout << "Server: socket error" << endl; pSock->Close(); }); // Must call Close function
     sock.BindCloseFunction([&](BaseSocket*) { cout << "Server: socket closing" << endl; });
-    
-    // This Callback is called if a new client connects to the server. 
+
+    // This Callback is called if a new client connects to the server.
     sock.BindNewConnection([&](const vector<TcpSocket*>& lstSockets)
         {
             for (auto& pSocket : lstSockets)
@@ -78,7 +78,7 @@ void ServerThread(bool* bStop)
                                 copy(&spBuffer[0], &spBuffer[nRead], &strRec[0]);
 
                                 stringstream strOutput;
-                                strOutput << pTcpSocket->GetClientAddr() << " - Server received: " 
+                                strOutput << pTcpSocket->GetClientAddr() << " - Server received: "
                                           << nRead << " Bytes, \"" << strRec << "\"" << endl;
 
                                 cout << strOutput.str();
@@ -90,7 +90,7 @@ void ServerThread(bool* bStop)
                             }
                         });
                     pSocket->BindErrorFunction([&](BaseSocket*) { cout << "Server: socket error" << endl; });
-                    pSocket->BindCloseFunction([&](BaseSocket* pSock) 
+                    pSocket->BindCloseFunction([&](BaseSocket* pSock)
                         {
                             cout << "Server: socket closing" << endl;
                         });
@@ -131,7 +131,7 @@ void ClientThread(bool* bStop)
                 copy(&spBuffer[0], &spBuffer[nRead], &strRec[0]);
 
                 stringstream strOutput;
-                strOutput << pTcpSocket->GetClientAddr() << " - Client received: " 
+                strOutput << pTcpSocket->GetClientAddr() << " - Client received: "
                           << nRead << " Bytes, \"" << strRec << "\"" << endl;
 
                 cout << strOutput.str();

@@ -222,9 +222,8 @@ int InitSocket::CbEnumIpAdressen(int iFamily, const string& strIp, int nInterFac
         return 1;   // Stop enumeration, doesn't make sense
 
     vector<tuple<const string, int, int>>* pmaStrIps = static_cast<vector<tuple<const string, int, int>>*>(vpUserParam);
-    if (pmaStrIps == nullptr)
-        return -1;
     pmaStrIps->push_back(make_tuple(strIp, iFamily, nInterFaceId));
+
     return 0;
 }
 

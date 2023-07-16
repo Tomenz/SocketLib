@@ -330,7 +330,7 @@ namespace OpenSSLWrapper
 
     void SslServerContext::AddVirtualHost(vector<SslServerContext>* pSslCtx) noexcept
     {
-        SSL_CTX_set_tlsext_servername_arg(m_ctx, (void*)pSslCtx);
+        SSL_CTX_set_tlsext_servername_arg(m_ctx, reinterpret_cast<void*>(pSslCtx));
     }
 
     bool SslServerContext::SetDhParamFile(const char* const szDhParamFile)
