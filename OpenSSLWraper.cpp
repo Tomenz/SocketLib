@@ -159,7 +159,7 @@ namespace OpenSSLWrapper
                     const int iStrLen = ASN1_STRING_length(entry->d.iPAddress);
                     if (szIp != nullptr)
                     {
-                        struct sockaddr_storage addr = { 0 };
+                        struct sockaddr_storage addr;
                         addr.ss_family = iStrLen > 4 ? AF_INET6 : AF_INET;
                         if (iStrLen > 4)
                             copy(&szIp[0], &szIp[iStrLen], reinterpret_cast<uint8_t*>(&addr.__ss_align));
