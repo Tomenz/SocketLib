@@ -147,7 +147,7 @@ void InitSocket::IpChangeThread()
     addr.nl_family = AF_NETLINK;
     addr.nl_groups = RTMGRP_LINK | RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR;
 
-    if (bind(fSock, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+    if (bind(fSock, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)) == -1)
     {
         ::closesocket(fSock);
         return;
