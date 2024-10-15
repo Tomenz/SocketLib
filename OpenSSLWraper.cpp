@@ -159,7 +159,7 @@ namespace OpenSSLWrapper
                     const int iStrLen = ASN1_STRING_length(entry->d.iPAddress);
                     if (szIp != nullptr)
                     {
-                        struct sockaddr_storage addr = { 0 };
+                        struct sockaddr_storage addr{ 0 };
                         addr.ss_family = iStrLen > 4 ? AF_INET6 : AF_INET;
                         if (iStrLen > 4)
                             copy(&szIp[0], &szIp[iStrLen], reinterpret_cast<uint8_t*>(&addr.__ss_align));
@@ -405,7 +405,7 @@ namespace OpenSSLWrapper
     /*
     int SslServerContext::NPN_CB(SSL *ssl, unsigned char **out, unsigned char *outlen, const unsigned char *in, unsigned int inlen, void *arg)
     {
-        vector<string> vProtos = { { "h2" },{ "h2-16" },{ "h2-15" },{ "h2-14" },{ "http/1.1" } };
+        vector<string> vProtos{ { "h2" },{ "h2-16" },{ "h2-15" },{ "h2-14" },{ "http/1.1" } };
 
         for (auto& strProt : vProtos)
         {

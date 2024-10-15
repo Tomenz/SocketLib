@@ -70,7 +70,7 @@ SslTcpSocketImpl::~SslTcpSocketImpl()
         m_pSslCon->SSLSetShutdown(SSL_SENT_SHUTDOWN | SSL_RECEIVED_SHUTDOWN);
 }
 
-bool SslTcpSocketImpl::AddServerCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName)
+bool SslTcpSocketImpl::AddServerCertificate(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName)
 {
     m_pServerCtx.emplace_back(SslServerContext());
     if (m_pServerCtx.back().SetCertificates(szCAcertificate, szHostCertificate, szHostKey) > 0)
@@ -86,7 +86,7 @@ bool SslTcpSocketImpl::AddServerCertificat(const char* szCAcertificate, const ch
     return false;
 }
 
-bool SslTcpSocketImpl::AddCertificat(const char* const szHostCertificate, const char* const szHostKey)
+bool SslTcpSocketImpl::AddCertificate(const char* const szHostCertificate, const char* const szHostKey)
 {
     return (m_pClientCtx.SetCertificates(szHostCertificate, szHostKey) < 0) ? false : true;
 }
@@ -559,13 +559,13 @@ SslTcpSocket* SslTcpServerImpl::MakeClientConnection(const SOCKET& fSock)
     return pSslTcpSock;
 }
 
-bool SslTcpServerImpl::AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey)
+bool SslTcpServerImpl::AddCertificate(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey)
 {
     m_SslCtx.emplace_back(SslServerContext());
     const int iRet = m_SslCtx.back().SetCertificates(szCAcertificate, szHostCertificate, szHostKey);
     if (iRet != 1)
     {
-        OutputDebugString(wstring(L"Certification could not be loaded, error: " + to_wstring(iRet) + L"\r\n").c_str());
+        OutputDebugString(wstring(L"Certificate could not be loaded, error: " + to_wstring(iRet) + L"\r\n").c_str());
         m_SslCtx.pop_back();
         return false;
     }
@@ -611,7 +611,7 @@ SslUdpSocketImpl::~SslUdpSocketImpl()
 {
 }
 
-bool SslUdpSocketImpl::AddCertificat(const char* const szHostCertificate, const char* const szHostKey)
+bool SslUdpSocketImpl::AddCertificate(const char* const szHostCertificate, const char* const szHostKey)
 {
     m_pUdpCtx.SetCertificates(szHostCertificate, szHostKey);
     return true;
