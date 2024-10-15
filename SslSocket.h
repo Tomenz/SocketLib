@@ -32,8 +32,8 @@ public:
     SslTcpSocketImpl& operator=(const SslTcpSocketImpl&) = delete;
     SslTcpSocketImpl& operator=(SslTcpSocketImpl&&) = delete;
 
-    bool AddServerCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName);
-    bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
+    bool AddServerCertificate(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName);
+    bool AddCertificate(const char* const szHostCertificate, const char* const szHostKey);
     bool SetCipher(const char* const szCipher) noexcept;
     bool SetAcceptState();
     bool SetConnectState();
@@ -85,7 +85,7 @@ public:
     SslTcpServerImpl& operator=(SslTcpServerImpl&&) = delete;
 
     SslTcpSocket* MakeClientConnection(const SOCKET&) override;
-    bool AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey);
+    bool AddCertificate(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey);
     bool SetDHParameter(const char* const szDhParamFileName);
     bool SetCipher(const char* const szCipher) noexcept;
     void SetAlpnProtokollNames(const vector<string>& vStrProtoNames);
@@ -105,7 +105,7 @@ public:
     SslUdpSocketImpl& operator=(const SslUdpSocketImpl&) = delete;
     SslUdpSocketImpl& operator=(SslUdpSocketImpl&&) = delete;
 
-    bool AddCertificat(const char* const szHostCertificate, const char* const szHostKey);
+    bool AddCertificate(const char* const szHostCertificate, const char* const szHostKey);
     bool CreateServerSide(const char* const szIpToWhere, const uint16_t sPort, const char* const szIpToBind = nullptr);
     bool CreateClientSide(const char* const szIpToWhere, const uint16_t sPort, const char* const szDestAddr, const char* const szIpToBind = nullptr);
     void Close() override;

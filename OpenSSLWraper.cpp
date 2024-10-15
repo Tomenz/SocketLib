@@ -405,7 +405,7 @@ namespace OpenSSLWrapper
     /*
     int SslServerContext::NPN_CB(SSL *ssl, unsigned char **out, unsigned char *outlen, const unsigned char *in, unsigned int inlen, void *arg)
     {
-        vector<string> vProtos = { { "h2" },{ "h2-16" },{ "h2-15" },{ "h2-14" },{ "http/1.1" } };
+        vector<string> vProtos{ { "h2" },{ "h2-16" },{ "h2-15" },{ "h2-14" },{ "http/1.1" } };
 
         for (auto& strProt : vProtos)
         {

@@ -301,14 +301,14 @@ SslTcpSocket::SslTcpSocket(const TcpSocket* pTcpSock) : TcpSocket(false)   // Sw
     Impl_ = make_unique<SslTcpSocketImpl>(this, dynamic_cast<TcpSocketImpl*>(pImpl));
 }
 
-bool SslTcpSocket::AddServerCertificat(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName)
+bool SslTcpSocket::AddServerCertificate(const char* szCAcertificate, const char* szHostCertificate, const char* szHostKey, const char* szDhParamFileName)
 {
-    return dynamic_cast<SslTcpSocketImpl*>(GetImpl())->AddServerCertificat(szCAcertificate, szHostCertificate, szHostKey, szDhParamFileName);
+    return dynamic_cast<SslTcpSocketImpl*>(GetImpl())->AddServerCertificate(szCAcertificate, szHostCertificate, szHostKey, szDhParamFileName);
 }
 
-bool SslTcpSocket::AddCertificat(const char* const szHostCertificate, const char* const szHostKey)
+bool SslTcpSocket::AddCertificate(const char* const szHostCertificate, const char* const szHostKey)
 {
-    return dynamic_cast<SslTcpSocketImpl*>(GetImpl())->AddCertificat(szHostCertificate, szHostKey);
+    return dynamic_cast<SslTcpSocketImpl*>(GetImpl())->AddCertificate(szHostCertificate, szHostKey);
 }
 
 bool SslTcpSocket::SetCipher(const char* const szCipher) noexcept
@@ -383,9 +383,9 @@ SslTcpServer::SslTcpServer() : TcpServer(false)
     Impl_ = make_unique<SslTcpServerImpl>(this);
 }
 
-bool SslTcpServer::AddCertificat(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey)
+bool SslTcpServer::AddCertificate(const char* const szCAcertificate, const char* const szHostCertificate, const char* const szHostKey)
 {
-    return dynamic_cast<SslTcpServerImpl*>(GetImpl())->AddCertificat(szCAcertificate, szHostCertificate, szHostKey);
+    return dynamic_cast<SslTcpServerImpl*>(GetImpl())->AddCertificate(szCAcertificate, szHostCertificate, szHostKey);
 }
 
 bool SslTcpServer::SetDHParameter(const char* const szDhParamFileName)
@@ -410,9 +410,9 @@ SslUdpSocket::SslUdpSocket()
     Impl_ = make_unique<SslUdpSocketImpl>(this);
 }
 
-bool SslUdpSocket::AddCertificat(const char* const szHostCertificate, const char* const szHostKey)
+bool SslUdpSocket::AddCertificate(const char* const szHostCertificate, const char* const szHostKey)
 {
-    return dynamic_cast<SslUdpSocketImpl*>(GetImpl())->AddCertificat(szHostCertificate, szHostKey);
+    return dynamic_cast<SslUdpSocketImpl*>(GetImpl())->AddCertificate(szHostCertificate, szHostKey);
 }
 
 bool SslUdpSocket::CreateServerSide(const char* const szIpToWhere, const uint16_t sPort, const char* const szIpToBind/* = nullptr*/)
