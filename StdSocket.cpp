@@ -143,7 +143,7 @@ void InitSocket::IpChangeThread()
         return;
     }
 
-    struct sockaddr_nl addr{ 0 };
+    struct sockaddr_nl addr{};
     addr.nl_family = AF_NETLINK;
     addr.nl_groups = RTMGRP_LINK | RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR;
 
@@ -531,7 +531,7 @@ bool TcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort,
         m_fSock = INVALID_SOCKET;
     }
 
-    struct addrinfo* lstAddr{ nullptr }, hint{ 0 };
+    struct addrinfo* lstAddr{}, hint{};
     hint.ai_family = AddrHint;
     hint.ai_socktype = SOCK_STREAM;
 
@@ -734,8 +734,8 @@ void TcpSocketImpl::WriteThread()
 
         if (m_atOutBytes != 0)
         {
-            fd_set writefd{ 0 }, errorfd{ 0 };
-            struct timeval timeout{ 0 };
+            fd_set writefd{}, errorfd{};
+            struct timeval timeout{};
 
             timeout.tv_sec = 1;
             timeout.tv_usec = 0;
@@ -965,8 +965,8 @@ void TcpSocketImpl::SelectThread()
             continue;
         }
 
-        fd_set readfd{ 0 }, errorfd{ 0 };
-        struct timeval timeout{ 0 };
+        fd_set readfd{}, errorfd{};
+        struct timeval timeout{};
 
         timeout.tv_sec = 2;
         timeout.tv_usec = 0;
@@ -1147,8 +1147,8 @@ void TcpSocketImpl::ConnectThread()
 
     while (m_bStop == false)
     {
-        fd_set writefd{ 0 }, errorfd{ 0 };
-        struct timeval timeout{ 0 };
+        fd_set writefd{}, errorfd{};
+        struct timeval timeout{};
 
         timeout.tv_sec = 2;
         timeout.tv_usec = 0;
@@ -1281,7 +1281,7 @@ TcpServerImpl::~TcpServerImpl()
 
 bool TcpServerImpl::Start(const char* const szIpAddr, const uint16_t sPort)
 {
-    struct addrinfo *lstAddr{ nullptr }, hint{ 0 };
+    struct addrinfo *lstAddr{}, hint{};
     hint.ai_family = AF_UNSPEC;
     hint.ai_socktype = SOCK_STREAM;
     hint.ai_flags = AI_PASSIVE;
@@ -1339,7 +1339,7 @@ bool TcpServerImpl::Start(const char* const szIpAddr, const uint16_t sPort)
 
 uint16_t TcpServerImpl::GetServerPort()
 {
-    struct sockaddr_storage addrPe{ 0 };
+    struct sockaddr_storage addrPe{};
     socklen_t addLen = sizeof(addrPe);
     if (::getsockname(m_vSock[0], reinterpret_cast<struct sockaddr*>(&addrPe), &addLen) == 0)  // Get our IP where the connection was established
     {
@@ -1430,8 +1430,8 @@ void TcpServerImpl::SelectThread()
 
     while (m_bStop == false)
     {
-        fd_set readfd{ 0 };
-        struct timeval timeout{ 0 };
+        fd_set readfd{};
+        struct timeval timeout{};
         SOCKET maxFd = 0;
 
         timeout.tv_sec = 2;
@@ -1545,7 +1545,7 @@ UdpSocketImpl::~UdpSocketImpl()
 
 bool UdpSocketImpl::Create(const char* const szIpToWhere, const uint16_t sPort, const char* const szIpToBind/* = nullptr*/)
 {
-    struct addrinfo* lstAddr{ nullptr }, hint{ 0 };
+    struct addrinfo* lstAddr{}, hint{};
     hint.ai_family = AF_UNSPEC;
     hint.ai_socktype = SOCK_DGRAM;
     hint.ai_flags = AI_PASSIVE;
@@ -1798,8 +1798,8 @@ void UdpSocketImpl::WriteThread()
 
         if (m_atOutBytes != 0)
         {
-            fd_set writefd{ 0 }, errorfd{ 0 };
-            struct timeval timeout{ 0 };
+            fd_set writefd{}, errorfd{};
+            struct timeval timeout{};
 
             timeout.tv_sec = 1;
             timeout.tv_usec = 0;
@@ -1965,8 +1965,8 @@ void UdpSocketImpl::SelectThread()
             continue;
         }
 
-        fd_set readfd{ 0 }, errorfd{ 0 };
-        struct timeval timeout{ 0 };
+        fd_set readfd{}, errorfd{};
+        struct timeval timeout{};
 
         timeout.tv_sec = 2;
         timeout.tv_usec = 0;

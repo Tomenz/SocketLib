@@ -333,7 +333,7 @@ namespace OpenSSLWrapper
         SSL_CTX_set_tlsext_servername_arg(m_ctx, reinterpret_cast<void*>(pSslCtx));
     }
 
-    bool SslServerContext::SetDhParamFile(const char* const szDhParamFile)
+    bool SslServerContext::SetDhParamFile([[maybe_unused]] const char* const szDhParamFile)
     {
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
         fstream fin(szDhParamFile, ios::in | ios::binary);
@@ -359,7 +359,6 @@ namespace OpenSSLWrapper
 
         return false;
 #else
-        szDhParamFile;
         return true;
 #endif
     }
@@ -678,6 +677,7 @@ namespace OpenSSLWrapper
                 iResult = errno;
                 if (iResult == 0 && ERR_peek_error() == 0)    // if errno and ERR_peack_error are both 0, we not having really an error, and give it a other shoot
                     break;
+                [[fallthrough]];
             default:
                 m_iShutDownFlag = 1;
                 if (m_fError)
@@ -724,6 +724,7 @@ namespace OpenSSLWrapper
                 break;
             case SSL_ERROR_SYSCALL:
                 iResult = errno;
+                [[fallthrough]];
             default:
 OutputDebugStringA(string(GetSslErrAsString() + "errno = " + to_string(iResult) + "\r\n").c_str());
                 m_iShutDownFlag = 1;
