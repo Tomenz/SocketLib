@@ -11,9 +11,16 @@ if(NOT DEFINED CMAKE_CXX_STANDARD)
   message(STATUS "Setting C++ version to '14' as none was specified.")
   set(CMAKE_CXX_STANDARD 14)
 else()
-  message(STATUS "CMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD} set by parent project.")
+  message(STATUS "${PROJECT_NAME}: CMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD} set by parent project.")
 endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+string(FIND "${CMAKE_CXX_FLAGS_DEBUG}" "-O0" nPos)
+if(${nPos} EQUAL "-1")
+  SET(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3 -ggdb -D_DEBUG -DDEBUG")
+else()
+  message(STATUS "${PROJECT_NAME}: CMAKE_CXX_FLAGS_DEBUG hat bereits -O0 enthalten")
+endif()
 
 # Options
 option(UA_ENABLE_ENCRYPTION_OPENSSL "Enable encryption support (uses openssl)" ON)
