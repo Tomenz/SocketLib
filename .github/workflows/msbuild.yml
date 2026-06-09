@@ -46,4 +46,6 @@ jobs:
       working-directory: ${{env.GITHUB_WORKSPACE}}
       # Add additional options to the MSBuild command line here (like platform or verbosity level).
       # See https://docs.microsoft.com/visualstudio/msbuild/msbuild-command-line-reference
-      run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:OPENSSL_DIR="C:\Program Files\OpenSSL-Win64" ${{env.SOLUTION_FILE_PATH}}
+      run: |
+        $openSSLDir = "C:\Program Files\OpenSSL-Win64"
+        msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:OPENSSL_DIR="$openSSLDir" /p:AdditionalIncludeDirectories="$openSSLDir\include" ${{env.SOLUTION_FILE_PATH}}
