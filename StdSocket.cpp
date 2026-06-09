@@ -307,12 +307,14 @@ function<void(BaseSocket*, void*)> BaseSocketImpl::BindErrorFunction(function<vo
 function<void(BaseSocket*)> BaseSocketImpl::BindCloseFunction(function<void(BaseSocket*)> fClosing) noexcept
 {
     m_fClosing.swap(fClosing);
+    m_fSaveClosing = m_fClosing;  // Save the closing function
     return fClosing;
 }
 
 function<void(BaseSocket*, void*)> BaseSocketImpl::BindCloseFunction(function<void(BaseSocket*, void*)> fClosing) noexcept
 {
     m_fClosingParam.swap(fClosing);
+    m_fSaveClosingParam = m_fClosingParam;  // Save the closing function
     return fClosing;
 }
 
@@ -348,14 +350,14 @@ void BaseSocketImpl::StartClosingCB()
     m_mxFnClosing.lock();
     if (m_fClosingParam)
     {
-        function<void(BaseSocket*, void*)> tmpfun;
+        function<void(BaseSocket*, void*)> tmpfun(nullptr);
         m_fClosingParam.swap(tmpfun);
         m_mxFnClosing.unlock();
         tmpfun(m_pBkRef, m_pvUserData);
     }
     else if (m_fClosing)
     {
-        function<void(BaseSocket*)> tmpfun;
+        function<void(BaseSocket*)> tmpfun(nullptr);
         m_fClosing.swap(tmpfun);
         m_mxFnClosing.unlock();
         tmpfun(m_pBkRef);
@@ -542,6 +544,14 @@ bool TcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort,
 
     try
     {
+        m_bCloseReq = false;
+        m_bStop = false;
+        m_iShutDownState = 0;
+        if (m_fSaveClosing != nullptr && m_fClosing == nullptr)
+            m_fClosing = m_fSaveClosing;  // Restore the saved closing function if it was not already set
+        if (m_fSaveClosingParam != nullptr && m_fClosingParam == nullptr)
+            m_fClosingParam = m_fSaveClosingParam;  // Restore the saved closing function if it was not already set
+
         m_fSock = ::socket(lstAddr->ai_family, lstAddr->ai_socktype, lstAddr->ai_protocol);
         if (m_fSock == INVALID_SOCKET)
             throw WSAGetLastError();
@@ -567,13 +577,19 @@ bool TcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort,
                 throw m_iError;
 
             m_iError = 0;
+            if (m_thConnect.joinable() == true)
+                m_thConnect.join();
             m_thConnect = thread(&TcpSocketImpl::ConnectThread, this);
         }
         else
         {
             GetConnectionInfo();
 
+            if (m_thListen.joinable() == true)
+                m_thListen.join();
             m_thListen = thread(&TcpSocketImpl::SelectThread, this);
+            if (m_thWrite.joinable() == true)
+                m_thWrite.join();
             m_thWrite = thread(&TcpSocketImpl::WriteThread, this);
 
             TcpSocket* pTcpSocket = dynamic_cast<TcpSocket*>(m_pBkRef);
@@ -857,11 +873,16 @@ void TcpSocketImpl::WriteThread()
 
 void TcpSocketImpl::StartReceiving()
 {
+    if (m_thListen.joinable() == true)
+        m_thListen.join();
     m_thListen = thread(&TcpSocketImpl::SelectThread, this);
 }
 
 void TcpSocketImpl::Close()
 {
+    if (m_bCloseReq == true)
+        return;
+
     //OutputDebugString(L"TcpSocketImpl::Close\r\n");
     m_bCloseReq = true; // Stops the write thread after the last byte was send
     do
@@ -882,6 +903,9 @@ void TcpSocketImpl::Close()
         while (m_fClosingParam != nullptr || m_fClosing != nullptr)
             this_thread::sleep_for(chrono::milliseconds(1));
     }
+
+    if (m_thClose.joinable() == true)
+        m_thClose.join();
 }
 
 void TcpSocketImpl::SelfDestroy()
@@ -1177,7 +1201,11 @@ void TcpSocketImpl::ConnectThread()
             {
                 GetConnectionInfo();
 
+                if (m_thListen.joinable() == true)
+                    m_thListen.join();
                 m_thListen = thread(&TcpSocketImpl::SelectThread, this);
+                if (m_thWrite.joinable() == true)
+                    m_thWrite.join();
                 m_thWrite = thread(&TcpSocketImpl::WriteThread, this);
 
                 TcpSocket* pTcpSocket = dynamic_cast<TcpSocket*>(m_pBkRef);
@@ -1557,6 +1585,14 @@ bool UdpSocketImpl::Create(const char* const szIpToWhere, const uint16_t sPort, 
 
     try
     {
+        m_bStop = false;
+        m_bCloseReq = false;
+        m_iShutDownState = 0;
+        if (m_fSaveClosing != nullptr && m_fClosing == nullptr)
+            m_fClosing = m_fSaveClosing;
+        if (m_fSaveClosingParam != nullptr && m_fClosingParam == nullptr)
+            m_fClosingParam = m_fSaveClosingParam;  // Restore the saved closing function if it was not already set
+
         m_fSock = ::socket(lstAddr->ai_family, lstAddr->ai_socktype, lstAddr->ai_protocol);
         if (m_fSock == INVALID_SOCKET)
             throw WSAGetLastError();
@@ -1589,7 +1625,11 @@ bool UdpSocketImpl::Create(const char* const szIpToWhere, const uint16_t sPort, 
                 throw WSAGetLastError();
         }
 
+        if (m_thListen.joinable() == true)
+            m_thListen.join();
         m_thListen = thread(&UdpSocketImpl::SelectThread, this);
+        if (m_thWrite.joinable() == true)
+            m_thWrite.join();
         m_thWrite = thread(&UdpSocketImpl::WriteThread, this);
     }
 
@@ -1917,6 +1957,9 @@ void UdpSocketImpl::WriteThread()
 
 void UdpSocketImpl::Close()
 {
+    if (m_bCloseReq == true)
+        return;
+
     m_bCloseReq = true; // Stops the write thread after the last byte was send
     do
     {

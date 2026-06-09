@@ -116,6 +116,8 @@ protected:
     function<void(BaseSocket*, void*)> m_fErrorParam;
     function<void(BaseSocket*)> m_fClosing;
     function<void(BaseSocket*, void*)> m_fClosingParam;
+    std::function<void(BaseSocket*)> m_fSaveClosing;
+    std::function<void(BaseSocket*, void*)> m_fSaveClosingParam;
     void*                       m_pvUserData;
     mutex                       m_mxFnClosing;
     BaseSocket*                 m_pBkRef;
