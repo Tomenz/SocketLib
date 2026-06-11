@@ -164,8 +164,8 @@ void InitSocket::IpChangeThread()
         fd_set readfd, errorfd;
         struct timeval timeout;
 
-        timeout.tv_sec = 2;
-        timeout.tv_usec = 0;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 200000;
         FD_ZERO(&readfd);
         FD_ZERO(&errorfd);
 
@@ -753,8 +753,8 @@ void TcpSocketImpl::WriteThread()
             fd_set writefd{}, errorfd{};
             struct timeval timeout{};
 
-            timeout.tv_sec = 1;
-            timeout.tv_usec = 0;
+            timeout.tv_sec = 0;
+            timeout.tv_usec = 200000;
             FD_ZERO(&writefd);
             FD_ZERO(&errorfd);
 
@@ -992,8 +992,8 @@ void TcpSocketImpl::SelectThread()
         fd_set readfd{}, errorfd{};
         struct timeval timeout{};
 
-        timeout.tv_sec = 2;
-        timeout.tv_usec = 0;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 200000;
         FD_ZERO(&readfd);
         FD_ZERO(&errorfd);
 
@@ -1174,8 +1174,8 @@ void TcpSocketImpl::ConnectThread()
         fd_set writefd{}, errorfd{};
         struct timeval timeout{};
 
-        timeout.tv_sec = 2;
-        timeout.tv_usec = 0;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 200000;
         FD_ZERO(&writefd);
         FD_ZERO(&errorfd);
 
@@ -1462,8 +1462,8 @@ void TcpServerImpl::SelectThread()
         struct timeval timeout{};
         SOCKET maxFd = 0;
 
-        timeout.tv_sec = 2;
-        timeout.tv_usec = 0;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 200000;
         FD_ZERO(&readfd);
 
         for (auto Sock : m_vSock)
@@ -1841,8 +1841,8 @@ void UdpSocketImpl::WriteThread()
             fd_set writefd{}, errorfd{};
             struct timeval timeout{};
 
-            timeout.tv_sec = 1;
-            timeout.tv_usec = 0;
+            timeout.tv_sec = 0;
+            timeout.tv_usec = 200000;
             FD_ZERO(&writefd);
             FD_ZERO(&errorfd);
 
@@ -2011,8 +2011,8 @@ void UdpSocketImpl::SelectThread()
         fd_set readfd{}, errorfd{};
         struct timeval timeout{};
 
-        timeout.tv_sec = 2;
-        timeout.tv_usec = 0;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 200000;
         FD_ZERO(&readfd);
         FD_ZERO(&errorfd);
 
