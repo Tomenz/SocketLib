@@ -648,7 +648,7 @@ size_t TcpSocketImpl::Read(void* buf, size_t len)
 
     NextFromQue:
     m_mxInDeque.lock();
-    DATA data = move(m_quInData.front());
+    DATA data = std::move(m_quInData.front());
     m_quInData.pop_front();
     m_mxInDeque.unlock();
 
@@ -664,7 +664,7 @@ size_t TcpSocketImpl::Read(void* buf, size_t len)
         auto tmp = make_unique<uint8_t[]>(nRest);
         copy_n(&BUFFER(data)[nToCopy], nToCopy + nRest, &tmp[0]);
         m_mxInDeque.lock();
-        m_quInData.emplace_front(move(tmp), nRest);
+        m_quInData.emplace_front(std::move(tmp), nRest);
         m_mxInDeque.unlock();
     }
     else if (m_quInData.size() > 0 && len > nToCopy)
@@ -685,7 +685,7 @@ size_t TcpSocketImpl::PutBackRead(void* buf, size_t len)
     auto tmp = make_unique<uint8_t[]>(len);
     copy_n(&static_cast<const uint8_t*>(buf)[0], len, &tmp[0]);
     m_mxInDeque.lock();
-    m_quInData.emplace_front(move(tmp), len);
+    m_quInData.emplace_front(std::move(tmp), len);
     m_atInBytes += len;
     m_mxInDeque.unlock();
 
@@ -711,7 +711,7 @@ size_t TcpSocketImpl::Write(const void* buf, size_t len)
         auto tmp = make_unique<uint8_t[]>(len);
         copy_n(&static_cast<const uint8_t*>(buf)[0], len, &tmp[0]);
         lock_guard<mutex> lock(m_mxOutDeque);
-        m_quTmpOutData.emplace_back(move(tmp), len);
+        m_quTmpOutData.emplace_back(std::move(tmp), len);
         return len;
     }
 
@@ -722,7 +722,7 @@ size_t TcpSocketImpl::Write(const void* buf, size_t len)
         copy_n(&static_cast<const uint8_t*>(buf)[0], len, &tmp[0]);
         m_mxOutDeque.lock();
         m_atOutBytes += len;
-        m_quOutData.emplace_back(move(tmp), len);
+        m_quOutData.emplace_back(std::move(tmp), len);
         m_mxOutDeque.unlock();
 
         iRet = 1;   // Trigger WriteThread
@@ -795,7 +795,7 @@ void TcpSocketImpl::WriteThread()
                 m_mxOutDeque.unlock();
                 continue;
             }
-            DATA data = move(m_quOutData.front());
+            DATA data = std::move(m_quOutData.front());
             m_quOutData.pop_front();
             m_atOutBytes -= BUFLEN(data);
             m_mxOutDeque.unlock();
@@ -825,7 +825,7 @@ void TcpSocketImpl::WriteThread()
                 copy_n(&BUFFER(data)[0], BUFLEN(data), &tmp[0]);
                 m_mxOutDeque.lock();
                 m_atOutBytes += BUFLEN(data);
-                m_quOutData.emplace_front(move(tmp), BUFLEN(data));
+                m_quOutData.emplace_front(std::move(tmp), BUFLEN(data));
                 m_mxOutDeque.unlock();
             }
             else if (transferred < BUFLEN(data)) // Less bytes send as buffer size, we put the rast back in your que
@@ -834,7 +834,7 @@ void TcpSocketImpl::WriteThread()
                 copy_n(&BUFFER(data)[transferred], BUFLEN(data) - transferred, &tmp[0]);
                 m_mxOutDeque.lock();
                 m_atOutBytes += (BUFLEN(data) - transferred);
-                m_quOutData.emplace_front(move(tmp), (BUFLEN(data) - transferred));
+                m_quOutData.emplace_front(std::move(tmp), (BUFLEN(data) - transferred));
                 m_mxOutDeque.unlock();
             }
         }
@@ -1069,7 +1069,7 @@ void TcpSocketImpl::SelectThread()
                             auto tmp = make_unique<uint8_t[]>(transferred);
                             copy_n(&buf[0], transferred, &tmp[0]);
                             lock_guard<mutex> lock(m_mxInDeque);
-                            m_quInData.emplace_back(move(tmp), transferred);
+                            m_quInData.emplace_back(std::move(tmp), transferred);
                             m_atInBytes += transferred;
                         }
 
@@ -1420,7 +1420,7 @@ TcpSocket* TcpServerImpl::MakeClientConnection(const SOCKET& fSock)
     }
 
     lock_guard<mutex> lock(s_mxClientSocket);
-    s_lstClientSocket.push_back(move(pTcpSocket));
+    s_lstClientSocket.push_back(std::move(pTcpSocket));
 
     return pTcpSock;
 }
@@ -1772,7 +1772,7 @@ size_t UdpSocketImpl::Read(void* buf, size_t len, string& strFrom)
     size_t nRet = 0;
 
     m_mxInDeque.lock();
-    DATA data = move(m_quInData.front());
+    DATA data = std::move(m_quInData.front());
     m_quInData.pop_front();
     m_mxInDeque.unlock();
 
@@ -1789,7 +1789,7 @@ size_t UdpSocketImpl::Read(void* buf, size_t len, string& strFrom)
         auto tmp = make_unique<uint8_t[]>(nRest);
         copy_n(&BUFFER(data)[nToCopy], nToCopy + nRest, &tmp[0]);
         m_mxInDeque.lock();
-        m_quInData.emplace_front(move(tmp), nRest, ADDRESS(data));
+        m_quInData.emplace_front(std::move(tmp), nRest, ADDRESS(data));
         m_mxInDeque.unlock();
     }
 
@@ -1814,7 +1814,7 @@ size_t UdpSocketImpl::Write(const void* buf, size_t len, const string& strTo)
         copy_n(&static_cast<const uint8_t*>(buf)[0], len, &tmp[0]);
         m_mxOutDeque.lock();
         m_atOutBytes += len;
-        m_quOutData.emplace_back(move(tmp), len, strTo);
+        m_quOutData.emplace_back(std::move(tmp), len, strTo);
         m_mxOutDeque.unlock();
 
         iRet = 1;   // Trigger WriteThread
@@ -1871,7 +1871,7 @@ void UdpSocketImpl::WriteThread()
             }
 
             m_mxOutDeque.lock();
-            DATA data = move(m_quOutData.front());
+            DATA data = std::move(m_quOutData.front());
             m_quOutData.pop_front();
             m_atOutBytes -= BUFLEN(data);
             m_mxOutDeque.unlock();
@@ -1915,7 +1915,7 @@ void UdpSocketImpl::WriteThread()
                 copy_n(&BUFFER(data)[0], BUFLEN(data), &tmp[0]);
                 m_mxOutDeque.lock();
                 m_atOutBytes += BUFLEN(data);
-                m_quOutData.emplace_front(move(tmp), BUFLEN(data), ADDRESS(data));
+                m_quOutData.emplace_front(std::move(tmp), BUFLEN(data), ADDRESS(data));
                 m_mxOutDeque.unlock();
             }
             else if (transferred < BUFLEN(data)) // Less bytes send as buffer size, we put the rast back in your que
@@ -1924,7 +1924,7 @@ void UdpSocketImpl::WriteThread()
                 copy_n(&BUFFER(data)[transferred], BUFLEN(data) - transferred, &tmp[0]);
                 m_mxOutDeque.lock();
                 m_atOutBytes += (BUFLEN(data) - transferred);
-                m_quOutData.emplace_front(move(tmp), (BUFLEN(data) - transferred), ADDRESS(data));
+                m_quOutData.emplace_front(std::move(tmp), (BUFLEN(data) - transferred), ADDRESS(data));
                 m_mxOutDeque.unlock();
             }
         }
@@ -2101,7 +2101,7 @@ void UdpSocketImpl::SelectThread()
                         auto tmp = make_unique<uint8_t[]>(transferred);
                         copy_n(&buf[0], transferred, &tmp[0]);
                         m_mxInDeque.lock();
-                        m_quInData.emplace_back(move(tmp), transferred, strAbsender.str());
+                        m_quInData.emplace_back(std::move(tmp), transferred, strAbsender.str());
                         m_atInBytes += transferred;
                         m_mxInDeque.unlock();
                     }
