@@ -544,9 +544,13 @@ bool TcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort,
 
     try
     {
+        if (m_thListen.joinable() == true)
+            m_thListen.join();
+        if (m_thWrite.joinable() == true)
+            m_thWrite.join();
         m_bCloseReq = false;
         m_bStop = false;
-        m_iShutDownState = 0;
+        m_iShutDownState = 7;
         if (m_fSaveClosing != nullptr && m_fClosing == nullptr)
             m_fClosing = m_fSaveClosing;  // Restore the saved closing function if it was not already set
         if (m_fSaveClosingParam != nullptr && m_fClosingParam == nullptr)
@@ -1199,7 +1203,15 @@ void TcpSocketImpl::ConnectThread()
 
             if (FD_ISSET(m_fSock, &writefd))
             {
-                GetConnectionInfo();
+                if (GetConnectionInfo() == false)
+                {
+                    m_iShutDownState = 15;
+                    if (m_fErrorParam && m_bStop == false)
+                        m_fErrorParam(m_pBkRef, m_pvUserData);
+                    else if (m_fError && m_bStop == false)
+                        m_fError(m_pBkRef);
+                    break;
+                }
 
                 if (m_thListen.joinable() == true)
                     m_thListen.join();
@@ -1216,6 +1228,9 @@ void TcpSocketImpl::ConnectThread()
 
                 if (m_fClientConnectedSsl)
                     m_fClientConnectedSsl(nullptr);
+
+                while (((m_iShutDownState & 1) == 1 || (m_iShutDownState & 2) == 2) && m_bStop == false) // Wait until the listen and write thread are running
+                    this_thread::sleep_for(chrono::milliseconds(10));
                 break;
             }
         }
