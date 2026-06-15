@@ -544,6 +544,16 @@ bool TcpSocketImpl::Connect(const char* const szIpToWhere, const uint16_t sPort,
 
     try
     {
+        if (m_quInData.size() != 0 || m_atInBytes != 0)
+        {
+            m_quInData.clear();
+            m_atInBytes = 0;
+        }
+        if (m_quOutData.size() != 0 || m_atOutBytes != 0)
+        {
+            m_quOutData.clear();
+            m_atOutBytes = 0;
+        }
         if (m_thListen.joinable() == true)
             m_thListen.join();
         if (m_thWrite.joinable() == true)
